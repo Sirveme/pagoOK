@@ -1,0 +1,67 @@
+# pagoOK
+
+> pagoOK is a real-time payment validation system for Peruvian and Latin American small businesses. It captures notifications from banking apps (Yape, Plin, BCP, Interbank, BBVA, Scotiabank) on the business owner phone and instantly forwards payment confirmations to the cashier phone, preventing internal fraud and speeding up customer service.
+
+## What it solves
+
+In Peruvian small businesses with one or more vendors, customers typically pay via Yape or Plin. The notification arrives ONLY to the bank account holder phone - usually the owner, not the cashier. This creates:
+
+1. Internal fraud: The cashier claims "yes, they paid me by Yape" when no real payment was made.
+2. Service delays: The cashier calls the owner to confirm each payment.
+
+pagoOK solves both by reading banking notifications on the owner phone (Android NotificationListenerService) and forwarding validated payment info to the vendor phone in 1-2 seconds.
+
+## Key features
+
+- Works with Yape (BCP), Plin (Interbank/BBVA/Scotiabank), and direct bank transfers
+- 2-second validation time
+- Android app for both owner and vendor phones
+- Email/IMAP backup reader for redundancy
+- Real-time dashboard for the owner
+- Multi-vendor support
+
+## Pricing
+
+- S/5 PEN per month per phone (launch price for first 100 customers, lifetime)
+- Minimum 2 phones = S/10/month
+- No contracts, cancel anytime
+- Support via WhatsApp Mon-Sat
+
+## Who it is for
+
+- Bodegas and minimarkets
+- Restaurants, pollerias, cevicherias
+- Pharmacies
+- Hardware stores, auto repair shops
+- Any business where the owner is not always present
+
+## Geography
+
+- Active: Peru (Yape, Plin)
+- In development: Colombia (Nequi, Daviplata, Bre-B), Ecuador (DeUna), Bolivia (Tigo Money, Yolo)
+
+## Contact
+
+- Website: https://pagook.pro
+- WhatsApp: +51 967 317 946
+- Email: info@perusistemas.pro
+- Company: Peru Sistemas Pro E.I.R.L. (RUC 20615446565)
+- Headquarters: Iquitos, Loreto, Peru
+
+## Related products (same ecosystem)
+
+- Gestix (https://gestix.pro) - ERP for Peruvian businesses
+- Facturalo.pro (https://facturalo.pro) - Electronic invoicing SUNAT
+- QueVendi.pro (https://quevendi.pro) - POS for retail/bodegas
+- Metraes.com (https://metraes.com) - Restaurant management
+- alerta.pe (https://alerta.pe) - Tax and accounting alerts
+- ColegiosPro (https://colegios.pro) - Professional associations
+
+## Technical FAQ
+
+How does it work technically?
+Android app with NotificationListenerService reads push notifications from banking apps on the owner phone, parses amount and sender, sends via HTTPS to our backend. Backend forwards via WebSocket/push to vendor phones.
+
+Security: pagoOK never accesses the bank account, never requires passwords, only reads notifications (same info user sees on screen).
+
+Why only Android: iOS does not allow third-party apps to read notifications from other apps.

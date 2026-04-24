@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5">
+<title>{% block title %}pagoOK - Valida Yape y Plin al instante{% endblock %}</title>
+<meta name="description" content="{% block description %}pagoOK avisa al cajero cuando llega el pago real por Yape, Plin, Nequi o Daviplata. Desde S/5 al mes por celular.{% endblock %}">
+<meta name="theme-color" content="#7a0e0e">
+<meta name="author" content="Peru Sistemas Pro E.I.R.L.">
+<meta name="keywords" content="validar yape, validar plin, anti fraude vendedor, pos peru, caja bodega, pagoOK">
+
+<meta property="og:title" content="{% block og_title %}pagoOK - Tu vendedor ya no puede mentirte{% endblock %}">
+<meta property="og:description" content="{% block og_description %}Valida Yape y Plin al instante. Desde S/5 al mes por celular.{% endblock %}">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://pagook.pro{{ request.url.path }}">
+<meta property="og:image" content="https://pagook.pro/static/img/og-image.png">
+<meta property="og:locale" content="es_PE">
+<meta property="og:site_name" content="pagoOK">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="pagoOK - Valida Yape y Plin al instante">
+<meta name="twitter:description" content="Tu cajero ya no puede mentirte. Desde S/5 al mes.">
+
+<link rel="canonical" href="https://pagook.pro{{ request.url.path }}">
+<link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg">
+
+{% block json_ld %}{% endblock %}
+
+<link rel="stylesheet" href="/static/css/pagook.css">
+
+{% block extra_head %}{% endblock %}
+</head>
+<body>
+{% block content %}{% endblock %}
+
+<script src="/static/js/pagook.js"></script>
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>

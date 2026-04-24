@@ -1,0 +1,602 @@
+{% extends "base.html" %}
+
+{% block json_ld %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "pagoOK",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Android 8+",
+  "description": "Aplicacion que valida en tiempo real los pagos Yape, Plin, Nequi, Daviplata y transferencias.",
+  "url": "https://pagook.pro",
+  "publisher": {
+    "@type": "Organization",
+    "name": "Peru Sistemas Pro E.I.R.L.",
+    "url": "https://perusistemas.pro",
+    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": "Iquitos",
+      "addressRegion": "Loreto",
+      "addressCountry": "PE"
+    }
+  },
+  "offers": {
+    "@type": "Offer",
+    "price": "{{ precio.precio }}",
+    "priceCurrency": "{{ precio.moneda }}",
+    "priceValidUntil": "2027-12-31",
+    "availability": "https://schema.org/InStock"
+  },
+  "inLanguage": "es"
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<!-- TOP BAR -->
+<div class="topbar">
+  📍 Hecho en Iquitos · Para los comerciantes del Perú real y Latinoamérica
+</div>
+
+<!-- NAV -->
+<nav>
+  <a href="#" class="logo">pago<span>OK</span></a>
+  <a href="{{ whatsapp_link }}?text={{ whatsapp_mensaje|urlencode }}" class="cta-nav">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+    Escribir
+  </a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="badge-ubicacion">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 0 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>
+    Hecho en Iquitos · Para Latinoamérica
+  </div>
+  <h1>Tu vendedor dice<br><em>"sí, me yapearon"</em><br>¿Cómo sabes si es verdad?</h1>
+  <p class="eslogan">"Lo que esperabas, pero nunca existió"</p>
+  <p class="subhero">
+    <strong class="pagook-inline">pagoOK</strong> le avisa al instante al celular de tu vendedor cuando el pago por Yape, Plin o transferencia ha llegado <strong>de verdad</strong> a tu cuenta. Sin llamadas, sin dudas, sin que tengas que estar pendiente.
+  </p>
+
+  <!-- OFERTA -->
+  <div class="oferta-box">
+    <div class="oferta-etiqueta">Precio de lanzamiento</div>
+    <div class="oferta-precio">{{ precio.simbolo }}<span>{{ precio.precio }}</span><small>/mes</small></div>
+    <div class="oferta-por">por celular</div>
+    <div class="oferta-nota">💡 Mínimo 2 celulares (tú + 1 vendedor) = S/10/mes</div>
+    <div class="oferta-limite">Solo primeros 100 clientes</div>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-num">2 SEG</div>
+      <div class="stat-label">Para confirmar</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">0</div>
+      <div class="stat-label">Fraudes posibles</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">24/7</div>
+      <div class="stat-label">Siempre activo</div>
+    </div>
+  </div>
+</section>
+
+<!-- DEMO ANIMADA -->
+<section class="demo-section">
+  <p class="demo-titulo">Mira, así funciona</p>
+  <h2 class="demo-h2">Dos celulares. <span>Un solo sistema.</span></h2>
+
+  <div class="demo">
+    <!-- Celular del dueño -->
+    <div class="celular-wrap">
+      <p class="celular-label">🏠 Tu celular — el dueño</p>
+      <div class="celular">
+        <div class="pantalla">
+          <div class="status-bar">
+            <span>9:41</span>
+            <span class="icons">
+              <svg width="14" height="10" viewBox="0 0 14 10" fill="black"><path d="M0 8h2v2H0zm3-2h2v4H3zm3-2h2v6H6zm3-2h2v8H9zm3-2h2v10h-2z"/></svg>
+              <svg width="14" height="10" viewBox="0 0 16 12" fill="black"><path d="M8 3c2.76 0 5.26 1.12 7.07 2.93L13 8c-1.38-1.38-3.27-2-5-2s-3.62.62-5 2L.93 5.93C2.74 4.12 5.24 3 8 3zm0 6c.83 0 1.5.67 1.5 1.5S8.83 12 8 12s-1.5-.67-1.5-1.5S7.17 9 8 9z"/></svg>
+              <svg width="22" height="11" viewBox="0 0 22 11" fill="black"><rect x="0" y="0" width="18" height="10" rx="2" stroke="black" fill="none" stroke-width="1"/><rect x="2" y="2" width="14" height="6" rx="1" fill="black"/><rect x="19" y="3" width="2" height="4" rx="1" fill="black"/></svg>
+            </span>
+          </div>
+          <div class="pantalla-dueño">
+            <div class="widget-dueño">
+              <div class="w-label">Hoy has recibido</div>
+              <div class="w-monto" id="monto-total">S/ 340</div>
+              <div class="w-sub">5 pagos confirmados</div>
+            </div>
+            <div class="notif-dueño" id="notif-dueño">
+              <div class="logo-banco">Y</div>
+              <div class="texto-notif">
+                <div class="titulo">Yape</div>
+                <div class="texto" id="texto-notif">Te yapearon S/ 45 de Carlos M.</div>
+                <div class="hora">Hace 1 segundo</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Conexión -->
+    <div class="conexion">
+      <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+        <path class="onda" d="M 30 0 L 30 48 M 20 38 L 30 48 L 40 38" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+
+    <!-- Celular del vendedor -->
+    <div class="celular-wrap">
+      <p class="celular-label vendedor">🛒 Celular del vendedor</p>
+      <div class="celular">
+        <div class="pantalla">
+          <div class="status-bar">
+            <span>9:41</span>
+            <span class="icons">
+              <svg width="14" height="10" viewBox="0 0 14 10" fill="black"><path d="M0 8h2v2H0zm3-2h2v4H3zm3-2h2v6H6zm3-2h2v8H9zm3-2h2v10h-2z"/></svg>
+              <svg width="14" height="10" viewBox="0 0 16 12" fill="black"><path d="M8 3c2.76 0 5.26 1.12 7.07 2.93L13 8c-1.38-1.38-3.27-2-5-2s-3.62.62-5 2L.93 5.93C2.74 4.12 5.24 3 8 3zm0 6c.83 0 1.5.67 1.5 1.5S8.83 12 8 12s-1.5-.67-1.5-1.5S7.17 9 8 9z"/></svg>
+              <svg width="22" height="11" viewBox="0 0 22 11" fill="black"><rect x="0" y="0" width="18" height="10" rx="2" stroke="black" fill="none" stroke-width="1"/><rect x="2" y="2" width="14" height="6" rx="1" fill="black"/><rect x="19" y="3" width="2" height="4" rx="1" fill="black"/></svg>
+            </span>
+          </div>
+          <div class="pantalla-vendedor">
+            <div class="cabecera-venta">Vendiendo ahora</div>
+            <div class="producto-card" id="producto-card">
+              <div class="producto-emoji" id="producto-emoji">👖</div>
+              <div class="producto-info">
+                <div class="producto-nombre" id="producto-nombre">Jean talla 32</div>
+                <div class="producto-precio" id="producto-precio">S/ 45.00</div>
+              </div>
+            </div>
+            <div class="esperando" id="esperando">
+              <div class="esperando-icono"></div>
+              <div class="txt">Esperando pago...</div>
+            </div>
+            <div class="confirmado" id="confirmado">
+              <div class="check">
+                <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div class="confirmado-label">Pago confirmado</div>
+              <div class="confirmado-monto" id="confirmado-monto">S/ 45.00</div>
+              <div class="confirmado-de" id="confirmado-de">de Carlos M.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <button class="sonido-btn" id="sonidoBtn" onclick="toggleSonido()">🔊 Sonido: ON</button>
+  </div>
+</section>
+
+<!-- BENEFICIOS -->
+<section class="beneficios">
+  <p class="seccion-titulo-mini">Lo que ganas</p>
+  <h2 class="seccion-h2">Un <span>guardián silencioso</span><br>para tu negocio</h2>
+  <p class="seccion-subtitulo">No es un sistema complicado. Es una pequeña aplicación que vigila tus pagos mientras tú atiendes, vendes o descansas.</p>
+  <div class="grid-3">
+    <div class="card-beneficio">
+      <div class="card-icono-wrap">
+        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+      </div>
+      <h3>Adiós al robo hormiga</h3>
+      <p>Tu vendedor ya no puede decir "sí me yapeó" cuando no fue verdad. Cada pago queda registrado con hora, monto y nombre.</p>
+    </div>
+    <div class="card-beneficio">
+      <div class="card-icono-wrap">
+        <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      </div>
+      <h3>Atiendes más rápido</h3>
+      <p>2 segundos para confirmar. Tu cliente no espera, tu caja no se atasca, las colas se mueven. Vendes más en el mismo tiempo.</p>
+    </div>
+    <div class="card-beneficio">
+      <div class="card-icono-wrap">
+        <svg viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>
+      </div>
+      <h3>Controlas desde donde estés</h3>
+      <p>Estés en casa, en otra tienda o de viaje, sabes en vivo cuánto está vendiendo tu negocio y quién está cobrando bien.</p>
+    </div>
+    <div class="card-beneficio">
+      <div class="card-icono-wrap">
+        <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      </div>
+      <h3>Cero configuración</h3>
+      <p>Instalas la aplicación, escaneas un código QR y listo. No hay que conectar cables, cuentas complicadas ni aprender sistemas nuevos.</p>
+    </div>
+    <div class="card-beneficio">
+      <div class="card-icono-wrap">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      <h3>Funciona 24/7</h3>
+      <p>Si tu celular está apagado o sin señal, los pagos se registran por el correo del banco. No pierdes ni uno.</p>
+    </div>
+    <div class="card-beneficio">
+      <div class="card-icono-wrap">
+        <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </div>
+      <h3>Soporte en WhatsApp</h3>
+      <p>Cualquier duda te atendemos por WhatsApp en horario de lunes a sábado. No robots, no menús. Una persona te responde.</p>
+    </div>
+  </div>
+</section>
+
+<!-- PARA QUIÉN -->
+<section class="para-quien">
+  <p class="seccion-titulo-mini">¿Para quién es?</p>
+  <h2 class="seccion-h2">Si <span>alguien cobra por ti,</span> pagoOK es para ti</h2>
+  <p class="seccion-subtitulo">Cualquier negocio con al menos un vendedor que no sea el dueño, y que reciba pagos por Yape, Plin o transferencia.</p>
+  <div class="tipos">
+    <div class="tipo-card">
+      <div class="tipo-icono-wrap">
+        <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      </div>
+      <strong>Bodegas y minimarkets</strong>
+      <span>El dueño no está siempre, el cajero sí</span>
+    </div>
+    <div class="tipo-card">
+      <div class="tipo-icono-wrap">
+        <svg viewBox="0 0 24 24"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+      </div>
+      <strong>Restaurantes y pollerías</strong>
+      <span>Varios meseros cobrando a distintas mesas</span>
+    </div>
+    <div class="tipo-card">
+      <div class="tipo-icono-wrap">
+        <svg viewBox="0 0 24 24"><path d="M10.5 20.5L14 4"/><path d="M8 8h6M8 13h4"/><circle cx="12" cy="12" r="10"/></svg>
+      </div>
+      <strong>Farmacias y boticas</strong>
+      <span>Turnos distintos, dueño supervisando a distancia</span>
+    </div>
+    <div class="tipo-card">
+      <div class="tipo-icono-wrap">
+        <svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+      </div>
+      <strong>Talleres y ferreterías</strong>
+      <span>Varios vendedores, pagos que llegan al dueño</span>
+    </div>
+  </div>
+</section>
+
+<!-- PAÍSES -->
+<section class="paises">
+  <p class="seccion-titulo-mini">Donde estamos</p>
+  <h2 class="seccion-h2">El problema es el mismo<br>en <span>toda Latinoamérica</span></h2>
+  <p class="seccion-subtitulo">Desarrollamos pagoOK para los comerciantes peruanos primero. Ahora escalamos por la región.</p>
+  <div class="paises-grid">
+    <div class="pais">
+      <span class="pais-flag">🇵🇪</span>
+      <div class="pais-nombre">Perú</div>
+      <div class="pais-billeteras">Yape · Plin</div>
+    </div>
+    <div class="pais proximamente">
+      <span class="pais-flag">🇨🇴</span>
+      <div class="pais-nombre">Colombia</div>
+      <div class="pais-billeteras">Nequi · Daviplata · Bre-B</div>
+    </div>
+    <div class="pais proximamente">
+      <span class="pais-flag">🇪🇨</span>
+      <div class="pais-nombre">Ecuador</div>
+      <div class="pais-billeteras">DeUna · Yape</div>
+    </div>
+    <div class="pais proximamente">
+      <span class="pais-flag">🇧🇴</span>
+      <div class="pais-nombre">Bolivia</div>
+      <div class="pais-billeteras">Tigo Money · Yolo · Simple</div>
+    </div>
+  </div>
+</section>
+
+<!-- CÓMO FUNCIONA -->
+<section class="como">
+  <p class="seccion-titulo-mini">Empezar es fácil</p>
+  <h2 class="seccion-h2">En <span>5 minutos</span> estás funcionando</h2>
+  <p class="seccion-subtitulo">Sin técnicos, sin instalaciones complicadas. Solo tu celular y el de tus vendedores.</p>
+  <div class="pasos">
+    <div class="paso">
+      <div class="paso-num">1</div>
+      <div class="paso-contenido">
+        <h3>Instalas pagoOK en tu celular y en el de tu vendedor</h3>
+        <p>Una aplicación pequeñita que se baja en segundos. No consume datos ni batería de manera notoria.</p>
+      </div>
+    </div>
+    <div class="paso">
+      <div class="paso-num">2</div>
+      <div class="paso-contenido">
+        <h3>Conectas los celulares con un código QR</h3>
+        <p>Tu celular muestra un código QR, los celulares de tus vendedores lo escanean. Listo, conectados.</p>
+      </div>
+    </div>
+    <div class="paso">
+      <div class="paso-num">3</div>
+      <div class="paso-contenido">
+        <h3>Cada Yape o Plin que recibes, aparece en el celular del vendedor</h3>
+        <p>Al instante. En 2 segundos. Tu vendedor confirma al cliente sin llamarte, sin esperar, sin dudar.</p>
+      </div>
+    </div>
+    <div class="paso">
+      <div class="paso-num">4</div>
+      <div class="paso-contenido">
+        <h3>Tú ves todo desde tu celular</h3>
+        <p>Cuánto vendiste hoy, qué vendedor cobró qué, qué clientes pagaron. Todo en una pantalla clara.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ENCUESTAS -->
+<section class="encuestas">
+  <p class="seccion-titulo-mini">Encuesta en curso</p>
+  <h2 class="seccion-h2">¿Qué dicen los <span>comerciantes</span> del Perú?</h2>
+  <p class="seccion-subtitulo">Estamos visitando bodegas, restaurantes y ferreterías en 5 ciudades del país. Pronto publicaremos los resultados.</p>
+
+  <div class="ciudades">
+    <div class="ciudad-card">
+      <div class="ciudad-nombre">Lima</div>
+      <div class="ciudad-estado curso">En curso</div>
+    </div>
+    <div class="ciudad-card">
+      <div class="ciudad-nombre">Iquitos</div>
+      <div class="ciudad-estado curso">En curso</div>
+    </div>
+    <div class="ciudad-card">
+      <div class="ciudad-nombre">Chiclayo</div>
+      <div class="ciudad-estado curso">En curso</div>
+    </div>
+    <div class="ciudad-card">
+      <div class="ciudad-nombre">Arequipa</div>
+      <div class="ciudad-estado curso">En curso</div>
+    </div>
+    <div class="ciudad-card">
+      <div class="ciudad-nombre">Trujillo</div>
+      <div class="ciudad-estado curso">En curso</div>
+    </div>
+  </div>
+
+  <form class="form-encuesta" id="formEncuesta">
+    <h3>¿Tienes un negocio? Cuéntanos en 30 segundos</h3>
+    <p class="form-sub">Tu respuesta nos ayuda a hacer pagoOK mejor para ti. Es anónima si así lo prefieres.</p>
+
+    <div class="form-grupo">
+      <label for="ciudad">¿De qué ciudad eres?</label>
+      <select id="ciudad" name="ciudad" required>
+        <option value="">Selecciona...</option>
+        <option value="lima">Lima</option>
+        <option value="iquitos">Iquitos</option>
+        <option value="chiclayo">Chiclayo</option>
+        <option value="arequipa">Arequipa</option>
+        <option value="trujillo">Trujillo</option>
+        <option value="cusco">Cusco</option>
+        <option value="piura">Piura</option>
+        <option value="otra">Otra ciudad del Perú</option>
+        <option value="colombia">Colombia</option>
+        <option value="ecuador">Ecuador</option>
+        <option value="bolivia">Bolivia</option>
+        <option value="otro_pais">Otro país</option>
+      </select>
+    </div>
+
+    <div class="form-grupo">
+      <label for="tipo_negocio">¿Qué tipo de negocio tienes?</label>
+      <select id="tipo_negocio" name="tipo_negocio" required>
+        <option value="">Selecciona...</option>
+        <option value="bodega">Bodega o minimarket</option>
+        <option value="restaurante">Restaurante, pollería, cevichería</option>
+        <option value="farmacia">Farmacia o botica</option>
+        <option value="ferreteria">Ferretería</option>
+        <option value="ropa">Tienda de ropa</option>
+        <option value="taller">Taller mecánico</option>
+        <option value="otro">Otro</option>
+      </select>
+    </div>
+
+    <div class="form-grupo">
+      <label>¿Tienes vendedores o cajeros que no son tú?</label>
+      <div class="opciones-radio">
+        <div class="opcion-radio">
+          <input type="radio" id="v-si" name="tiene_vendedores" value="si">
+          <label for="v-si">Sí</label>
+        </div>
+        <div class="opcion-radio">
+          <input type="radio" id="v-no" name="tiene_vendedores" value="no">
+          <label for="v-no">No</label>
+        </div>
+        <div class="opcion-radio">
+          <input type="radio" id="v-aveces" name="tiene_vendedores" value="a_veces">
+          <label for="v-aveces">A veces</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-grupo">
+      <label>¿Te ha pasado que dudaste si un pago por Yape/Plin era real?</label>
+      <div class="opciones-radio">
+        <div class="opcion-radio">
+          <input type="radio" id="f-mucho" name="ha_dudado" value="muchas_veces">
+          <label for="f-mucho">Muchas veces</label>
+        </div>
+        <div class="opcion-radio">
+          <input type="radio" id="f-aveces" name="ha_dudado" value="a_veces">
+          <label for="f-aveces">A veces</label>
+        </div>
+        <div class="opcion-radio">
+          <input type="radio" id="f-nunca" name="ha_dudado" value="nunca">
+          <label for="f-nunca">Nunca</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-grupo">
+      <label for="email">WhatsApp o correo (opcional) — te avisamos cuando lancemos</label>
+      <input type="text" id="email" name="contacto" placeholder="+51... o tucorreo@gmail.com">
+    </div>
+
+    <div class="form-grupo">
+      <label for="comentario">¿Algún comentario? (opcional)</label>
+      <textarea id="comentario" name="comentario" placeholder="Cuéntanos tu experiencia..."></textarea>
+    </div>
+
+    <button type="submit" class="form-submit">Enviar mis respuestas</button>
+    <div class="form-mensaje" id="formMensaje"></div>
+  </form>
+</section>
+
+<!-- PRECIO GRANDE -->
+<section class="precio-seccion" id="precio">
+  <p class="seccion-titulo-mini">Precio justo</p>
+  <h2 class="seccion-h2">Un precio justo<br>para lo que te <span>ahorra</span></h2>
+  <div class="caja-precio">
+    <div class="sello-oferta">★ Oferta de lanzamiento</div>
+    <div class="precio-gigante">{{ precio.simbolo }}<span>{{ precio.precio }}</span><small>/mes</small></div>
+    <div class="precio-por">por cada celular</div>
+
+    <div class="precio-incluye">
+      <div class="precio-incluye-titulo">Incluye:</div>
+      <ul>
+        <li>Validación instantánea de Yape y Plin</li>
+        <li>Funciona con BCP, Interbank, BBVA, Scotiabank</li>
+        <li>Historial completo de pagos del día</li>
+        <li>Notificaciones en tiempo real por WhatsApp</li>
+        <li>Soporte por WhatsApp de lunes a sábado</li>
+        <li>Sin permanencia, cancelas cuando quieras</li>
+        <li>Actualizaciones automáticas sin costo</li>
+      </ul>
+    </div>
+
+    <div class="precio-minimo-alert">
+      💡 Necesitas mínimo 2 celulares (tú + 1 vendedor) = <strong>S/10/mes</strong>
+    </div>
+
+    <a href="{{ whatsapp_link }}?text={{ whatsapp_mensaje|urlencode }}" class="precio-cta">
+      Quiero empezar ahora →
+    </a>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="faq">
+  <p class="seccion-titulo-mini">Preguntas frecuentes</p>
+  <h2 class="seccion-h2">Todo lo que<br>necesitas <span>saber</span></h2>
+  <div class="faq-lista">
+    <div class="faq-item">
+      <div class="faq-pregunta">¿Cómo funciona pagoOK exactamente?</div>
+      <div class="faq-respuesta"><p>Instalas la aplicación pagoOK en tu celular (el del dueño de la cuenta Yape/Plin) y en el celular de tus vendedores. Cuando un cliente te yapea o pliniea, el banco te manda una notificación push al celular. pagoOK la lee, extrae el monto y el nombre del que pagó, y le envía esa información al celular del vendedor en 1 o 2 segundos. El vendedor ve una pantalla verde que dice "✅ Pago confirmado" con el monto y el nombre, y puede entregar el producto al cliente sin dudar.</p></div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-pregunta">¿Cuánto cuesta pagoOK?</div>
+      <div class="faq-respuesta"><p>S/5 al mes por cada celular. Necesitas mínimo 2 celulares: el tuyo (donde llegan los pagos) y al menos uno de tu vendedor. Así que el mínimo mensual es S/10. Este precio es especial de lanzamiento, garantizado para los primeros 100 clientes mientras mantengan el servicio activo. Sin permanencia, sin contratos largos.</p></div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-pregunta">¿Con qué bancos y billeteras funciona?</div>
+      <div class="faq-respuesta"><p>En Perú funciona con todas las principales: Yape (BCP), Plin (Interbank, BBVA, Scotiabank, Banco de la Nación), y transferencias directas de BCP, Interbank, BBVA, Scotiabank y Banco de la Nación. Próximamente agregaremos: Nequi, Daviplata y Bre-B para Colombia; DeUna para Ecuador; Tigo Money, Yolo y Simple para Bolivia.</p></div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-pregunta">¿Cuánto consume de datos y batería?</div>
+      <div class="faq-respuesta"><p>La aplicación pesa menos de 5 MB en el celular. Por cada pago que procesa usa menos de 1 KB de datos. En batería, el consumo es mínimo porque aprovecha las notificaciones que el celular ya recibe de todas formas — solo las reenvía. En uso normal, ni te das cuenta que está corriendo.</p></div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-pregunta">¿Qué pasa si no tengo internet o el celular está apagado?</div>
+      <div class="faq-respuesta"><p>Tenemos dos respaldos. Primero, si el celular del dueño no tiene internet momentáneamente, las notificaciones se guardan y se envían cuando vuelva la señal. Segundo, pagoOK también lee los correos que los bancos envían al hacer una transacción. Entonces aunque tu celular esté apagado, el pago se registra por correo.</p></div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-pregunta">¿Necesito cambiar mi cuenta bancaria o darte mis claves?</div>
+      <div class="faq-respuesta"><p>No. pagoOK no accede a tu cuenta bancaria, no necesita tu clave, no te pide DNI ni datos sensibles. Solo lee las notificaciones que ya llegan a tu celular, así como lees tú mismo las notificaciones de WhatsApp. Todo queda en tu control.</p></div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-pregunta">¿Puedo tener más de un vendedor?</div>
+      <div class="faq-respuesta"><p>Sí. Puedes tener tantos vendedores como necesites, cada uno con su celular. Cada celular cuesta S/5 al mes. Si tienes 3 vendedores + tú, son 4 celulares = S/20 al mes.</p></div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-pregunta">¿Puedo cancelar cuando quiera?</div>
+      <div class="faq-respuesta"><p>Sí, sin penalidades ni permanencia. Pagas mensualmente. Si cancelas, el servicio sigue activo hasta que termine el mes que ya pagaste. Después de eso simplemente deja de funcionar, sin cargos adicionales.</p></div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-pregunta">¿Funciona en Colombia, Ecuador o Bolivia?</div>
+      <div class="faq-respuesta"><p>Actualmente operamos principalmente en Perú, donde tenemos el producto completo. Para Colombia, Ecuador y Bolivia estamos en desarrollo. Si eres de alguno de esos países y quieres ser cliente fundador (precios especiales de por vida), escríbenos por WhatsApp y te contamos cómo puedes ser parte.</p></div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-pregunta">¿Qué celular necesito?</div>
+      <div class="faq-respuesta"><p>Cualquier celular Android con sistema operativo Android 8 o más reciente. Eso incluye prácticamente cualquier celular comprado desde 2018 en adelante: Samsung, Xiaomi, Huawei, Oppo, Motorola, LG, etc. Si tu celular recibe WhatsApp y Yape sin problemas, va a funcionar con pagoOK.</p></div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-pregunta">¿Y el iPhone?</div>
+      <div class="faq-respuesta"><p>Por limitaciones de iOS, pagoOK actualmente solo funciona en celulares Android. El iPhone no permite que una aplicación lea las notificaciones de otras apps, que es la base de pagoOK. Estamos estudiando alternativas para iOS en el futuro.</p></div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-pregunta">¿Cómo les pago?</div>
+      <div class="faq-respuesta"><p>Por Yape, Plin, transferencia bancaria o depósito. Recibirás una factura electrónica emitida por nuestro propio sistema Facturalo.pro, con todo en regla para que puedas descargar como gasto de tu negocio.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- FAMILIA -->
+<section class="familia">
+  <p class="familia-titulo">Parte del ecosistema</p>
+  <div class="familia-links">
+    <a href="https://perusistemas.pro">Perú<span>Sistemas</span>.pro</a>
+    <a href="https://quevendi.pro">que<span>Vendi</span>.pro</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p><strong>pagoOK</strong> — un producto de Perú Sistemas Pro E.I.R.L.</p>
+  <p>RUC 20615446565 · Calle Sargento Lores 123 · Iquitos, Loreto, Perú</p>
+  <div class="footer-links">
+    <a href="https://wa.me/51967317946?text=Hola%2C%20quiero%20info%20sobre%20pagoOK">WhatsApp</a>
+    <a href="mailto:info@perusistemas.pro">info@perusistemas.pro</a>
+    <a href="#">Términos</a>
+    <a href="#">Privacidad</a>
+  </div>
+  <p style="margin-top:16px; opacity:0.7; font-size:12px;">© 2026 Perú Sistemas Pro — Hecho con ☕ en Iquitos</p>
+</footer>
+
+<!-- BARRA INFERIOR FIJA -->
+<div class="barra-inferior">
+  <a href="{{ whatsapp_link }}?text={{ whatsapp_mensaje|urlencode }}" class="barra-btn barra-whatsapp">
+    <svg viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+    WhatsApp + Info
+  </a>
+  <button onclick="compartir()" class="barra-btn barra-compartir">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+    Compartir
+  </button>
+  <a href="#precio" class="barra-btn barra-probar">
+    <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+    Probar
+  </a>
+</div>
+
+<!-- Reemplazos necesarios:                         -->
+<!-- 1. URLs WhatsApp: wa.me/51967317946?text=Hola... -->
+<!--    POR: {{ whatsapp_link }}?text={{ whatsapp_mensaje|urlencode }} -->
+<!-- 2. fetch('/api/v1/encuestas/inbound', ...)     -->
+<!--    POR: fetch(`${window.PAGOOK_CONFIG.apiBase}/api/v1/encuestas/inbound`, ...) -->
+<!-- 3. S/<span>5</span> POR {{ precio.simbolo }}<span>{{ precio.precio }}</span> -->
+<!-- 4. Eliminar <style> inline (ya va en pagook.css) -->
+<!-- 5. Eliminar <script> inline (ya va en pagook.js) -->
+
+<div style="padding: 40px 20px; text-align: center; color: white; background: #7a0e0e; min-height: 100vh; font-family: sans-serif;">
+  <h1 style="font-family: Georgia, serif; font-size: 36px; margin-bottom: 20px;">pago<span style="color: #f5a623;">OK</span></h1>
+  <p style="font-size: 18px; margin-bottom: 30px;">Landing en construccion - pegar contenido de pagook_landing_v2.html</p>
+  <p style="color: #f5a623;">Precio detectado para {{ pais_detectado }}: {{ precio.simbolo }}{{ precio.precio }}/mes</p>
+  <p style="margin-top: 40px;">
+    <a href="{{ whatsapp_link }}?text={{ whatsapp_mensaje|urlencode }}" style="color: #f5a623; text-decoration: underline;">
+      Escribenos por WhatsApp
+    </a>
+  </p>
+</div>
+
+<script>
+  window.PAGOOK_CONFIG = {
+    apiBase: "{{ api_base }}",
+    whatsappLink: "{{ whatsapp_link }}",
+    pais: "{{ pais_detectado }}",
+    simbolo: "{{ precio.simbolo }}"
+  };
+</script>
+{% endblock %}
