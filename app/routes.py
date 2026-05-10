@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 import httpx
 import logging
 
@@ -95,6 +95,11 @@ async def proxy_qr(codigo: str, request: Request):
         url=f"{settings.api_backend_server}/qr/{codigo}",
         status_code=302
     )
+
+
+@router.get("/caja/{codigo}", response_class=HTMLResponse)
+async def caja_vendedor(codigo: str, request: Request):
+    return FileResponse("static/caja/index.html")
 
 
 @router.get("/health", include_in_schema=False)
