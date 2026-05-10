@@ -99,6 +99,7 @@ async def proxy_qr(codigo: str, request: Request):
 
 @router.get("/caja/{codigo}", response_class=HTMLResponse)
 async def caja_vendedor(codigo: str, request: Request):
+    from fastapi.responses import FileResponse
     return FileResponse("static/caja/index.html")
 
 
