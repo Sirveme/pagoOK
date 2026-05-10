@@ -19,14 +19,12 @@
 </head>
 <body>
 
-<!-- Marca de agua de fondo (patrón diagonal) -->
+<!-- Marca de agua -->
 <div class="watermark" aria-hidden="true">
   <div class="watermark-pattern"></div>
 </div>
 
-<!-- ============================================================ -->
-<!-- BANNER PARA INSTALAR PWA                                     -->
-<!-- ============================================================ -->
+<!-- Banner instalar PWA -->
 <div id="banner-instalar" class="banner-instalar oculto">
   <span class="banner-icono">📱</span>
   <div class="banner-texto">Instala pagoOK Caja</div>
@@ -34,9 +32,6 @@
   <button id="btn-banner-cerrar" class="banner-cerrar" aria-label="Cerrar">×</button>
 </div>
 
-<!-- ============================================================ -->
-<!-- PANTALLAS — todas absolutas, transición horizontal           -->
-<!-- ============================================================ -->
 <div class="pantallas">
 
   <!-- ============================================================ -->
@@ -60,6 +55,20 @@
           inputmode="numeric"
           pattern="[0-9]*"
           autocomplete="off">
+
+        <!-- Nombre de empresa que aparece al validar RUC -->
+        <div id="empresa-nombre-display" class="empresa-display oculto">
+          <span class="empresa-icono">✓</span>
+          <span class="empresa-nombre" id="empresa-nombre-txt"></span>
+        </div>
+
+        <!-- Dropdown de locales (si hay >1) -->
+        <div id="locales-grupo" class="locales-grupo oculto">
+          <label class="campo-label" style="margin-top: 12px;">Local</label>
+          <select id="select-local" class="campo-input">
+            <option value="">Selecciona el local...</option>
+          </select>
+        </div>
 
         <label class="campo-label" style="margin-top: 14px;">PIN del vendedor</label>
         <div class="pin-display" id="pin-display">
@@ -97,7 +106,7 @@
       <button class="topbar-btn" data-ir="login" aria-label="Volver">←</button>
       <div class="topbar-titulo">
         <span id="vendedor-nombre">Vendedor</span>
-        <span class="topbar-pequeno" id="negocio-nombre">Negocio</span>
+        <span class="topbar-pequeno" id="local-display">Negocio</span>
       </div>
       <button class="topbar-btn" id="btn-menu" aria-label="Menú">⋮</button>
     </header>
@@ -124,7 +133,7 @@
       <textarea
         id="texto-venta"
         class="texto-venta"
-        placeholder='Ej: "1 lomo saltado y 2 chichas, 60 soles"'
+        placeholder='Ej: "1 lomo saltado, 2 arroz con pollo, 60 soles"'
         rows="2"></textarea>
 
       <button id="btn-procesar" class="btn-principal">
@@ -142,7 +151,7 @@
       <button class="topbar-btn" data-ir="dictar" aria-label="Volver">←</button>
       <div class="topbar-titulo">
         <span>Revisa la venta</span>
-        <span class="topbar-pequeno">Ajusta cantidades si es necesario</span>
+        <span class="topbar-pequeno">Ajusta cantidades y total</span>
       </div>
       <span class="topbar-spacer"></span>
     </header>
@@ -155,9 +164,28 @@
 
       <div class="card items-card">
         <ul id="items-lista" class="items-lista"></ul>
-        <div class="items-total">
-          <span class="items-total-label">Total</span>
-          <strong id="items-total-monto" class="items-total-monto">S/ 0</strong>
+        <div class="items-total-grupo">
+          <span class="items-total-label">TOTAL</span>
+          <button id="items-total-btn" class="items-total-monto" type="button">S/ 0</button>
+        </div>
+        <p id="total-hint" class="total-hint oculto">Toca el total para editarlo</p>
+      </div>
+
+      <!-- Modal de edición de total -->
+      <div id="modal-total" class="modal-total oculto">
+        <div class="modal-total-card">
+          <div class="modal-total-titulo">¿Cuál es el total?</div>
+          <input
+            type="text"
+            id="input-total-edit"
+            class="campo-input campo-grande"
+            placeholder="0"
+            inputmode="decimal"
+            autocomplete="off">
+          <div class="modal-total-botones">
+            <button id="btn-total-cancelar" class="btn-secundario">Cancelar</button>
+            <button id="btn-total-aceptar" class="btn-principal">Aceptar</button>
+          </div>
         </div>
       </div>
 
@@ -190,7 +218,7 @@
         <strong id="monto-grande" class="monto-grande-num">S/ 0</strong>
       </div>
 
-      <div class="metodos-grid">
+      <div class="metodos-grid metodos-grid-3">
         <button class="metodo metodo-yape" data-metodo="yape">
           <div class="metodo-circulo metodo-circulo-yape">
             <svg viewBox="0 0 24 24" class="metodo-svg" aria-hidden="true">
@@ -208,15 +236,6 @@
             </svg>
           </div>
           <span class="metodo-nombre">Plin</span>
-        </button>
-        <button class="metodo metodo-tarjeta" data-metodo="tarjeta">
-          <div class="metodo-circulo metodo-circulo-tarjeta">
-            <svg viewBox="0 0 24 24" class="metodo-svg" aria-hidden="true">
-              <rect x="2" y="5" width="20" height="14" rx="2"/>
-              <line x1="2" y1="10" x2="22" y2="10"/>
-            </svg>
-          </div>
-          <span class="metodo-nombre">Tarjeta</span>
         </button>
         <button class="metodo metodo-efectivo" data-metodo="efectivo">
           <div class="metodo-circulo metodo-circulo-efectivo">
@@ -299,6 +318,10 @@
         </div>
         <div class="resultado-titulo" id="resultado-titulo"></div>
         <div class="resultado-texto" id="resultado-texto"></div>
+        <button id="btn-emitir-boleta" class="btn-principal btn-principal-grande oculto">
+          <span>Emitir boleta</span>
+          <span class="btn-flecha">→</span>
+        </button>
         <button id="btn-finalizar" class="btn-principal btn-principal-grande">
           <span>Nueva venta</span>
           <span class="btn-flecha">→</span>
@@ -310,14 +333,101 @@
     </div>
   </section>
 
+  <!-- ============================================================ -->
+  <!-- P6: BOLETA                                                   -->
+  <!-- ============================================================ -->
+  <section id="p-boleta" class="pantalla">
+    <header class="topbar">
+      <button class="topbar-btn" data-ir="verificar" aria-label="Volver">←</button>
+      <div class="topbar-titulo">
+        <span>Datos del cliente</span>
+        <span class="topbar-pequeno">Opcional</span>
+      </div>
+      <span class="topbar-spacer"></span>
+    </header>
+
+    <div class="contenido">
+      <!-- Form de datos del cliente -->
+      <div id="cliente-form" class="cliente-form">
+        <div class="card">
+          <label class="campo-label">¿El cliente quiere boleta a su nombre?</label>
+          <p class="cliente-hint">Si no, se emite boleta sin nombre.</p>
+
+          <div class="tipo-doc-grupo">
+            <button class="tipo-doc-btn activo" data-tipo="ninguno">Sin nombre</button>
+            <button class="tipo-doc-btn" data-tipo="dni">DNI</button>
+            <button class="tipo-doc-btn" data-tipo="ruc">RUC</button>
+          </div>
+
+          <div id="doc-input-grupo" class="doc-input-grupo oculto">
+            <input
+              type="text"
+              id="input-doc"
+              class="campo-input"
+              placeholder=""
+              inputmode="numeric"
+              autocomplete="off">
+            <input
+              type="text"
+              id="input-cliente-nombre"
+              class="campo-input"
+              placeholder="Nombre del cliente"
+              autocomplete="off"
+              style="margin-top: 10px;">
+          </div>
+        </div>
+
+        <button id="btn-generar-boleta" class="btn-principal btn-principal-grande">
+          <span>Generar boleta</span>
+          <span class="btn-flecha">→</span>
+        </button>
+      </div>
+
+      <!-- Vista previa de la boleta -->
+      <div id="boleta-vista" class="boleta-vista oculto">
+        <div class="boleta-papel" id="boleta-papel">
+          <!-- Se rellena dinámicamente -->
+        </div>
+
+        <div class="boleta-acciones">
+          <button id="btn-compartir" class="btn-principal">
+            <svg viewBox="0 0 24 24" class="btn-svg" aria-hidden="true">
+              <circle cx="18" cy="5" r="3"/>
+              <circle cx="6" cy="12" r="3"/>
+              <circle cx="18" cy="19" r="3"/>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+            </svg>
+            <span>Compartir</span>
+          </button>
+          <button id="btn-imprimir" class="btn-principal">
+            <svg viewBox="0 0 24 24" class="btn-svg" aria-hidden="true">
+              <polyline points="6 9 6 2 18 2 18 9"/>
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+              <rect x="6" y="14" width="12" height="8"/>
+            </svg>
+            <span>Imprimir</span>
+          </button>
+        </div>
+
+        <button id="btn-boleta-finalizar" class="btn-principal btn-principal-grande" style="margin-top: 14px;">
+          <span>Nueva venta</span>
+          <span class="btn-flecha">→</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
 </div>
 
-<!-- ============================================================ -->
-<!-- MENÚ                                                         -->
-<!-- ============================================================ -->
+<!-- Menú -->
 <div id="menu-overlay" class="menu-overlay oculto">
   <div class="menu-contenido">
     <div class="menu-handle"></div>
+    <div class="menu-info" id="menu-info">
+      <div class="menu-info-vendedor" id="menu-info-vendedor"></div>
+      <div class="menu-info-serie" id="menu-info-serie"></div>
+    </div>
     <button class="menu-item" id="menu-historial">
       <span class="menu-icono">📋</span>
       <span class="menu-label">Ventas de hoy</span>
@@ -341,9 +451,7 @@
   </div>
 </div>
 
-<!-- ============================================================ -->
-<!-- TOAST                                                        -->
-<!-- ============================================================ -->
+<!-- Toast -->
 <div id="toast" class="toast"></div>
 
 <script src="caja.js"></script>

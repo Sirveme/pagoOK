@@ -1,12 +1,10 @@
 /* ============================================================
-   pagoOK Caja v2 — Dark fintech con glassmorphism
-   Sin scroll vertical · 5 sub-pantallas en carrusel horizontal
+   pagoOK Caja v3 - Dark fintech con boleta SUNAT-style
    ============================================================ */
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  /* Paleta granate oscuro */
   --bg: #2a0404;
   --bg-2: #3d0606;
   --bg-3: #5a0909;
@@ -15,13 +13,11 @@
   --border: rgba(255, 255, 255, 0.10);
   --border-strong: rgba(245, 166, 35, 0.4);
 
-  /* Texto */
   --txt: #fef3d7;
   --txt-soft: rgba(254, 243, 215, 0.75);
   --txt-mute: rgba(254, 243, 215, 0.5);
   --txt-dark: #1a0303;
 
-  /* Acentos */
   --ambar: #f5a623;
   --ambar-claro: #ffc14f;
   --ambar-oscuro: #c2800d;
@@ -34,19 +30,15 @@
   --rojo: #ef4444;
   --rojo-glow: rgba(239, 68, 68, 0.4);
 
-  /* Fintech accent colors */
   --azul-yape: #722ed1;
   --turquesa-plin: #06b6d4;
-  --gris-tarjeta: #6b7280;
   --verde-efectivo: #059669;
 
-  /* Geometría */
   --r-sm: 12px;
   --r-md: 18px;
   --r-lg: 24px;
   --r-xl: 32px;
 
-  /* Sombras */
   --sh-sm: 0 4px 12px rgba(0, 0, 0, 0.25);
   --sh-md: 0 12px 30px rgba(0, 0, 0, 0.35);
   --sh-lg: 0 20px 50px rgba(0, 0, 0, 0.45);
@@ -64,8 +56,7 @@ html, body {
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background:
-    radial-gradient(ellipse at top, var(--bg-3) 0%, var(--bg-2) 35%, var(--bg) 75%);
+  background: radial-gradient(ellipse at top, var(--bg-3) 0%, var(--bg-2) 35%, var(--bg) 75%);
   background-attachment: fixed;
   color: var(--txt);
   user-select: none;
@@ -73,14 +64,14 @@ body {
   position: relative;
 }
 
-input, textarea {
+input, textarea, select {
   user-select: text;
   -webkit-user-select: text;
   font-family: inherit;
 }
 
 /* ============================================================
-   MARCA DE AGUA DIAGONAL
+   MARCA DE AGUA
    ============================================================ */
 .watermark {
   position: fixed;
@@ -94,19 +85,7 @@ input, textarea {
 .watermark-pattern {
   position: absolute;
   inset: -50%;
-  background-image:
-    repeating-linear-gradient(
-      -30deg,
-      transparent 0,
-      transparent 80px,
-      var(--ambar) 80px,
-      var(--ambar) 82px,
-      transparent 82px,
-      transparent 240px
-    );
-  /* SVG inline marca de agua "pagoOK" */
-  background-image:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'><text x='30' y='100' font-family='Georgia,serif' font-weight='900' font-size='38' fill='%23f5a623'>pagoOK</text><text x='80' y='200' font-family='Georgia,serif' font-weight='900' font-size='28' fill='%23f5a623'>pagoOK</text><text x='180' y='300' font-family='Georgia,serif' font-weight='900' font-size='42' fill='%23f5a623'>pagoOK</text><text x='10' y='380' font-family='Georgia,serif' font-weight='900' font-size='26' fill='%23f5a623'>pagoOK</text></svg>");
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'><text x='30' y='100' font-family='Georgia,serif' font-weight='900' font-size='38' fill='%23f5a623'>pagoOK</text><text x='80' y='200' font-family='Georgia,serif' font-weight='900' font-size='28' fill='%23f5a623'>pagoOK</text><text x='180' y='300' font-family='Georgia,serif' font-weight='900' font-size='42' fill='%23f5a623'>pagoOK</text><text x='10' y='380' font-family='Georgia,serif' font-weight='900' font-size='26' fill='%23f5a623'>pagoOK</text></svg>");
   background-size: 400px 400px;
   transform: rotate(-15deg);
   animation: drift 60s linear infinite;
@@ -118,7 +97,7 @@ input, textarea {
 }
 
 /* ============================================================
-   CONTENEDOR DE PANTALLAS
+   PANTALLAS
    ============================================================ */
 .pantallas {
   position: relative;
@@ -138,9 +117,7 @@ input, textarea {
   height: 100%;
   opacity: 0;
   transform: translateX(100%) scale(0.92);
-  transition:
-    transform 0.45s cubic-bezier(0.32, 0.72, 0, 1),
-    opacity 0.35s ease;
+  transition: transform 0.45s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.35s ease;
   pointer-events: none;
   overflow: hidden;
 }
@@ -245,9 +222,6 @@ input, textarea {
   justify-content: center;
 }
 
-/* ============================================================
-   PASO INDICADOR
-   ============================================================ */
 .paso-indicador {
   display: flex;
   align-items: center;
@@ -275,7 +249,7 @@ input, textarea {
 }
 
 /* ============================================================
-   CARDS (glassmorphism)
+   CARDS
    ============================================================ */
 .card {
   background: var(--bg-card);
@@ -338,7 +312,7 @@ input, textarea {
   font-weight: 800;
   letter-spacing: 4px;
   text-transform: uppercase;
-  margin-bottom: 28px;
+  margin-bottom: 24px;
 }
 
 .login-card {
@@ -386,6 +360,60 @@ input, textarea {
   font-size: 22px;
   letter-spacing: 2px;
   padding: 16px;
+}
+
+select.campo-input {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='8' viewBox='0 0 14 8' fill='none'><path d='M1 1l6 6 6-6' stroke='%23f5a623' stroke-width='2' stroke-linecap='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  padding-right: 40px;
+  cursor: pointer;
+  text-align: left;
+}
+
+/* Empresa display al validar RUC */
+.empresa-display {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1.5px solid var(--verde);
+  border-radius: var(--r-sm);
+  padding: 10px 14px;
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: bump 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.empresa-icono {
+  background: var(--verde);
+  color: white;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+
+.empresa-nombre {
+  color: var(--verde);
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.3px;
+}
+
+@keyframes bump {
+  from { opacity: 0; transform: scale(0.85); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.locales-grupo {
+  /* Heredado de oculto/visible */
 }
 
 .pin-display {
@@ -618,6 +646,16 @@ input, textarea {
   font-weight: 900;
 }
 
+.btn-svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .btn-secundario {
   width: 100%;
   background: transparent;
@@ -647,7 +685,7 @@ input, textarea {
 
 .items-lista {
   list-style: none;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .item {
@@ -671,14 +709,8 @@ input, textarea {
 .item:nth-child(5) { animation-delay: 0.25s; }
 
 @keyframes aparecer {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .item-cantidad-grupo {
@@ -746,7 +778,7 @@ input, textarea {
   opacity: 1;
 }
 
-.items-total {
+.items-total-grupo {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -769,6 +801,75 @@ input, textarea {
   font-weight: 900;
   color: var(--ambar);
   letter-spacing: -1px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: var(--r-sm);
+  transition: background 0.15s;
+  font-family: Georgia, serif;
+}
+
+.items-total-monto:active {
+  background: var(--bg-card);
+}
+
+.total-hint {
+  text-align: right;
+  font-size: 11px;
+  color: var(--ambar);
+  font-style: italic;
+  margin-top: 4px;
+  animation: aparecer 0.3s ease;
+}
+
+/* Modal de edición de total */
+.modal-total {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+  z-index: 150;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: fade-in 0.2s ease;
+}
+
+.modal-total-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  padding: 24px;
+  width: 100%;
+  max-width: 360px;
+  box-shadow: var(--sh-lg);
+}
+
+.modal-total-titulo {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--txt);
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.modal-total-botones {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.modal-total-botones .btn-principal,
+.modal-total-botones .btn-secundario {
+  flex: 1;
+  margin: 0;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* ============================================================
@@ -809,12 +910,16 @@ input, textarea {
   gap: 12px;
 }
 
+.metodos-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
 .metodo {
   background: var(--bg-card);
   backdrop-filter: blur(16px);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  padding: 18px 12px;
+  padding: 18px 8px;
   cursor: pointer;
   font-family: inherit;
   text-align: center;
@@ -830,14 +935,10 @@ input, textarea {
   transform: scale(0.94);
 }
 
-.metodo:hover {
-  background: var(--bg-card-hover);
-}
-
 .metodo-circulo {
-  width: 56px;
-  height: 56px;
-  border-radius: 18px;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -852,17 +953,13 @@ input, textarea {
   background: linear-gradient(135deg, var(--turquesa-plin) 0%, #0891b2 100%);
 }
 
-.metodo-circulo-tarjeta {
-  background: linear-gradient(135deg, var(--gris-tarjeta) 0%, #4b5563 100%);
-}
-
 .metodo-circulo-efectivo {
   background: linear-gradient(135deg, var(--verde-efectivo) 0%, #047857 100%);
 }
 
 .metodo-svg {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   fill: none;
   stroke: white;
   stroke-width: 2;
@@ -871,10 +968,9 @@ input, textarea {
 }
 
 .metodo-nombre {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 800;
   color: var(--txt);
-  letter-spacing: 0.3px;
 }
 
 /* ============================================================
@@ -926,7 +1022,6 @@ input, textarea {
   border: 1px solid var(--border);
 }
 
-/* Efectivo */
 .efectivo-icono-wrap {
   width: 80px;
   height: 80px;
@@ -966,7 +1061,6 @@ input, textarea {
   margin-top: 16px;
 }
 
-/* Resultado */
 .resultado-card {
   background: var(--bg-card);
   backdrop-filter: blur(20px);
@@ -976,17 +1070,6 @@ input, textarea {
   border: 2px solid;
   margin-top: 4px;
   animation: bump 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-@keyframes bump {
-  from {
-    opacity: 0;
-    transform: scale(0.85);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
 }
 
 .resultado-card.exito {
@@ -1055,11 +1138,279 @@ input, textarea {
 }
 
 .resultado-card .btn-principal {
-  margin-bottom: 0;
+  margin-bottom: 8px;
 }
 
 .resultado-card .btn-secundario {
+  margin-top: 0;
+}
+
+/* ============================================================
+   P6: BOLETA
+   ============================================================ */
+.cliente-form .card {
+  margin-bottom: 16px;
+}
+
+.cliente-hint {
+  font-size: 12px;
+  color: var(--txt-mute);
+  margin-bottom: 14px;
+  font-style: italic;
+}
+
+.tipo-doc-grupo {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.tipo-doc-btn {
+  background: var(--bg-card);
+  border: 2px solid var(--border);
+  color: var(--txt-soft);
+  padding: 12px 8px;
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+.tipo-doc-btn:active {
+  transform: scale(0.95);
+}
+
+.tipo-doc-btn.activo {
+  background: var(--ambar);
+  color: var(--txt-dark);
+  border-color: var(--ambar);
+  box-shadow: var(--sh-glow-amber);
+}
+
+/* Boleta papel */
+.boleta-vista {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.boleta-papel {
+  background: white;
+  color: #000;
+  font-family: 'Courier New', 'Lucida Console', monospace;
+  padding: 18px 16px;
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-lg);
+  font-size: 12px;
+  line-height: 1.4;
+  border: 1px solid #ddd;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.boleta-papel * {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.b-header {
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.b-empresa {
+  font-weight: 900;
+  font-size: 14px;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+  font-family: Arial, sans-serif;
+}
+
+.b-empresa-info {
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.b-divider {
+  border-top: 1px dashed #000;
+  margin: 8px 0;
+}
+
+.b-tipo {
+  text-align: center;
+  font-weight: 900;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-family: Arial, sans-serif;
+  margin: 4px 0 2px;
+}
+
+.b-numero {
+  text-align: center;
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 4px;
+  font-family: Arial, sans-serif;
+}
+
+.b-pendiente {
+  text-align: center;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  color: #856404;
+  font-weight: 700;
+  padding: 4px;
+  margin: 6px 0;
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+
+.b-meta {
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+
+.b-meta strong {
+  font-weight: 700;
+}
+
+.b-cliente {
+  margin: 6px 0;
+}
+
+.b-cliente-linea {
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+
+.b-items-tabla {
+  width: 100%;
+  margin: 4px 0;
+  font-size: 11px;
+}
+
+.b-items-tabla th {
+  text-align: left;
+  font-weight: 700;
+  border-bottom: 1px solid #000;
+  padding: 2px 4px;
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.b-items-tabla th:last-child {
+  text-align: right;
+}
+
+.b-items-tabla td {
+  padding: 4px;
+  vertical-align: top;
+}
+
+.b-items-tabla td:first-child {
+  text-align: center;
+  width: 30px;
+  font-weight: 700;
+}
+
+.b-items-tabla td:last-child {
+  text-align: right;
+}
+
+.b-totales {
   margin-top: 8px;
+  font-size: 11px;
+}
+
+.b-tot-linea {
+  display: flex;
+  justify-content: space-between;
+  padding: 1px 0;
+}
+
+.b-tot-linea.gran-total {
+  font-weight: 900;
+  font-size: 14px;
+  border-top: 1px solid #000;
+  padding-top: 4px;
+  margin-top: 4px;
+  font-family: Arial, sans-serif;
+}
+
+.b-pago {
+  font-size: 11px;
+  margin: 8px 0;
+  text-align: center;
+  background: #f4f4f4;
+  padding: 4px;
+}
+
+.b-qr-wrap {
+  text-align: center;
+  margin: 10px 0 4px;
+}
+
+.b-qr {
+  width: 100px;
+  height: 100px;
+  display: inline-block;
+  background: #000;
+  /* QR simulado: cuadrícula de pixels */
+  background-image:
+    radial-gradient(circle, #fff 1px, transparent 1px),
+    radial-gradient(circle, #fff 1px, transparent 1px);
+  background-size: 8px 8px;
+  background-position: 0 0, 4px 4px;
+  position: relative;
+}
+
+.b-qr::before,
+.b-qr::after {
+  content: '';
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  background: #fff;
+  border: 4px solid #000;
+}
+
+.b-qr::before {
+  top: 4px;
+  left: 4px;
+}
+
+.b-qr::after {
+  top: 4px;
+  right: 4px;
+}
+
+.b-footer {
+  text-align: center;
+  font-size: 10px;
+  color: #666;
+  margin-top: 10px;
+  line-height: 1.3;
+}
+
+.boleta-acciones {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.boleta-acciones .btn-principal {
+  padding: 14px;
+  font-size: 13px;
+}
+
+/* Doc input */
+.doc-input-grupo {
+  margin-top: 4px;
 }
 
 /* ============================================================
@@ -1073,12 +1424,6 @@ input, textarea {
   z-index: 100;
   display: flex;
   align-items: flex-end;
-  animation: fade-in 0.2s ease;
-}
-
-@keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
 }
 
 .menu-contenido {
@@ -1101,7 +1446,28 @@ input, textarea {
   height: 4px;
   background: var(--border);
   border-radius: 2px;
-  margin: 4px auto 16px;
+  margin: 4px auto 12px;
+}
+
+.menu-info {
+  text-align: center;
+  padding: 8px 12px 12px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+
+.menu-info-vendedor {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--txt);
+  margin-bottom: 2px;
+}
+
+.menu-info-serie {
+  font-size: 11px;
+  color: var(--ambar);
+  font-weight: 600;
+  letter-spacing: 1px;
 }
 
 .menu-item {
@@ -1151,10 +1517,6 @@ input, textarea {
   border-color: rgba(239, 68, 68, 0.3);
 }
 
-.menu-item-danger .menu-icono {
-  color: var(--rojo);
-}
-
 .menu-cerrar {
   width: 100%;
   background: transparent;
@@ -1169,7 +1531,7 @@ input, textarea {
 }
 
 /* ============================================================
-   BANNER INSTALAR PWA
+   BANNER PWA
    ============================================================ */
 .banner-instalar {
   position: fixed;
@@ -1281,15 +1643,59 @@ input, textarea {
   .pantallas {
     max-width: 480px;
     margin: 0 auto;
-    border-radius: 0;
     box-shadow: 0 0 80px rgba(0, 0, 0, 0.5);
   }
 }
 
-@media (max-height: 640px) {
+@media (max-height: 700px) {
   .logo-grande { font-size: 44px; }
-  .logo-tagline { margin-bottom: 18px; }
+  .logo-tagline { margin-bottom: 16px; }
   .tecla { height: 46px; font-size: 20px; }
   .pin-display { padding: 10px 0 8px; }
   .login-card { padding: 14px; }
+  .btn-dictar { padding: 22px 14px; }
+  .dictar-circulo { width: 56px; height: 56px; }
+  .dictar-svg { width: 26px; height: 26px; }
+}
+
+/* ============================================================
+   CSS DE IMPRESIÓN (papel térmico 58mm)
+   ============================================================ */
+@media print {
+  @page {
+    size: 58mm auto;
+    margin: 2mm;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  #boleta-papel,
+  #boleta-papel * {
+    visibility: visible;
+  }
+
+  #boleta-papel {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 54mm;
+    background: white;
+    color: black;
+    padding: 0;
+    box-shadow: none;
+    border: none;
+    font-size: 9pt;
+  }
+
+  .b-empresa { font-size: 11pt; }
+  .b-tipo { font-size: 11pt; }
+  .b-numero { font-size: 11pt; }
+  .b-tot-linea.gran-total { font-size: 11pt; }
+
+  .b-qr {
+    width: 80px;
+    height: 80px;
+  }
 }
