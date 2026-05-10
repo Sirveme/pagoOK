@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#3d0606">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="pagoOK Caja">
+<meta name="mobile-web-app-capable" content="yes">
+
+<title>pagoOK Caja</title>
+
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+
+<link rel="stylesheet" href="caja.css">
+</head>
+<body>
+
+<!-- Marca de agua de fondo (patrón diagonal) -->
+<div class="watermark" aria-hidden="true">
+  <div class="watermark-pattern"></div>
+</div>
+
+<!-- ============================================================ -->
+<!-- BANNER PARA INSTALAR PWA                                     -->
+<!-- ============================================================ -->
+<div id="banner-instalar" class="banner-instalar oculto">
+  <span class="banner-icono">📱</span>
+  <div class="banner-texto">Instala pagoOK Caja</div>
+  <button id="btn-instalar" class="banner-btn">Instalar</button>
+  <button id="btn-banner-cerrar" class="banner-cerrar" aria-label="Cerrar">×</button>
+</div>
+
+<!-- ============================================================ -->
+<!-- PANTALLAS — todas absolutas, transición horizontal           -->
+<!-- ============================================================ -->
+<div class="pantallas">
+
+  <!-- ============================================================ -->
+  <!-- P1: LOGIN                                                    -->
+  <!-- ============================================================ -->
+  <section id="p-login" class="pantalla activa">
+    <div class="login-wrap">
+      <div class="logo-grande">
+        <span class="logo-pago">pago</span><span class="logo-ok">OK</span>
+      </div>
+      <p class="logo-tagline">Caja del vendedor</p>
+
+      <div class="card login-card">
+        <label class="campo-label">RUC del negocio</label>
+        <input
+          type="tel"
+          id="input-ruc"
+          class="campo-input"
+          placeholder="20123456789"
+          maxlength="11"
+          inputmode="numeric"
+          pattern="[0-9]*"
+          autocomplete="off">
+
+        <label class="campo-label" style="margin-top: 14px;">PIN del vendedor</label>
+        <div class="pin-display" id="pin-display">
+          <span class="pin-dot"></span>
+          <span class="pin-dot"></span>
+          <span class="pin-dot"></span>
+          <span class="pin-dot"></span>
+        </div>
+
+        <div class="teclado-pin">
+          <button class="tecla" data-num="1">1</button>
+          <button class="tecla" data-num="2">2</button>
+          <button class="tecla" data-num="3">3</button>
+          <button class="tecla" data-num="4">4</button>
+          <button class="tecla" data-num="5">5</button>
+          <button class="tecla" data-num="6">6</button>
+          <button class="tecla" data-num="7">7</button>
+          <button class="tecla" data-num="8">8</button>
+          <button class="tecla" data-num="9">9</button>
+          <button class="tecla tecla-aux" data-accion="borrar" aria-label="Borrar">⌫</button>
+          <button class="tecla" data-num="0">0</button>
+          <button class="tecla tecla-entrar" data-accion="entrar" aria-label="Entrar">→</button>
+        </div>
+
+        <div id="login-error" class="mensaje-error oculto"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- P2: DICTAR VENTA                                             -->
+  <!-- ============================================================ -->
+  <section id="p-dictar" class="pantalla">
+    <header class="topbar">
+      <button class="topbar-btn" data-ir="login" aria-label="Volver">←</button>
+      <div class="topbar-titulo">
+        <span id="vendedor-nombre">Vendedor</span>
+        <span class="topbar-pequeno" id="negocio-nombre">Negocio</span>
+      </div>
+      <button class="topbar-btn" id="btn-menu" aria-label="Menú">⋮</button>
+    </header>
+
+    <div class="contenido contenido-centrado">
+      <div class="paso-indicador">
+        <span class="paso-num">1</span>
+        <span class="paso-texto">Describe la venta</span>
+      </div>
+
+      <button id="btn-dictar" class="btn-dictar">
+        <div class="dictar-circulo">
+          <svg viewBox="0 0 24 24" class="dictar-svg" aria-hidden="true">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="23"/>
+            <line x1="8" y1="23" x2="16" y2="23"/>
+          </svg>
+        </div>
+        <div class="dictar-texto">Toca para hablar</div>
+        <div class="dictar-hint">o escribe abajo</div>
+      </button>
+
+      <textarea
+        id="texto-venta"
+        class="texto-venta"
+        placeholder='Ej: "1 lomo saltado y 2 chichas, 60 soles"'
+        rows="2"></textarea>
+
+      <button id="btn-procesar" class="btn-principal">
+        <span>Procesar venta</span>
+        <span class="btn-flecha">→</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- P3: REVISAR ITEMS                                            -->
+  <!-- ============================================================ -->
+  <section id="p-items" class="pantalla">
+    <header class="topbar">
+      <button class="topbar-btn" data-ir="dictar" aria-label="Volver">←</button>
+      <div class="topbar-titulo">
+        <span>Revisa la venta</span>
+        <span class="topbar-pequeno">Ajusta cantidades si es necesario</span>
+      </div>
+      <span class="topbar-spacer"></span>
+    </header>
+
+    <div class="contenido">
+      <div class="paso-indicador">
+        <span class="paso-num">2</span>
+        <span class="paso-texto">Confirma los items</span>
+      </div>
+
+      <div class="card items-card">
+        <ul id="items-lista" class="items-lista"></ul>
+        <div class="items-total">
+          <span class="items-total-label">Total</span>
+          <strong id="items-total-monto" class="items-total-monto">S/ 0</strong>
+        </div>
+      </div>
+
+      <button id="btn-cobrar" class="btn-principal btn-principal-grande">
+        <span>Cobrar</span>
+        <span class="btn-flecha">→</span>
+      </button>
+      <button id="btn-rehacer" class="btn-secundario">
+        Rehacer dictado
+      </button>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- P4: ELEGIR MÉTODO                                            -->
+  <!-- ============================================================ -->
+  <section id="p-metodo" class="pantalla">
+    <header class="topbar">
+      <button class="topbar-btn" data-ir="items" aria-label="Volver">←</button>
+      <div class="topbar-titulo">
+        <span>Cobrar</span>
+        <span class="topbar-pequeno" id="metodo-monto-cabecera">S/ 0</span>
+      </div>
+      <span class="topbar-spacer"></span>
+    </header>
+
+    <div class="contenido contenido-centrado">
+      <div class="monto-grande-card">
+        <small>Total a cobrar</small>
+        <strong id="monto-grande" class="monto-grande-num">S/ 0</strong>
+      </div>
+
+      <div class="metodos-grid">
+        <button class="metodo metodo-yape" data-metodo="yape">
+          <div class="metodo-circulo metodo-circulo-yape">
+            <svg viewBox="0 0 24 24" class="metodo-svg" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M8 11l4-4 4 4M12 7v10"/>
+            </svg>
+          </div>
+          <span class="metodo-nombre">Yape</span>
+        </button>
+        <button class="metodo metodo-plin" data-metodo="plin">
+          <div class="metodo-circulo metodo-circulo-plin">
+            <svg viewBox="0 0 24 24" class="metodo-svg" aria-hidden="true">
+              <path d="M12 2L4 6v6c0 5 3.5 9 8 10 4.5-1 8-5 8-10V6l-8-4z"/>
+              <path d="M9 12l2 2 4-4"/>
+            </svg>
+          </div>
+          <span class="metodo-nombre">Plin</span>
+        </button>
+        <button class="metodo metodo-tarjeta" data-metodo="tarjeta">
+          <div class="metodo-circulo metodo-circulo-tarjeta">
+            <svg viewBox="0 0 24 24" class="metodo-svg" aria-hidden="true">
+              <rect x="2" y="5" width="20" height="14" rx="2"/>
+              <line x1="2" y1="10" x2="22" y2="10"/>
+            </svg>
+          </div>
+          <span class="metodo-nombre">Tarjeta</span>
+        </button>
+        <button class="metodo metodo-efectivo" data-metodo="efectivo">
+          <div class="metodo-circulo metodo-circulo-efectivo">
+            <svg viewBox="0 0 24 24" class="metodo-svg" aria-hidden="true">
+              <rect x="2" y="6" width="20" height="12" rx="2"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </div>
+          <span class="metodo-nombre">Efectivo</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- P5: VERIFICAR PAGO                                           -->
+  <!-- ============================================================ -->
+  <section id="p-verificar" class="pantalla">
+    <header class="topbar">
+      <button class="topbar-btn" data-ir="metodo" aria-label="Volver">←</button>
+      <div class="topbar-titulo">
+        <span id="verificar-titulo">Verificar Yape</span>
+        <span class="topbar-pequeno" id="verificar-monto">S/ 0</span>
+      </div>
+      <span class="topbar-spacer"></span>
+    </header>
+
+    <div class="contenido">
+      <!-- Form de verificación (Yape/Plin) -->
+      <div id="verificacion-form" class="verificacion-form">
+        <div class="card">
+          <label class="campo-label">N° de operación</label>
+          <input
+            type="text"
+            id="input-operacion"
+            class="campo-input campo-grande"
+            placeholder="Ej: 12345678"
+            inputmode="numeric"
+            autocomplete="off">
+
+          <label class="campo-label" style="margin-top: 12px;">Foto del voucher</label>
+          <label for="input-foto" class="btn-foto">
+            <svg viewBox="0 0 24 24" class="btn-foto-svg" aria-hidden="true">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+            <span id="btn-foto-texto">Tomar foto</span>
+          </label>
+          <input type="file" id="input-foto" accept="image/*" capture="environment" hidden>
+          <img id="foto-preview" class="foto-preview oculto" alt="Voucher">
+        </div>
+
+        <button id="btn-verificar" class="btn-principal btn-principal-grande" disabled>
+          <span>Verificar pago</span>
+          <span class="btn-flecha">→</span>
+        </button>
+      </div>
+
+      <!-- Form de efectivo -->
+      <div id="efectivo-form" class="efectivo-form oculto">
+        <div class="card card-centrado">
+          <div class="efectivo-icono-wrap">
+            <svg viewBox="0 0 24 24" class="efectivo-svg" aria-hidden="true">
+              <rect x="2" y="6" width="20" height="12" rx="2"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </div>
+          <p class="efectivo-pregunta">¿Recibiste <strong id="efectivo-monto">S/ 0</strong> en efectivo?</p>
+        </div>
+        <button id="btn-efectivo-confirmar" class="btn-principal btn-principal-grande">
+          <span>Sí, confirmar venta</span>
+          <span class="btn-flecha">✓</span>
+        </button>
+      </div>
+
+      <!-- Resultado -->
+      <div id="resultado-card" class="resultado-card oculto">
+        <div class="resultado-icono" id="resultado-icono">
+          <svg viewBox="0 0 24 24" id="resultado-svg" aria-hidden="true"></svg>
+        </div>
+        <div class="resultado-titulo" id="resultado-titulo"></div>
+        <div class="resultado-texto" id="resultado-texto"></div>
+        <button id="btn-finalizar" class="btn-principal btn-principal-grande">
+          <span>Nueva venta</span>
+          <span class="btn-flecha">→</span>
+        </button>
+        <button id="btn-pendiente" class="btn-secundario oculto">
+          Registrar como pendiente
+        </button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- ============================================================ -->
+<!-- MENÚ                                                         -->
+<!-- ============================================================ -->
+<div id="menu-overlay" class="menu-overlay oculto">
+  <div class="menu-contenido">
+    <div class="menu-handle"></div>
+    <button class="menu-item" id="menu-historial">
+      <span class="menu-icono">📋</span>
+      <span class="menu-label">Ventas de hoy</span>
+      <span class="menu-extra" id="historial-count">0</span>
+    </button>
+    <button class="menu-item" id="menu-catalogo">
+      <span class="menu-icono">📦</span>
+      <span class="menu-label">Catálogo</span>
+      <span class="menu-extra" id="catalogo-count">0</span>
+    </button>
+    <button class="menu-item" id="menu-sonido">
+      <span class="menu-icono" id="sonido-icono">🔊</span>
+      <span class="menu-label">Sonido</span>
+      <span class="menu-extra" id="sonido-estado">ON</span>
+    </button>
+    <button class="menu-item menu-item-danger" id="menu-cambiar">
+      <span class="menu-icono">🚪</span>
+      <span class="menu-label">Cambiar de vendedor</span>
+    </button>
+    <button class="menu-cerrar" id="menu-cerrar">Cerrar</button>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- TOAST                                                        -->
+<!-- ============================================================ -->
+<div id="toast" class="toast"></div>
+
+<script src="caja.js"></script>
+</body>
+</html>
