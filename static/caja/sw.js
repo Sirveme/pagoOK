@@ -3,7 +3,7 @@
 // ============================================================
 // Cambio de versión fuerza limpieza de caché viejo automático.
 
-const CACHE_NAME = 'pagook-caja-v4-1';
+const CACHE_NAME = 'pagook-caja-v5';
 const SHELL_FILES = [
   './',
   './index.html',

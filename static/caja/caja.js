@@ -1,3 +1,481 @@
+/* 
+ * QR Code generator library (compact JavaScript)
+ * 
+ * Based on qrcodegen by Project Nayuki
+ * https://www.nayuki.io/page/qr-code-generator-library
+ * Released into the public domain.
+ * 
+ * Compact version for inline use in pagoOK Caja.
+ */
+
+var qrcodegen = (function() {
+  "use strict";
+  
+  function appendBits(val, len, bb) {
+    if (len < 0 || len > 31 || val >>> len !== 0) throw "Value out of range";
+    for (var i = len - 1; i >= 0; i--) bb.push((val >>> i) & 1);
+  }
+  
+  function getBit(x, i) { return ((x >>> i) & 1) !== 0; }
+  
+  function QrCode(version, errorCorrectionLevel, dataCodewords, mask) {
+    if (version < 1 || version > 40) throw "Version out of range";
+    if (mask < -1 || mask > 7) throw "Mask out of range";
+    this.version = version;
+    this.size = version * 4 + 17;
+    this.errorCorrectionLevel = errorCorrectionLevel;
+    var row = [];
+    for (var i = 0; i < this.size; i++) row.push(false);
+    this.modules = [];
+    this.isFunction = [];
+    for (var i = 0; i < this.size; i++) {
+      this.modules.push(row.slice());
+      this.isFunction.push(row.slice());
+    }
+    this.drawFunctionPatterns();
+    var allCodewords = this.addEccAndInterleave(dataCodewords);
+    this.drawCodewords(allCodewords);
+    if (mask === -1) {
+      var minPenalty = 1000000000;
+      for (var i = 0; i < 8; i++) {
+        this.applyMask(i);
+        this.drawFormatBits(i);
+        var penalty = this.getPenaltyScore();
+        if (penalty < minPenalty) { mask = i; minPenalty = penalty; }
+        this.applyMask(i);
+      }
+    }
+    this.mask = mask;
+    this.applyMask(mask);
+    this.drawFormatBits(mask);
+    this.isFunction = null;
+  }
+  
+  QrCode.prototype.getModule = function(x, y) {
+    return 0 <= x && x < this.size && 0 <= y && y < this.size && this.modules[y][x];
+  };
+  
+  QrCode.prototype.drawFunctionPatterns = function() {
+    for (var i = 0; i < this.size; i++) {
+      this.setFunctionModule(6, i, i % 2 === 0);
+      this.setFunctionModule(i, 6, i % 2 === 0);
+    }
+    this.drawFinderPattern(3, 3);
+    this.drawFinderPattern(this.size - 4, 3);
+    this.drawFinderPattern(3, this.size - 4);
+    var alignPatPos = this.getAlignmentPatternPositions();
+    var numAlign = alignPatPos.length;
+    for (var i = 0; i < numAlign; i++) {
+      for (var j = 0; j < numAlign; j++) {
+        if (!(i === 0 && j === 0) && !(i === 0 && j === numAlign - 1) && !(i === numAlign - 1 && j === 0))
+          this.drawAlignmentPattern(alignPatPos[i], alignPatPos[j]);
+      }
+    }
+    this.drawFormatBits(0);
+    this.drawVersion();
+  };
+  
+  QrCode.prototype.drawFormatBits = function(mask) {
+    var data = this.errorCorrectionLevel.formatBits << 3 | mask;
+    var rem = data;
+    for (var i = 0; i < 10; i++) rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
+    var bits = (data << 10 | rem) ^ 0x5412;
+    for (var i = 0; i <= 5; i++) this.setFunctionModule(8, i, getBit(bits, i));
+    this.setFunctionModule(8, 7, getBit(bits, 6));
+    this.setFunctionModule(8, 8, getBit(bits, 7));
+    this.setFunctionModule(7, 8, getBit(bits, 8));
+    for (var i = 9; i < 15; i++) this.setFunctionModule(14 - i, 8, getBit(bits, i));
+    for (var i = 0; i < 8; i++) this.setFunctionModule(this.size - 1 - i, 8, getBit(bits, i));
+    for (var i = 8; i < 15; i++) this.setFunctionModule(8, this.size - 15 + i, getBit(bits, i));
+    this.setFunctionModule(8, this.size - 8, true);
+  };
+  
+  QrCode.prototype.drawVersion = function() {
+    if (this.version < 7) return;
+    var rem = this.version;
+    for (var i = 0; i < 12; i++) rem = (rem << 1) ^ ((rem >>> 11) * 0x1F25);
+    var bits = this.version << 12 | rem;
+    for (var i = 0; i < 18; i++) {
+      var bit = getBit(bits, i);
+      var a = this.size - 11 + i % 3;
+      var b = Math.floor(i / 3);
+      this.setFunctionModule(a, b, bit);
+      this.setFunctionModule(b, a, bit);
+    }
+  };
+  
+  QrCode.prototype.drawFinderPattern = function(x, y) {
+    for (var dy = -4; dy <= 4; dy++) {
+      for (var dx = -4; dx <= 4; dx++) {
+        var dist = Math.max(Math.abs(dx), Math.abs(dy));
+        var xx = x + dx, yy = y + dy;
+        if (0 <= xx && xx < this.size && 0 <= yy && yy < this.size)
+          this.setFunctionModule(xx, yy, dist !== 2 && dist !== 4);
+      }
+    }
+  };
+  
+  QrCode.prototype.drawAlignmentPattern = function(x, y) {
+    for (var dy = -2; dy <= 2; dy++) {
+      for (var dx = -2; dx <= 2; dx++) {
+        this.setFunctionModule(x + dx, y + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
+      }
+    }
+  };
+  
+  QrCode.prototype.setFunctionModule = function(x, y, isDark) {
+    this.modules[y][x] = isDark;
+    this.isFunction[y][x] = true;
+  };
+  
+  QrCode.prototype.addEccAndInterleave = function(data) {
+    var ver = this.version;
+    var ecl = this.errorCorrectionLevel;
+    if (data.length !== QrCode.getNumDataCodewords(ver, ecl)) throw "Invalid argument";
+    var numBlocks = QrCode.NUM_ERROR_CORRECTION_BLOCKS[ecl.ordinal][ver];
+    var blockEccLen = QrCode.ECC_CODEWORDS_PER_BLOCK[ecl.ordinal][ver];
+    var rawCodewords = Math.floor(QrCode.getNumRawDataModules(ver) / 8);
+    var numShortBlocks = numBlocks - rawCodewords % numBlocks;
+    var shortBlockLen = Math.floor(rawCodewords / numBlocks);
+    var blocks = [];
+    var rs = reedSolomonComputeDivisor(blockEccLen);
+    for (var i = 0, k = 0; i < numBlocks; i++) {
+      var dat = data.slice(k, k + shortBlockLen - blockEccLen + (i < numShortBlocks ? 0 : 1));
+      k += dat.length;
+      var ecc = reedSolomonComputeRemainder(dat, rs);
+      if (i < numShortBlocks) dat.push(0);
+      blocks.push(dat.concat(ecc));
+    }
+    var result = [];
+    for (var i = 0; i < blocks[0].length; i++) {
+      for (var j = 0; j < blocks.length; j++) {
+        if (i !== shortBlockLen - blockEccLen || j >= numShortBlocks) result.push(blocks[j][i]);
+      }
+    }
+    return result;
+  };
+  
+  QrCode.prototype.drawCodewords = function(data) {
+    if (data.length !== Math.floor(QrCode.getNumRawDataModules(this.version) / 8)) throw "Invalid argument";
+    var i = 0;
+    for (var right = this.size - 1; right >= 1; right -= 2) {
+      if (right === 6) right = 5;
+      for (var vert = 0; vert < this.size; vert++) {
+        for (var j = 0; j < 2; j++) {
+          var x = right - j;
+          var upward = ((right + 1) & 2) === 0;
+          var y = upward ? this.size - 1 - vert : vert;
+          if (!this.isFunction[y][x] && i < data.length * 8) {
+            this.modules[y][x] = getBit(data[i >>> 3], 7 - (i & 7));
+            i++;
+          }
+        }
+      }
+    }
+  };
+  
+  QrCode.prototype.applyMask = function(mask) {
+    if (mask < 0 || mask > 7) throw "Mask value out of range";
+    for (var y = 0; y < this.size; y++) {
+      for (var x = 0; x < this.size; x++) {
+        var invert;
+        switch (mask) {
+          case 0: invert = (x + y) % 2 === 0; break;
+          case 1: invert = y % 2 === 0; break;
+          case 2: invert = x % 3 === 0; break;
+          case 3: invert = (x + y) % 3 === 0; break;
+          case 4: invert = (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0; break;
+          case 5: invert = x * y % 2 + x * y % 3 === 0; break;
+          case 6: invert = (x * y % 2 + x * y % 3) % 2 === 0; break;
+          case 7: invert = ((x + y) % 2 + x * y % 3) % 2 === 0; break;
+        }
+        if (!this.isFunction[y][x] && invert) this.modules[y][x] = !this.modules[y][x];
+      }
+    }
+  };
+  
+  QrCode.prototype.getPenaltyScore = function() {
+    var result = 0;
+    var size = this.size;
+    var modules = this.modules;
+    for (var y = 0; y < size; y++) {
+      var runColor = false, runX = 0;
+      var runHistory = [0, 0, 0, 0, 0, 0, 0];
+      for (var x = 0; x < size; x++) {
+        if (modules[y][x] === runColor) {
+          runX++;
+          if (runX === 5) result += 3;
+          else if (runX > 5) result++;
+        } else {
+          this._finderPenaltyAddHistory(runX, runHistory);
+          if (!runColor) result += this._finderPenaltyCountPatterns(runHistory) * 40;
+          runColor = modules[y][x];
+          runX = 1;
+        }
+      }
+      result += this._finderPenaltyTerminateAndCount(runColor, runX, runHistory) * 40;
+    }
+    for (var x = 0; x < size; x++) {
+      var runColor = false, runY = 0;
+      var runHistory = [0, 0, 0, 0, 0, 0, 0];
+      for (var y = 0; y < size; y++) {
+        if (modules[y][x] === runColor) {
+          runY++;
+          if (runY === 5) result += 3;
+          else if (runY > 5) result++;
+        } else {
+          this._finderPenaltyAddHistory(runY, runHistory);
+          if (!runColor) result += this._finderPenaltyCountPatterns(runHistory) * 40;
+          runColor = modules[y][x];
+          runY = 1;
+        }
+      }
+      result += this._finderPenaltyTerminateAndCount(runColor, runY, runHistory) * 40;
+    }
+    for (var y = 0; y < size - 1; y++) {
+      for (var x = 0; x < size - 1; x++) {
+        var color = modules[y][x];
+        if (color === modules[y][x + 1] && color === modules[y + 1][x] && color === modules[y + 1][x + 1])
+          result += 3;
+      }
+    }
+    var dark = 0;
+    for (var y = 0; y < size; y++) for (var x = 0; x < size; x++) if (modules[y][x]) dark++;
+    var total = size * size;
+    var k = Math.ceil(Math.abs(dark * 20 - total * 10) / total) - 1;
+    result += k * 10;
+    return result;
+  };
+  
+  QrCode.prototype._finderPenaltyAddHistory = function(currentRunLength, runHistory) {
+    if (runHistory[0] === 0) currentRunLength += this.size;
+    runHistory.pop();
+    runHistory.unshift(currentRunLength);
+  };
+  
+  QrCode.prototype._finderPenaltyCountPatterns = function(runHistory) {
+    var n = runHistory[1];
+    var core = n > 0 && runHistory[2] === n && runHistory[3] === n * 3 && runHistory[4] === n && runHistory[5] === n;
+    return (core && runHistory[0] >= n * 4 && runHistory[6] >= n ? 1 : 0)
+      + (core && runHistory[6] >= n * 4 && runHistory[0] >= n ? 1 : 0);
+  };
+  
+  QrCode.prototype._finderPenaltyTerminateAndCount = function(currentRunColor, currentRunLength, runHistory) {
+    if (currentRunColor) {
+      this._finderPenaltyAddHistory(currentRunLength, runHistory);
+      currentRunLength = 0;
+    }
+    currentRunLength += this.size;
+    this._finderPenaltyAddHistory(currentRunLength, runHistory);
+    return this._finderPenaltyCountPatterns(runHistory);
+  };
+  
+  QrCode.prototype.getAlignmentPatternPositions = function() {
+    if (this.version === 1) return [];
+    var numAlign = Math.floor(this.version / 7) + 2;
+    var step = (this.version === 32) ? 26 : Math.ceil((this.size - 13) / (numAlign * 2 - 2)) * 2;
+    var result = [6];
+    for (var pos = this.size - 7; result.length < numAlign; pos -= step) result.splice(1, 0, pos);
+    return result;
+  };
+  
+  QrCode.getNumRawDataModules = function(ver) {
+    if (ver < 1 || ver > 40) throw "Version out of range";
+    var result = (16 * ver + 128) * ver + 64;
+    if (ver >= 2) {
+      var numAlign = Math.floor(ver / 7) + 2;
+      result -= (25 * numAlign - 10) * numAlign - 55;
+      if (ver >= 7) result -= 36;
+    }
+    return result;
+  };
+  
+  QrCode.getNumDataCodewords = function(ver, ecl) {
+    return Math.floor(QrCode.getNumRawDataModules(ver) / 8) -
+      QrCode.ECC_CODEWORDS_PER_BLOCK[ecl.ordinal][ver] *
+      QrCode.NUM_ERROR_CORRECTION_BLOCKS[ecl.ordinal][ver];
+  };
+  
+  QrCode.encodeText = function(text, ecl) {
+    var segs = QrSegment.makeSegments(text);
+    return QrCode.encodeSegments(segs, ecl);
+  };
+  
+  QrCode.encodeSegments = function(segs, ecl, minVersion, maxVersion, mask, boostEcl) {
+    if (minVersion === undefined) minVersion = 1;
+    if (maxVersion === undefined) maxVersion = 40;
+    if (mask === undefined) mask = -1;
+    if (boostEcl === undefined) boostEcl = true;
+    var version, dataUsedBits;
+    for (version = minVersion; ; version++) {
+      var dataCapacityBits = QrCode.getNumDataCodewords(version, ecl) * 8;
+      var usedBits = QrSegment.getTotalBits(segs, version);
+      if (usedBits <= dataCapacityBits) { dataUsedBits = usedBits; break; }
+      if (version >= maxVersion) throw "Data too long";
+    }
+    [QrCode.Ecc.MEDIUM, QrCode.Ecc.QUARTILE, QrCode.Ecc.HIGH].forEach(function(newEcl) {
+      if (boostEcl && dataUsedBits <= QrCode.getNumDataCodewords(version, newEcl) * 8) ecl = newEcl;
+    });
+    var bb = [];
+    segs.forEach(function(seg) {
+      appendBits(seg.mode.modeBits, 4, bb);
+      appendBits(seg.numChars, seg.mode.numCharCountBits(version), bb);
+      seg.getData().forEach(function(b) { bb.push(b); });
+    });
+    var dataCapacityBits = QrCode.getNumDataCodewords(version, ecl) * 8;
+    appendBits(0, Math.min(4, dataCapacityBits - bb.length), bb);
+    appendBits(0, (8 - bb.length % 8) % 8, bb);
+    for (var padByte = 0xEC; bb.length < dataCapacityBits; padByte ^= 0xEC ^ 0x11)
+      appendBits(padByte, 8, bb);
+    var dataCodewords = [];
+    while (dataCodewords.length * 8 < bb.length) dataCodewords.push(0);
+    bb.forEach(function(b, i) { dataCodewords[i >>> 3] |= b << (7 - (i & 7)); });
+    return new QrCode(version, ecl, dataCodewords, mask);
+  };
+  
+  QrCode.Ecc = {
+    LOW: { ordinal: 0, formatBits: 1 },
+    MEDIUM: { ordinal: 1, formatBits: 0 },
+    QUARTILE: { ordinal: 2, formatBits: 3 },
+    HIGH: { ordinal: 3, formatBits: 2 },
+  };
+  
+  QrCode.ECC_CODEWORDS_PER_BLOCK = [
+    [-1, 7, 10, 15, 20, 26, 18, 20, 24, 30, 18, 20, 24, 26, 30, 22, 24, 28, 30, 28, 28, 28, 28, 30, 30, 26, 28, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30],
+    [-1, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26, 30, 22, 22, 24, 24, 28, 28, 26, 26, 26, 26, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28],
+    [-1, 13, 22, 18, 26, 18, 24, 18, 22, 20, 24, 28, 26, 24, 20, 30, 24, 28, 28, 26, 30, 28, 30, 30, 30, 30, 28, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30],
+    [-1, 17, 28, 22, 16, 22, 28, 26, 26, 24, 28, 24, 28, 22, 24, 24, 30, 28, 28, 26, 28, 30, 24, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30],
+  ];
+  
+  QrCode.NUM_ERROR_CORRECTION_BLOCKS = [
+    [-1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 4, 4, 4, 4, 4, 6, 6, 6, 6, 7, 8, 8, 9, 9, 10, 12, 12, 12, 13, 14, 15, 16, 17, 18, 19, 19, 20, 21, 22, 24, 25],
+    [-1, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5, 5, 8, 9, 9, 10, 10, 11, 13, 14, 16, 17, 17, 18, 20, 21, 23, 25, 26, 28, 29, 31, 33, 35, 37, 38, 40, 43, 45, 47, 49],
+    [-1, 1, 1, 2, 2, 4, 4, 6, 6, 8, 8, 8, 10, 12, 16, 12, 17, 16, 18, 21, 20, 23, 23, 25, 27, 29, 34, 34, 35, 38, 40, 43, 45, 48, 51, 53, 56, 59, 62, 65, 68],
+    [-1, 1, 1, 2, 4, 4, 4, 5, 6, 8, 8, 11, 11, 16, 16, 18, 16, 19, 21, 25, 25, 25, 34, 30, 32, 35, 37, 40, 42, 45, 48, 51, 54, 57, 60, 63, 66, 70, 74, 77, 81],
+  ];
+  
+  function reedSolomonComputeDivisor(degree) {
+    if (degree < 1 || degree > 255) throw "Degree out of range";
+    var result = [];
+    for (var i = 0; i < degree - 1; i++) result.push(0);
+    result.push(1);
+    var root = 1;
+    for (var i = 0; i < degree; i++) {
+      for (var j = 0; j < result.length; j++) {
+        result[j] = reedSolomonMultiply(result[j], root);
+        if (j + 1 < result.length) result[j] ^= result[j + 1];
+      }
+      root = reedSolomonMultiply(root, 0x02);
+    }
+    return result;
+  }
+  
+  function reedSolomonComputeRemainder(data, divisor) {
+    var result = divisor.map(function() { return 0; });
+    data.forEach(function(b) {
+      var factor = b ^ result.shift();
+      result.push(0);
+      divisor.forEach(function(coef, i) { result[i] ^= reedSolomonMultiply(coef, factor); });
+    });
+    return result;
+  }
+  
+  function reedSolomonMultiply(x, y) {
+    if (x >>> 8 !== 0 || y >>> 8 !== 0) throw "Byte out of range";
+    var z = 0;
+    for (var i = 7; i >= 0; i--) {
+      z = (z << 1) ^ ((z >>> 7) * 0x11D);
+      z ^= ((y >>> i) & 1) * x;
+    }
+    return z;
+  }
+  
+  function QrSegment(mode, numChars, bitData) {
+    if (numChars < 0) throw "Invalid argument";
+    this.mode = mode;
+    this.numChars = numChars;
+    this.bitData = bitData;
+  }
+  
+  QrSegment.prototype.getData = function() { return this.bitData.slice(); };
+  
+  QrSegment.makeBytes = function(data) {
+    var bb = [];
+    data.forEach(function(b) { appendBits(b, 8, bb); });
+    return new QrSegment(QrSegment.Mode.BYTE, data.length, bb);
+  };
+  
+  QrSegment.makeNumeric = function(digits) {
+    if (!/^[0-9]*$/.test(digits)) throw "String contains non-numeric characters";
+    var bb = [];
+    for (var i = 0; i < digits.length; ) {
+      var n = Math.min(digits.length - i, 3);
+      appendBits(parseInt(digits.substr(i, n), 10), n * 3 + 1, bb);
+      i += n;
+    }
+    return new QrSegment(QrSegment.Mode.NUMERIC, digits.length, bb);
+  };
+  
+  QrSegment.makeAlphanumeric = function(text) {
+    if (!/^[A-Z0-9 $%*+.\/:-]*$/.test(text)) throw "String contains unencodable characters";
+    var bb = [];
+    var i;
+    for (i = 0; i + 2 <= text.length; i += 2) {
+      var temp = QrSegment.ALPHANUMERIC_CHARSET.indexOf(text.charAt(i)) * 45;
+      temp += QrSegment.ALPHANUMERIC_CHARSET.indexOf(text.charAt(i + 1));
+      appendBits(temp, 11, bb);
+    }
+    if (i < text.length)
+      appendBits(QrSegment.ALPHANUMERIC_CHARSET.indexOf(text.charAt(i)), 6, bb);
+    return new QrSegment(QrSegment.Mode.ALPHANUMERIC, text.length, bb);
+  };
+  
+  QrSegment.makeSegments = function(text) {
+    if (text === "") return [];
+    else if (/^[0-9]*$/.test(text)) return [QrSegment.makeNumeric(text)];
+    else if (/^[A-Z0-9 $%*+.\/:-]*$/.test(text)) return [QrSegment.makeAlphanumeric(text)];
+    else {
+      // Encode as UTF-8 bytes
+      var bytes = [];
+      for (var i = 0; i < text.length; i++) {
+        var c = text.charCodeAt(i);
+        if (c < 0x80) bytes.push(c);
+        else if (c < 0x800) { bytes.push(0xC0 | c >> 6); bytes.push(0x80 | c & 0x3F); }
+        else if (c < 0xD800 || c >= 0xE000) { bytes.push(0xE0 | c >> 12); bytes.push(0x80 | c >> 6 & 0x3F); bytes.push(0x80 | c & 0x3F); }
+        else {
+          i++;
+          c = 0x10000 + ((c & 0x3FF) << 10) + (text.charCodeAt(i) & 0x3FF);
+          bytes.push(0xF0 | c >> 18);
+          bytes.push(0x80 | c >> 12 & 0x3F);
+          bytes.push(0x80 | c >> 6 & 0x3F);
+          bytes.push(0x80 | c & 0x3F);
+        }
+      }
+      return [QrSegment.makeBytes(bytes)];
+    }
+  };
+  
+  QrSegment.getTotalBits = function(segs, version) {
+    var result = 0;
+    for (var i = 0; i < segs.length; i++) {
+      var seg = segs[i];
+      var ccbits = seg.mode.numCharCountBits(version);
+      if (seg.numChars >= (1 << ccbits)) return Infinity;
+      result += 4 + ccbits + seg.bitData.length;
+    }
+    return result;
+  };
+  
+  QrSegment.Mode = {
+    NUMERIC: { modeBits: 0x1, numCharCountBits: function(ver) { return ver < 10 ? 10 : ver < 27 ? 12 : 14; } },
+    ALPHANUMERIC: { modeBits: 0x2, numCharCountBits: function(ver) { return ver < 10 ? 9 : ver < 27 ? 11 : 13; } },
+    BYTE: { modeBits: 0x4, numCharCountBits: function(ver) { return ver < 10 ? 8 : 16; } },
+  };
+  
+  QrSegment.ALPHANUMERIC_CHARSET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:";
+  
+  return { QrCode: QrCode, QrSegment: QrSegment };
+})();
 // ============================================================
 // pagoOK Caja v4 - Catálogo emergente + Pago parcial + Online/Offline
 // ============================================================
@@ -36,14 +514,20 @@
   // ============================================================
   const EMPRESAS_DEMO = {
     '20615446565': {
-      nombre: 'Pollería Bolognesi S.A.C.',
+      razonSocial: 'POLLERÍA BOLOGNESI S.A.C.',
+      nombreComercial: 'Pollería Bolognesi',
       tieneCDT: true,
-      aplicaIGV: false, // Iquitos = Amazonía, sin IGV
+      aplicaIGV: false,
+      esAmazonia: true,
       ciudad: 'Iquitos - Loreto',
+      domicilioFiscal: 'Av. Iquitos 230, Iquitos',
+      logoUrl: null,
+      formaPago: 'CONTADO',
       locales: [
         {
           id: 'local_1',
           direccion: 'Av. Bolognesi 346',
+          esAnexo: true,
           serieBase: 346,
           vendedores: [
             { alias: 'vendedor1', pin: '1234', nombre: 'Carlos', serieB: 'B346', serieF: 'F346' },
@@ -53,14 +537,20 @@
       ],
     },
     '99999999999': {
-      nombre: 'Negocio Demo',
+      razonSocial: 'NEGOCIO DEMO S.A.C.',
+      nombreComercial: 'Negocio Demo',
       tieneCDT: false,
       aplicaIGV: true,
+      esAmazonia: false,
       ciudad: 'Lima - Lima',
+      domicilioFiscal: 'Calle Demo 100, Lima',
+      logoUrl: null,
+      formaPago: 'CONTADO',
       locales: [
         {
           id: 'local_demo',
           direccion: 'Calle Demo 100',
+          esAnexo: false,
           serieBase: null,
           vendedores: [
             { alias: 'vendedor1', pin: '0000', nombre: 'Demo', serieB: 'B000', serieF: 'F000' },
@@ -294,7 +784,7 @@
       return;
     }
     estado.empresa = empresa;
-    document.getElementById('empresa-nombre-txt').textContent = empresa.nombre;
+    document.getElementById('empresa-nombre-txt').textContent = empresa.nombreComercial;
     display.classList.remove('oculto');
     if (empresa.locales.length > 1) {
       select.innerHTML = '<option value="">Selecciona el local...</option>';
@@ -373,7 +863,7 @@
     estado.vendedor = vendedor;
     guardarRuc(ruc);
     document.getElementById('vendedor-nombre').textContent = vendedor.nombre;
-    document.getElementById('local-display').textContent = estado.empresa.nombre + ' · ' + vendedor.serieB;
+    document.getElementById('local-display').textContent = estado.empresa.nombreComercial + ' · ' + vendedor.serieB;
     estado.pin = '';
     actualizarPinDisplay();
     actualizarConexion();
@@ -1198,6 +1688,7 @@
     const empresa = estado.empresa;
     const local = estado.localActual;
     const tipoComprobante = estado.cliente.tipoDoc === 'ruc' ? 'F' : 'B';
+    const tipoSunatCod = tipoComprobante === 'F' ? '01' : '03';
     const serie = tipoComprobante === 'F' ? v.serieF : v.serieB;
     if (!estado.correlativos[serie]) estado.correlativos[serie] = 0;
     estado.correlativos[serie]++;
@@ -1210,6 +1701,8 @@
     const yyyy = ahora.getFullYear();
     const hh = String(ahora.getHours()).padStart(2, '0');
     const mi = String(ahora.getMinutes()).padStart(2, '0');
+    const fechaCorta = `${dd}/${mm}/${yyyy}`;
+    const fechaSunat = `${dd}/${mm}/${String(yyyy).slice(2)}`;
 
     const totalNum = estado.total;
     const aplicaIGV = empresa.aplicaIGV;
@@ -1225,7 +1718,7 @@
     const tipoLabel = tipoComprobante === 'F' ? 'FACTURA ELECTRÓNICA' : 'BOLETA DE VENTA ELECTRÓNICA';
     const correlativoStr = String(correlativo).padStart(8, '0');
 
-    // Items con precio unitario calculado
+    // Items
     const itemsHtml = estado.items.map(item => {
       const punit = item.precioUnit ? fmt2(item.precioUnit) : '-';
       const subtotalItem = item.precioUnit ? fmt2(item.cantidad * item.precioUnit) : '-';
@@ -1239,47 +1732,92 @@
       `;
     }).join('');
 
+    // Cliente
+    const tipoDocLabel = {
+      dni: 'DNI',
+      ruc: 'RUC',
+    }[estado.cliente.tipoDoc];
+
+    const tipoDocSunat = {
+      dni: '1',
+      ruc: '6',
+      ninguno: '0',
+    }[estado.cliente.tipoDoc];
+
     const clienteHtml = estado.cliente.tipoDoc !== 'ninguno' ? `
-      <div class="b-cliente">
-        <div class="b-cliente-linea"><strong>${estado.cliente.tipoDoc.toUpperCase()}:</strong> ${estado.cliente.numero}</div>
-        ${estado.cliente.nombre ? `<div class="b-cliente-linea"><strong>Cliente:</strong> ${escapeHtml(estado.cliente.nombre)}</div>` : ''}
-      </div>
+      <div class="b-meta"><strong>${tipoDocLabel}:</strong> ${estado.cliente.numero}</div>
+      ${estado.cliente.nombre ? `<div class="b-meta"><strong>Cliente:</strong> ${escapeHtml(estado.cliente.nombre).toUpperCase()}</div>` : ''}
     ` : '';
 
+    // Pendiente de emisión
     const pendienteHtml = !empresa.tieneCDT
       ? `<div class="b-pendiente">PENDIENTE DE EMISIÓN</div>` : '';
 
-    // Pagos
-    let pagoHtml;
-    if (estado.metodosPago.length === 1) {
-      const p = estado.metodosPago[0];
+    // Pagos (en rectángulo destacado)
+    const lineasPagos = estado.metodosPago.map(p => {
       const nombre = { yape: 'YAPE', plin: 'PLIN', efectivo: 'EFECTIVO' }[p.metodo];
-      pagoHtml = `<div class="b-pago">Pago: ${nombre}${p.nOperacion ? ' op ' + p.nOperacion : ''} · ${fmt(p.monto)}</div>`;
-    } else {
-      const lineasPagos = estado.metodosPago.map(p => {
-        const nombre = { yape: 'YAPE', plin: 'PLIN', efectivo: 'EFECTIVO' }[p.metodo];
-        return `<div>${nombre}${p.nOperacion ? ' op ' + p.nOperacion : ''}: ${fmt(p.monto)}</div>`;
-      }).join('');
-      pagoHtml = `
-        <div class="b-pago b-pago-multi">
-          <div class="b-pago-multi-titulo">Pagos:</div>
-          ${lineasPagos}
-        </div>
-      `;
-    }
+      const op = p.nOperacion ? ` op ${p.nOperacion}` : '';
+      return `<div class="b-pago-linea"><span>${nombre}${op}</span><span>S/ ${fmt2(p.monto)}</span></div>`;
+    }).join('');
+    const pagoHtml = `
+      <div class="b-pagos-box">
+        <div class="b-pagos-titulo">PAGOS</div>
+        ${lineasPagos}
+      </div>
+    `;
 
+    // Totales
     const totalesHtml = aplicaIGV
-      ? `<div class="b-tot-linea"><span>Op. gravada:</span><span>S/ ${subtotal.toFixed(2)}</span></div>
-         <div class="b-tot-linea"><span>IGV 18%:</span><span>S/ ${igv.toFixed(2)}</span></div>
-         <div class="b-tot-linea gran-total"><span>TOTAL:</span><span>S/ ${totalNum.toFixed(2)}</span></div>`
-      : `<div class="b-tot-linea"><span>Op. exonerada (Amazonía):</span><span>S/ ${subtotal.toFixed(2)}</span></div>
-         <div class="b-tot-linea gran-total"><span>TOTAL:</span><span>S/ ${totalNum.toFixed(2)}</span></div>`;
+      ? `<div class="b-tot-linea"><span>Op. gravada:</span><span>S/ ${fmt2(subtotal)}</span></div>
+         <div class="b-tot-linea"><span>IGV 18%:</span><span>S/ ${fmt2(igv)}</span></div>
+         <div class="b-tot-linea gran-total"><span>TOTAL:</span><span>S/ ${fmt2(totalNum)}</span></div>`
+      : `<div class="b-tot-linea"><span>Op. exonerada:</span><span>S/ ${fmt2(subtotal)}</span></div>
+         <div class="b-tot-linea gran-total"><span>TOTAL:</span><span>S/ ${fmt2(totalNum)}</span></div>`;
+
+    // Domicilio fiscal vs anexo
+    const direccionHtml = local.esAnexo
+      ? `<div class="b-empresa-info">Domicilio fiscal: ${escapeHtml(empresa.domicilioFiscal)}</div>
+         <div class="b-empresa-info">Anexo: ${escapeHtml(local.direccion)}</div>`
+      : `<div class="b-empresa-info">${escapeHtml(local.direccion)}</div>`;
+
+    // Logo
+    const logoHtml = empresa.logoUrl
+      ? `<img src="${empresa.logoUrl}" class="b-logo" alt="Logo">`
+      : '';
+
+    // Leyenda Amazonía
+    const leyendaHtml = empresa.esAmazonia
+      ? `<div class="b-leyenda">"Bienes transferidos y servicios prestados en la Amazonía para ser consumidos en la misma."</div>`
+      : '';
+
+    // QR: formato híbrido SUNAT + URL al final
+    // RUC|tipoDoc|serie|correlativo|IGV|total|fecha|tipoDocCliente|docCliente|hash|
+    // + URL de verificación
+    const docCliente = estado.cliente.tipoDoc !== 'ninguno' ? estado.cliente.numero : '';
+    const urlVerif = `https://facturalo.pro/v/${serie}-${correlativoStr}`;
+    const qrData = [
+      estado.ruc,
+      tipoSunatCod,
+      serie,
+      correlativoStr,
+      fmt2(igv),
+      fmt2(totalNum),
+      fechaSunat,
+      tipoDocSunat,
+      docCliente,
+      '', // hash vacío offline; backend lo llenará al sincronizar
+    ].join('|') + '|\n' + urlVerif;
+
+    // Generar SVG del QR
+    const qrSvg = generarQRSvg(qrData);
 
     const html = `
       <div class="b-header">
-        <div class="b-empresa">${escapeHtml(empresa.nombre)}</div>
+        ${logoHtml}
+        <div class="b-empresa">${escapeHtml(empresa.nombreComercial).toUpperCase()}</div>
+        <div class="b-empresa-razon">${escapeHtml(empresa.razonSocial)}</div>
         <div class="b-empresa-info">RUC ${estado.ruc}</div>
-        <div class="b-empresa-info">${escapeHtml(local.direccion)}</div>
+        ${direccionHtml}
         <div class="b-empresa-info">${escapeHtml(empresa.ciudad)}</div>
       </div>
       <div class="b-divider"></div>
@@ -1287,8 +1825,9 @@
       <div class="b-numero">${serie} - ${correlativoStr}</div>
       ${pendienteHtml}
       <div class="b-divider"></div>
-      <div class="b-meta"><strong>Fecha:</strong> ${dd}/${mm}/${yyyy} ${hh}:${mi}</div>
+      <div class="b-meta"><strong>Fecha:</strong> ${fechaCorta} ${hh}:${mi}</div>
       <div class="b-meta"><strong>Vendedor:</strong> ${escapeHtml(v.nombre)}</div>
+      <div class="b-meta"><strong>Forma de pago:</strong> ${empresa.formaPago}</div>
       ${clienteHtml}
       <div class="b-divider"></div>
       <table class="b-items-tabla">
@@ -1305,17 +1844,53 @@
       <div class="b-divider"></div>
       <div class="b-totales">${totalesHtml}</div>
       ${pagoHtml}
-      <div class="b-qr-wrap"><div class="b-qr"></div></div>
+      ${leyendaHtml}
+      <div class="b-qr-wrap">${qrSvg}</div>
       <div class="b-footer">
         Representación impresa<br>
         Consulta este comprobante en<br>
-        facturalo.pro/v/${serie}-${correlativoStr}
+        <strong>facturalo.pro/v/${serie}-${correlativoStr}</strong>
+      </div>
+      <div class="b-divider"></div>
+      <div class="b-publicidad">
+        Emitido con <strong>pagoOK</strong><br>
+        <em>La WebApp de los emprendedores en LATAM</em>
       </div>
     `;
     document.getElementById('boleta-papel').innerHTML = html;
     document.getElementById('cliente-form').classList.add('oculto');
     document.getElementById('boleta-vista').classList.remove('oculto');
     sonidoExito();
+  }
+
+  // ============================================================
+  // GENERADOR DE QR usando librería qrcodegen (estándar ISO/IEC 18004)
+  // ============================================================
+  function generarQRSvg(text) {
+    try {
+      const qr = qrcodegen.QrCode.encodeText(text, qrcodegen.QrCode.Ecc.MEDIUM);
+      const size = qr.size;
+      const cell = 3;
+      const pad = 12;
+      const total = size * cell + pad * 2;
+      let rects = '';
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+          if (qr.getModule(c, r)) {
+            rects += `<rect x="${pad + c * cell}" y="${pad + r * cell}" width="${cell}" height="${cell}" fill="#000"/>`;
+          }
+        }
+      }
+      return `
+        <svg class="b-qr-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${total} ${total}" width="140" height="140">
+          <rect width="${total}" height="${total}" fill="#fff"/>
+          ${rects}
+        </svg>
+      `;
+    } catch (e) {
+      console.warn('Error generando QR', e);
+      return `<div class="b-qr-placeholder">QR no disponible</div>`;
+    }
   }
 
   document.getElementById('btn-compartir').addEventListener('click', async () => {
@@ -1396,7 +1971,7 @@
       id: 'v_' + Date.now(),
       timestamp: new Date().toISOString(),
       vendedor: estado.vendedor.nombre,
-      negocio: estado.empresa.nombre,
+      negocio: estado.empresa.nombreComercial,
       items: [...estado.items],
       total: estado.total,
       metodos: [...estado.metodosPago],
@@ -1464,7 +2039,7 @@
     document.getElementById('catalogo-count').textContent = estado.catalogo.length;
     document.getElementById('historial-count').textContent = estado.historial.length;
     if (estado.vendedor) {
-      document.getElementById('menu-info-vendedor').textContent = estado.vendedor.nombre + ' · ' + estado.empresa.nombre;
+      document.getElementById('menu-info-vendedor').textContent = estado.vendedor.nombre + ' · ' + estado.empresa.nombreComercial;
       document.getElementById('menu-info-serie').textContent = 'SERIE ' + estado.vendedor.serieB + ' / ' + estado.vendedor.serieF;
       document.getElementById('menu-info').classList.remove('oculto');
     } else {
