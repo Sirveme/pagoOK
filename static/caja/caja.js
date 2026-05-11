@@ -529,6 +529,48 @@ var qrcodegen = (function() {
       domicilioFiscal: 'Av. Iquitos 230, Iquitos',
       logoUrl: null,
       formaPago: 'CONTADO',
+      // Datos de cobranza v7
+      yape: {
+        celular: '987 654 321',
+        titular: 'Pollería Bolognesi',
+        qrUrl: null, // opcional; cuando dueño lo suba
+      },
+      plin: {
+        celular: '987 654 321',
+        titular: 'Pollería Bolognesi',
+        qrUrl: null,
+      },
+      cuentasBancarias: [
+        {
+          banco: 'BCP',
+          tipo: 'Cuenta corriente soles',
+          numero: '191-2345678-0-12',
+          cci: '00219100023456781293',
+          titular: 'POLLERÍA BOLOGNESI SAC',
+        },
+        {
+          banco: 'BBVA',
+          tipo: 'Cuenta corriente soles',
+          numero: '0011-0234-0100123456',
+          cci: '01102340010012345678',
+          titular: 'POLLERÍA BOLOGNESI SAC',
+        },
+        {
+          banco: 'Interbank',
+          tipo: 'Cuenta corriente soles',
+          numero: '200-3001234567',
+          cci: '00320000300123456789',
+          titular: 'POLLERÍA BOLOGNESI SAC',
+        },
+      ],
+      // Configuración Tarjeta v7
+      tarjetaConfig: {
+        voucherObligatorio: false, // dueño decide
+      },
+      // Configuración Foto v7
+      fotoConfig: {
+        obligatoria: false, // dueño decide
+      },
       locales: [
         {
           id: 'local_1',
@@ -552,6 +594,19 @@ var qrcodegen = (function() {
       domicilioFiscal: 'Calle Demo 100, Lima',
       logoUrl: null,
       formaPago: 'CONTADO',
+      yape: { celular: '999 999 999', titular: 'Negocio Demo', qrUrl: null },
+      plin: { celular: '999 999 999', titular: 'Negocio Demo', qrUrl: null },
+      cuentasBancarias: [
+        {
+          banco: 'BCP',
+          tipo: 'Cuenta corriente soles',
+          numero: '100-0000000-0-00',
+          cci: '00210000000000000000',
+          titular: 'NEGOCIO DEMO SAC',
+        },
+      ],
+      tarjetaConfig: { voucherObligatorio: true },
+      fotoConfig: { obligatoria: false },
       locales: [
         {
           id: 'local_demo',
@@ -564,6 +619,18 @@ var qrcodegen = (function() {
         },
       ],
     },
+  };
+
+  // Mock de personas registradas en SUNAT/RENIEC (para consulta de DNI/RUC en v7)
+  const PERSONAS_DEMO = {
+    '20100123456': 'CONSTRUCTORA TEST S.A.C.',
+    '20612345678': 'EMPRESA EJEMPLO PERU SAC',
+    '20615446565': 'POLLERÍA BOLOGNESI S.A.C.',
+    '10412345678': 'PEREZ MENDOZA JUAN CARLOS',
+    '05393776': 'CESITAR RUIZ AGUILAR',
+    '45678912': 'GARCIA ROJAS MARIA ELENA',
+    '12345678': 'LOPEZ DIAZ CARLOS ALBERTO',
+    '87654321': 'TORRES VEGA ANA SOFIA',
   };
 
   // ============================================================
@@ -1349,48 +1416,316 @@ var qrcodegen = (function() {
   });
 
   // ============================================================
-  // MÉTODOS DE PAGO
+  // MÉTODOS DE PAGO - Abre modal con instrucciones según método
   // ============================================================
   document.querySelectorAll('.metodo').forEach(btn => {
     btn.addEventListener('click', () => {
       sonidoTap();
       const metodo = btn.dataset.metodo;
       estado.metodoActual = metodo;
-      const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
-      const falta = estado.total - cobrado;
-      // Mostrar monto faltante (solo lectura)
-      document.getElementById('display-monto-pago').textContent = 'S/ ' + fmt2(falta);
-      estado.montoPagoActual = falta;
-      document.getElementById('input-efectivo-monto').value = falta > 0 ? falta.toString() : '';
-      document.getElementById('input-operacion').value = '';
-      estado.nOperacion = '';
-      estado.foto = null;
-      document.getElementById('foto-preview').classList.add('oculto');
-      document.getElementById('foto-fuente').classList.add('oculto');
-      document.getElementById('input-foto-camara').value = '';
-      document.getElementById('input-foto-galeria').value = '';
-      document.getElementById('btn-verificar').disabled = true;
-
-      document.getElementById('verificacion-form').classList.add('oculto');
-      document.getElementById('efectivo-form').classList.add('oculto');
-      document.getElementById('resultado-card').classList.add('oculto');
-
-      const titulo = { yape: 'Verificar Yape', plin: 'Verificar Plin', efectivo: 'Pago en efectivo' }[metodo];
-      document.getElementById('verificar-titulo').textContent = titulo;
-      document.getElementById('verificar-monto').textContent = fmt(falta);
-      document.getElementById('verif-metodo-label').textContent = metodo === 'yape' ? 'Yape' : 'Plin';
-
-      if (metodo === 'yape' || metodo === 'plin') {
-        document.getElementById('verificacion-form').classList.remove('oculto');
-        irA('verificar');
-        setTimeout(() => document.getElementById('input-operacion').focus(), 500);
-      } else if (metodo === 'efectivo') {
-        document.getElementById('efectivo-form').classList.remove('oculto');
-        irA('verificar');
-        setTimeout(() => document.getElementById('input-efectivo-monto').focus(), 500);
-      }
+      abrirModalPago(metodo);
     });
   });
+
+  function abrirModalPago(metodo) {
+    const empresa = estado.empresa;
+    const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
+    const falta = estado.total - cobrado;
+    estado.montoPagoActual = falta;
+
+    const cont = document.getElementById('modal-pago-contenido');
+    const acc = document.getElementById('modal-pago-acciones');
+
+    if (metodo === 'yape' || metodo === 'plin') {
+      const datos = empresa[metodo];
+      const nombreMet = metodo === 'yape' ? 'YAPE' : 'PLIN';
+      const colorClass = metodo === 'yape' ? 'pago-yape' : 'pago-plin';
+      const qrHtml = datos.qrUrl
+        ? `<img src="${datos.qrUrl}" class="pago-qr-img" alt="QR ${nombreMet}">`
+        : `<div class="pago-qr-placeholder">
+             <div class="pago-qr-icono">📱</div>
+             <div class="pago-qr-texto">QR ${nombreMet}</div>
+             <div class="pago-qr-sub">Sube tu QR en<br>pagook.pro/admin</div>
+           </div>`;
+      cont.className = 'modal-pago-contenido ' + colorClass;
+      cont.innerHTML = `
+        <div class="pago-titulo">Cliente paga por ${nombreMet}</div>
+        <div class="pago-qr-wrap">${qrHtml}</div>
+        <div class="pago-celular-label">N° celular ${nombreMet}</div>
+        <div class="pago-celular">${datos.celular}</div>
+        <div class="pago-titular">${escapeHtml(datos.titular)}</div>
+        <div class="pago-monto-grande">
+          <small>Falta cobrar</small>
+          <strong>S/ ${fmt2(falta)}</strong>
+        </div>
+      `;
+      acc.innerHTML = `
+        <button class="btn-principal btn-principal-grande" id="btn-pago-continuar">
+          <span>Ya ${metodo === 'yape' ? 'yapearon' : 'plinearon'}, verificar</span>
+          <span class="btn-flecha">→</span>
+        </button>
+      `;
+    }
+    else if (metodo === 'efectivo') {
+      cont.className = 'modal-pago-contenido pago-efectivo';
+      cont.innerHTML = `
+        <div class="pago-titulo">Cobro en EFECTIVO</div>
+        <div class="pago-monto-grande">
+          <small>Falta cobrar</small>
+          <strong>S/ ${fmt2(falta)}</strong>
+        </div>
+        <label class="campo-label" style="margin-top: 16px;">Monto recibido</label>
+        <input
+          type="text"
+          id="modal-efectivo-monto"
+          class="campo-input campo-grande"
+          value="${falta.toFixed(2)}"
+          inputmode="decimal"
+          autocomplete="off">
+        <div id="modal-efectivo-vuelto" class="pago-vuelto oculto"></div>
+      `;
+      acc.innerHTML = `
+        <button class="btn-principal btn-principal-grande" id="btn-pago-continuar">
+          <span>Confirmar efectivo</span>
+          <span class="btn-flecha">✓</span>
+        </button>
+      `;
+      setTimeout(() => {
+        const input = document.getElementById('modal-efectivo-monto');
+        input.focus();
+        input.select();
+        input.addEventListener('input', actualizarVueltoEfectivo);
+      }, 200);
+    }
+    else if (metodo === 'transferencia') {
+      const cuentas = empresa.cuentasBancarias || [];
+      const tabsHtml = cuentas.map((c, i) => `
+        <button class="pago-tab ${i === 0 ? 'activa' : ''}" data-cuenta-idx="${i}">
+          ${escapeHtml(c.banco)}
+        </button>
+      `).join('');
+      const cuentasHtml = cuentas.map((c, i) => `
+        <div class="pago-cuenta-panel ${i === 0 ? 'activa' : 'oculto'}" data-cuenta-idx="${i}">
+          <div class="pago-cuenta-tipo">${escapeHtml(c.tipo)}</div>
+          <div class="pago-cuenta-num" data-copy="${c.numero}">${escapeHtml(c.numero)}</div>
+          <div class="pago-cuenta-label">CCI</div>
+          <div class="pago-cuenta-cci" data-copy="${c.cci}">${escapeHtml(c.cci)}</div>
+          <div class="pago-cuenta-label">Titular</div>
+          <div class="pago-cuenta-titular">${escapeHtml(c.titular)}</div>
+        </div>
+      `).join('');
+      cont.className = 'modal-pago-contenido pago-transferencia';
+      cont.innerHTML = `
+        <div class="pago-titulo">TRANSFERENCIA BANCARIA</div>
+        <div class="pago-tabs">${tabsHtml}</div>
+        <div class="pago-cuentas">${cuentasHtml}</div>
+        <div class="pago-monto-grande">
+          <small>Falta cobrar</small>
+          <strong>S/ ${fmt2(falta)}</strong>
+        </div>
+      `;
+      acc.innerHTML = `
+        <button class="btn-principal btn-principal-grande" id="btn-pago-continuar">
+          <span>Ya hicieron transferencia, verificar</span>
+          <span class="btn-flecha">→</span>
+        </button>
+      `;
+      // Listeners de pestañas + copiar
+      setTimeout(() => {
+        document.querySelectorAll('.pago-tab').forEach(tab => {
+          tab.addEventListener('click', () => {
+            const idx = tab.dataset.cuentaIdx;
+            document.querySelectorAll('.pago-tab').forEach(t => t.classList.remove('activa'));
+            tab.classList.add('activa');
+            document.querySelectorAll('.pago-cuenta-panel').forEach(p => {
+              if (p.dataset.cuentaIdx === idx) {
+                p.classList.remove('oculto');
+                p.classList.add('activa');
+              } else {
+                p.classList.remove('activa');
+                p.classList.add('oculto');
+              }
+            });
+            sonidoTap();
+          });
+        });
+        document.querySelectorAll('[data-copy]').forEach(el => {
+          el.addEventListener('click', async () => {
+            try {
+              await navigator.clipboard.writeText(el.dataset.copy);
+              toast('Copiado: ' + el.dataset.copy, 'exito');
+              sonidoTap();
+            } catch (e) { toast('No se pudo copiar', 'error'); }
+          });
+        });
+      }, 100);
+    }
+    else if (metodo === 'tarjeta') {
+      const obligatorio = empresa.tarjetaConfig && empresa.tarjetaConfig.voucherObligatorio;
+      cont.className = 'modal-pago-contenido pago-tarjeta';
+      cont.innerHTML = `
+        <div class="pago-titulo">Cobro con TARJETA</div>
+        <div class="pago-tarjeta-icono">💳</div>
+        <div class="pago-tarjeta-instr">Pase la tarjeta del cliente<br>por su POS físico</div>
+        <div class="pago-monto-grande">
+          <small>Falta cobrar</small>
+          <strong>S/ ${fmt2(falta)}</strong>
+        </div>
+        <label class="campo-label" style="margin-top: 14px;">
+          N° de voucher POS
+          ${obligatorio ? '<span class="label-obligatorio">(obligatorio)</span>' : '<span class="label-opcional">(opcional)</span>'}
+        </label>
+        <input
+          type="text"
+          id="modal-tarjeta-voucher"
+          class="campo-input"
+          placeholder="Ej: 458921"
+          inputmode="numeric"
+          autocomplete="off">
+      `;
+      acc.innerHTML = `
+        <button class="btn-secundario" id="btn-pago-tarjeta-rechazada">Rechazada, volver</button>
+        <button class="btn-principal btn-principal-grande" id="btn-pago-continuar">
+          <span>Aprobada, registrar</span>
+          <span class="btn-flecha">✓</span>
+        </button>
+      `;
+      setTimeout(() => {
+        document.getElementById('btn-pago-tarjeta-rechazada').addEventListener('click', () => {
+          sonidoTap();
+          cerrarModalPago();
+        });
+      }, 100);
+    }
+
+    // Listener del botón continuar (común a todos los métodos)
+    setTimeout(() => {
+      const btnContinuar = document.getElementById('btn-pago-continuar');
+      if (btnContinuar) {
+        btnContinuar.addEventListener('click', () => {
+          sonidoTap();
+          procesarContinuarPago(metodo);
+        });
+      }
+    }, 100);
+
+    document.getElementById('modal-pago').classList.remove('oculto');
+  }
+
+  function cerrarModalPago() {
+    document.getElementById('modal-pago').classList.add('oculto');
+  }
+
+  function actualizarVueltoEfectivo() {
+    const input = document.getElementById('modal-efectivo-monto');
+    const display = document.getElementById('modal-efectivo-vuelto');
+    if (!input || !display) return;
+    const monto = parseFloat(input.value.replace(',', '.'));
+    const falta = estado.montoPagoActual;
+    if (isNaN(monto)) { display.classList.add('oculto'); return; }
+    if (monto > falta) {
+      display.classList.remove('oculto');
+      display.innerHTML = `Vuelto: <strong>S/ ${fmt2(monto - falta)}</strong>`;
+    } else {
+      display.classList.add('oculto');
+    }
+  }
+
+  function procesarContinuarPago(metodo) {
+    if (metodo === 'efectivo') {
+      const monto = parseFloat(document.getElementById('modal-efectivo-monto').value.replace(',', '.'));
+      if (isNaN(monto) || monto < 0.5) { sonidoError(); toast('Monto inválido', 'error'); return; }
+      cerrarModalPago();
+      // Si el monto recibido > falta, registramos solo lo que faltaba; el resto es vuelto
+      const falta = estado.montoPagoActual;
+      const aRegistrar = Math.min(monto, falta);
+      agregarPago('efectivo', aRegistrar, null);
+      // Mostrar resultado directo (sin pasar por verificar)
+      mostrarResultadoEfectivo(monto, falta);
+    }
+    else if (metodo === 'tarjeta') {
+      const empresa = estado.empresa;
+      const obligatorio = empresa.tarjetaConfig && empresa.tarjetaConfig.voucherObligatorio;
+      const voucher = document.getElementById('modal-tarjeta-voucher').value.trim();
+      if (obligatorio && voucher.length < 3) {
+        sonidoError();
+        toast('El n° de voucher es obligatorio', 'error');
+        return;
+      }
+      cerrarModalPago();
+      const falta = estado.montoPagoActual;
+      agregarPago('tarjeta', falta, voucher || null);
+      mostrarResultadoTarjeta(falta, voucher);
+    }
+    else {
+      // Yape, Plin, Transferencia → ir a pantalla Verificar
+      cerrarModalPago();
+      irAPantallaVerificar(metodo);
+    }
+  }
+
+  function irAPantallaVerificar(metodo) {
+    estado.nOperacion = '';
+    estado.foto = null;
+    document.getElementById('input-operacion').value = '';
+    document.getElementById('foto-preview').classList.add('oculto');
+    document.getElementById('foto-fuente').classList.add('oculto');
+    document.getElementById('input-foto-camara').value = '';
+    document.getElementById('input-foto-galeria').value = '';
+    document.getElementById('btn-verificar').disabled = true;
+    document.getElementById('resultado-card').classList.add('oculto');
+    document.getElementById('verificacion-form').classList.remove('oculto');
+
+    const falta = estado.montoPagoActual;
+    const titulos = { yape: 'Verificar Yape', plin: 'Verificar Plin', transferencia: 'Verificar Transferencia' };
+    const labels = { yape: 'Yape', plin: 'Plin', transferencia: 'transferencia' };
+    document.getElementById('verificar-titulo').textContent = titulos[metodo];
+    document.getElementById('verificar-monto').textContent = 'falta S/ ' + fmt2(falta);
+    document.getElementById('verif-metodo-label').textContent = labels[metodo];
+    document.getElementById('display-monto-cobrar').textContent = 'S/ ' + fmt2(falta);
+    document.getElementById('display-monto-pagado').textContent = '--';
+    document.getElementById('display-monto-pagado').classList.remove('verde', 'rojo');
+
+    irA('verificar');
+    setTimeout(() => document.getElementById('input-operacion').focus(), 500);
+  }
+
+  function mostrarResultadoEfectivo(montoRecibido, falta) {
+    const vuelto = montoRecibido - falta;
+    const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
+    const faltaAhora = estado.total - cobrado;
+
+    if (faltaAhora > 0.01) {
+      // Aún falta cobrar más
+      irA('verificar');
+      document.getElementById('verificacion-form').classList.add('oculto');
+      mostrarResultado('advertencia', 'Efectivo registrado',
+        `S/ ${fmt2(montoRecibido)} en efectivo. Faltan S/ ${fmt2(faltaAhora)}.`, { completar: true });
+    } else {
+      // Pago completo → ir directo a boleta
+      sonidoExito();
+      if (vuelto > 0.001) {
+        toast(`Vuelto: S/ ${fmt2(vuelto)}`, 'exito');
+      }
+      setTimeout(() => irAClienteBoleta(), vuelto > 0.001 ? 1500 : 400);
+    }
+  }
+
+  function mostrarResultadoTarjeta(monto, voucher) {
+    const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
+    const faltaAhora = estado.total - cobrado;
+    const ref = voucher ? ` (voucher ${voucher})` : '';
+    if (faltaAhora > 0.01) {
+      irA('verificar');
+      document.getElementById('verificacion-form').classList.add('oculto');
+      mostrarResultado('advertencia', 'Tarjeta registrada',
+        `S/ ${fmt2(monto)}${ref}. Faltan S/ ${fmt2(faltaAhora)}.`, { completar: true });
+    } else {
+      sonidoExito();
+      toast(`Tarjeta aprobada${ref}`, 'exito');
+      setTimeout(() => irAClienteBoleta(), 600);
+    }
+  }
 
   // ============================================================
   // VERIFICAR YAPE/PLIN
@@ -1538,7 +1873,16 @@ var qrcodegen = (function() {
     });
   }
 
+  function actualizarMontoPagadoDisplay(monto, color) {
+    const el = document.getElementById('display-monto-pagado');
+    if (!el) return;
+    el.textContent = 'S/ ' + fmt2(monto);
+    el.classList.remove('verde', 'rojo');
+    if (color) el.classList.add(color);
+  }
+
   function mostrarResultadoOK(r, monto) {
+    actualizarMontoPagadoDisplay(monto, 'verde');
     const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
     const falta = estado.total - cobrado;
     if (falta > 0.01) {
@@ -1546,27 +1890,28 @@ var qrcodegen = (function() {
         `Recibimos ${fmt(monto)}. Faltan ${fmt(falta)} para completar.`,
         { completar: true });
     } else {
-      mostrarResultado('exito', '¡Pago completo!',
-        `Recibimos ${fmt(monto)} de ${r.remitente}.`,
-        { boleta: true });
+      // Pago exacto → ir directo a boleta sin mostrar pantalla intermedia
+      sonidoExito();
+      irAClienteBoleta();
     }
   }
 
   function mostrarResultadoParcial(r) {
+    actualizarMontoPagadoDisplay(r.monto, 'rojo');
     const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
     const falta = estado.total - cobrado;
     if (falta > 0.01) {
       mostrarResultado('advertencia', 'Llegó menos de lo digitado',
-        `Recibimos ${fmt(r.monto)} (no el monto que dijiste). Faltan ${fmt(falta)}.`,
+        `Recibimos ${fmt(r.monto)} (no el monto esperado). Faltan ${fmt(falta)}.`,
         { completar: true });
     } else {
-      mostrarResultado('exito', 'Pago completo',
-        `Recibimos ${fmt(r.monto)}.`,
-        { boleta: true });
+      sonidoExito();
+      irAClienteBoleta();
     }
   }
 
   function mostrarResultadoOffline(monto) {
+    actualizarMontoPagadoDisplay(monto, 'verde');
     const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
     const falta = estado.total - cobrado;
     if (falta > 0.01) {
@@ -1574,48 +1919,49 @@ var qrcodegen = (function() {
         `Sin conexión. Registramos ${fmt(monto)}. Se verificará cuando vuelva internet.`,
         { completar: true });
     } else {
-      mostrarResultado('exito', 'Venta registrada',
-        `Pago de ${fmt(monto)} guardado. Se verificará cuando vuelva internet.`,
-        { boleta: true });
+      sonidoExito();
+      toast('Sin conexión — venta guardada, se verificará después', '');
+      setTimeout(() => irAClienteBoleta(), 800);
     }
   }
 
   function mostrarResultadoTimeout(monto) {
+    actualizarMontoPagadoDisplay(monto, 'verde');
     const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
     const falta = estado.total - cobrado;
-    const msg = `${fmt(monto)} registrado. La verificación tardó más de lo normal — se completará en segundo plano.`;
+    const msg = `${fmt(monto)} registrado. La verificación se completará en segundo plano.`;
     if (falta > 0.01) {
       mostrarResultado('advertencia', 'Pago registrado', msg, { completar: true });
     } else {
-      mostrarResultado('exito', 'Venta registrada', msg, { boleta: true });
+      sonidoExito();
+      toast('Verificación demorada — venta registrada', '');
+      setTimeout(() => irAClienteBoleta(), 800);
     }
   }
 
   function mostrarResultadoNoEncontrado(monto) {
+    actualizarMontoPagadoDisplay(0, 'rojo');
     mostrarResultado('error', 'No encontrado',
-      `No hay registro de operación ${estado.nOperacion} en los últimos 10 minutos.`,
+      `No hay registro de operación ${estado.nOperacion} en los últimos ${PAGOS_VENTANA_MIN} minutos.`,
       { pendiente: true });
   }
 
-  document.getElementById('btn-efectivo-confirmar').addEventListener('click', () => {
-    const monto = parseFloat(document.getElementById('input-efectivo-monto').value.replace(',', '.'));
-    if (isNaN(monto) || monto < 0.5) {
-      sonidoError();
-      toast('Monto inválido', 'error');
-      return;
-    }
-    agregarPago('efectivo', monto, null);
-    const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
-    const falta = estado.total - cobrado;
-    if (falta > 0.01) {
-      mostrarResultado('advertencia', 'Efectivo registrado',
-        `${fmt(monto)} en efectivo. Faltan ${fmt(falta)}.`,
-        { completar: true });
-    } else {
-      mostrarResultado('exito', '¡Venta completa!',
-        `${fmt(monto)} recibidos en efectivo.`,
-        { boleta: true });
-    }
+  function irAClienteBoleta() {
+    // Resetear pantalla de boleta y mostrar form de cliente
+    estado.cliente = { tipoDoc: 'ninguno', numero: '', nombre: '' };
+    document.querySelectorAll('.tipo-doc-btn').forEach(b => b.classList.remove('activo'));
+    document.querySelector('.tipo-doc-btn[data-tipo="ninguno"]').classList.add('activo');
+    document.getElementById('doc-input-grupo').classList.add('oculto');
+    document.getElementById('input-doc').value = '';
+    document.getElementById('input-cliente-nombre').value = '';
+    document.getElementById('cliente-form').classList.remove('oculto');
+    document.getElementById('boleta-vista').classList.add('oculto');
+    irA('boleta');
+  }
+
+  document.getElementById('btn-completar-pago').addEventListener('click', () => {
+    sonidoTap();
+    irA('metodo', { sentido: 'izquierda' });
   });
 
   function mostrarResultado(tipo, titulo, texto, botones = {}) {
@@ -1636,19 +1982,12 @@ var qrcodegen = (function() {
     document.getElementById('btn-pendiente').classList.toggle('oculto', !botones.pendiente);
 
     document.getElementById('verificacion-form').classList.add('oculto');
-    document.getElementById('efectivo-form').classList.add('oculto');
     card.classList.remove('oculto');
 
     if (tipo === 'exito') sonidoExito();
     else if (tipo === 'advertencia') sonidoAdvertencia();
     else sonidoError();
   }
-
-  // Completar pago: volver a elegir método
-  document.getElementById('btn-completar-pago').addEventListener('click', () => {
-    sonidoTap();
-    irA('metodo', { sentido: 'izquierda' });
-  });
 
   // ============================================================
   // BOLETA
@@ -1687,9 +2026,46 @@ var qrcodegen = (function() {
     });
   });
 
-  document.getElementById('input-doc').addEventListener('input', (e) => {
+  // Mock de consulta SUNAT/RENIEC con delay simulado
+  function consultarPersona(tipo, numero) {
+    return new Promise((resolve) => {
+      const delay = 400 + Math.random() * 400;
+      setTimeout(() => {
+        const nombre = PERSONAS_DEMO[numero];
+        if (nombre) resolve({ encontrado: true, nombre, numero });
+        else resolve({ encontrado: false, numero });
+      }, delay);
+    });
+  }
+
+  document.getElementById('input-doc').addEventListener('input', async (e) => {
     e.target.value = e.target.value.replace(/\D/g, '');
     estado.cliente.numero = e.target.value;
+    const num = e.target.value;
+    const tipo = estado.cliente.tipoDoc;
+    const longitudOK = (tipo === 'dni' && num.length === 8) || (tipo === 'ruc' && num.length === 11);
+    if (!longitudOK) {
+      document.getElementById('cliente-consulta-estado').classList.add('oculto');
+      return;
+    }
+    // Consultar
+    const estadoEl = document.getElementById('cliente-consulta-estado');
+    estadoEl.classList.remove('oculto');
+    estadoEl.className = 'cliente-consulta consultando';
+    estadoEl.innerHTML = '<span class="cliente-spinner"></span> Consultando ' + tipo.toUpperCase() + '...';
+    const r = await consultarPersona(tipo, num);
+    // Verificar que el número aún sea el que se consultó (el usuario puede haber seguido escribiendo)
+    if (document.getElementById('input-doc').value !== num) return;
+    if (r.encontrado) {
+      document.getElementById('input-cliente-nombre').value = r.nombre;
+      estado.cliente.nombre = r.nombre;
+      estadoEl.className = 'cliente-consulta exito';
+      estadoEl.innerHTML = '✓ Encontrado en ' + (tipo === 'dni' ? 'RENIEC' : 'SUNAT');
+      tono(880, 0.1, 'sine', 0.12);
+    } else {
+      estadoEl.className = 'cliente-consulta error';
+      estadoEl.innerHTML = `No encontrado en ${tipo === 'dni' ? 'RENIEC' : 'SUNAT'}. Ingresa el nombre manualmente.`;
+    }
   });
 
   document.getElementById('input-cliente-nombre').addEventListener('input', (e) => {
@@ -2053,6 +2429,11 @@ var qrcodegen = (function() {
     reiniciarFlujo();
     irA('dictar', { sentido: 'izquierda' });
     setTimeout(() => toast('Venta pendiente', ''), 200);
+  });
+
+  document.getElementById('btn-modal-pago-cerrar').addEventListener('click', () => {
+    sonidoTap();
+    cerrarModalPago();
   });
 
   // ============================================================

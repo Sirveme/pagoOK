@@ -313,6 +313,24 @@
           </div>
           <span class="metodo-nombre">Efectivo</span>
         </button>
+        <button class="metodo metodo-transferencia" data-metodo="transferencia">
+          <div class="metodo-circulo metodo-circulo-transferencia">
+            <svg viewBox="0 0 24 24" class="metodo-svg" aria-hidden="true">
+              <path d="M3 21h18M5 21V10M9 21V10M15 21V10M19 21V10M2 10l10-7 10 7"/>
+            </svg>
+          </div>
+          <span class="metodo-nombre">Transfer.</span>
+        </button>
+        <button class="metodo metodo-tarjeta" data-metodo="tarjeta">
+          <div class="metodo-circulo metodo-circulo-tarjeta">
+            <svg viewBox="0 0 24 24" class="metodo-svg" aria-hidden="true">
+              <rect x="2" y="5" width="20" height="14" rx="2"/>
+              <line x1="2" y1="10" x2="22" y2="10"/>
+              <line x1="6" y1="15" x2="10" y2="15"/>
+            </svg>
+          </div>
+          <span class="metodo-nombre">Tarjeta</span>
+        </button>
       </div>
     </div>
   </section>
@@ -333,10 +351,18 @@
     <div class="contenido">
       <div id="verificacion-form" class="verificacion-form">
         <div class="card">
-          <label class="campo-label">Monto que llegó por <span id="verif-metodo-label">Yape</span></label>
-          <div id="display-monto-pago" class="campo-display campo-grande">S/ 0.00</div>
+          <div class="verif-montos">
+            <div class="verif-monto-row">
+              <span class="verif-monto-label">Falta cobrar</span>
+              <span class="verif-monto-val" id="display-monto-cobrar">S/ 0.00</span>
+            </div>
+            <div class="verif-monto-row">
+              <span class="verif-monto-label">Monto pagado</span>
+              <span class="verif-monto-val verif-monto-pagado" id="display-monto-pagado">--</span>
+            </div>
+          </div>
 
-          <label class="campo-label" style="margin-top: 12px;">N° de operación</label>
+          <label class="campo-label" style="margin-top: 14px;">N° de operación</label>
           <input
             type="text"
             id="input-operacion"
@@ -345,7 +371,7 @@
             inputmode="numeric"
             autocomplete="off">
 
-          <label class="campo-label" style="margin-top: 12px;">Foto del voucher <span class="label-opcional">(opcional)</span></label>
+          <label class="campo-label" style="margin-top: 12px;" id="label-foto">Foto del voucher <span class="label-opcional">(opcional)</span></label>
           <div class="foto-botones">
             <label for="input-foto-camara" class="btn-foto btn-foto-camara">
               <svg viewBox="0 0 24 24" class="btn-foto-svg" aria-hidden="true">
@@ -372,23 +398,6 @@
         <button id="btn-verificar" class="btn-principal btn-principal-grande" disabled>
           <span>Verificar pago</span>
           <span class="btn-flecha">→</span>
-        </button>
-      </div>
-
-      <!-- Form efectivo -->
-      <div id="efectivo-form" class="efectivo-form oculto">
-        <div class="card">
-          <label class="campo-label">Monto recibido en efectivo</label>
-          <input
-            type="text"
-            id="input-efectivo-monto"
-            class="campo-input campo-grande"
-            inputmode="decimal"
-            autocomplete="off">
-        </div>
-        <button id="btn-efectivo-confirmar" class="btn-principal btn-principal-grande">
-          <span>Confirmar efectivo</span>
-          <span class="btn-flecha">✓</span>
         </button>
       </div>
 
@@ -453,6 +462,7 @@
               placeholder=""
               inputmode="numeric"
               autocomplete="off">
+            <div id="cliente-consulta-estado" class="cliente-consulta oculto"></div>
             <input
               type="text"
               id="input-cliente-nombre"
@@ -504,6 +514,19 @@
 </div>
 
 <!-- Menú -->
+<!-- Modal "Preparar pago" - se abre al elegir método (Yape/Plin/Transferencia/Tarjeta/Efectivo) -->
+<div id="modal-pago" class="modal-overlay oculto">
+  <div class="modal-card modal-card-pago">
+    <button class="modal-cerrar-x" id="btn-modal-pago-cerrar" aria-label="Cerrar">×</button>
+    <div class="modal-pago-contenido" id="modal-pago-contenido">
+      <!-- Se llena dinámicamente según método -->
+    </div>
+    <div class="modal-pago-acciones" id="modal-pago-acciones">
+      <!-- Se llena dinámicamente -->
+    </div>
+  </div>
+</div>
+
 <div id="menu-overlay" class="menu-overlay oculto">
   <div class="menu-contenido">
     <div class="menu-handle"></div>
