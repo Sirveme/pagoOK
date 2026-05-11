@@ -1371,6 +1371,27 @@ select.campo-input {
 }
 .b-meta { font-size: 11px; margin-bottom: 2px; }
 .b-meta strong { font-weight: 700; }
+
+.b-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.b-meta-col {
+  flex: 1;
+  min-width: 0;
+}
+.b-meta-col-derecha {
+  flex: 0 0 auto;
+  text-align: right;
+}
+.b-forma-pago {
+  font-weight: 800;
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+}
 .b-items-tabla {
   width: 100%;
   margin: 4px 0;

@@ -1825,10 +1825,17 @@ var qrcodegen = (function() {
       <div class="b-numero">${serie} - ${correlativoStr}</div>
       ${pendienteHtml}
       <div class="b-divider"></div>
-      <div class="b-meta"><strong>Fecha:</strong> ${fechaCorta} ${hh}:${mi}</div>
-      <div class="b-meta"><strong>Vendedor:</strong> ${escapeHtml(v.nombre)}</div>
-      <div class="b-meta"><strong>Forma de pago:</strong> ${empresa.formaPago}</div>
-      ${clienteHtml}
+      <div class="b-meta-row">
+        <div class="b-meta-col">
+          <div class="b-meta"><strong>Fecha:</strong> ${fechaCorta} ${hh}:${mi}</div>
+          <div class="b-meta"><strong>Vendedor:</strong> ${escapeHtml(v.nombre)}</div>
+          ${clienteHtml}
+        </div>
+        <div class="b-meta-col b-meta-col-derecha">
+          <div class="b-meta"><strong>Forma de pago:</strong></div>
+          <div class="b-meta b-forma-pago">${empresa.formaPago}</div>
+        </div>
+      </div>
       <div class="b-divider"></div>
       <table class="b-items-tabla">
         <thead>
