@@ -1503,12 +1503,6 @@ var qrcodegen = (function() {
           <span class="btn-flecha">✓</span>
         </button>
       `;
-      setTimeout(() => {
-        const input = document.getElementById('modal-efectivo-monto');
-        input.focus();
-        input.select();
-        input.addEventListener('input', actualizarVueltoEfectivo);
-      }, 200);
     }
     else if (metodo === 'transferencia') {
       const cuentas = empresa.cuentasBancarias || [];
@@ -1543,35 +1537,6 @@ var qrcodegen = (function() {
           <span class="btn-flecha">→</span>
         </button>
       `;
-      // Listeners de pestañas + copiar
-      setTimeout(() => {
-        document.querySelectorAll('.pago-tab').forEach(tab => {
-          tab.addEventListener('click', () => {
-            const idx = tab.dataset.cuentaIdx;
-            document.querySelectorAll('.pago-tab').forEach(t => t.classList.remove('activa'));
-            tab.classList.add('activa');
-            document.querySelectorAll('.pago-cuenta-panel').forEach(p => {
-              if (p.dataset.cuentaIdx === idx) {
-                p.classList.remove('oculto');
-                p.classList.add('activa');
-              } else {
-                p.classList.remove('activa');
-                p.classList.add('oculto');
-              }
-            });
-            sonidoTap();
-          });
-        });
-        document.querySelectorAll('[data-copy]').forEach(el => {
-          el.addEventListener('click', async () => {
-            try {
-              await navigator.clipboard.writeText(el.dataset.copy);
-              toast('Copiado: ' + el.dataset.copy, 'exito');
-              sonidoTap();
-            } catch (e) { toast('No se pudo copiar', 'error'); }
-          });
-        });
-      }, 100);
     }
     else if (metodo === 'tarjeta') {
       const obligatorio = empresa.tarjetaConfig && empresa.tarjetaConfig.voucherObligatorio;
@@ -1603,27 +1568,10 @@ var qrcodegen = (function() {
           <span class="btn-flecha">✓</span>
         </button>
       `;
-      setTimeout(() => {
-        document.getElementById('btn-pago-tarjeta-rechazada').addEventListener('click', () => {
-          sonidoTap();
-          cerrarModalPago();
-        });
-      }, 100);
     }
 
-    // Listener del botón continuar (común a todos los métodos)
-    // Usamos onclick para que se reemplace cada vez (no se acumulen listeners)
-    setTimeout(() => {
-      const btnContinuar = document.getElementById('btn-pago-continuar');
-      if (btnContinuar) {
-        btnContinuar.onclick = function(e) {
-          e.preventDefault();
-          e.stopPropagation();
-          sonidoTap();
-          procesarContinuarPago(metodo);
-        };
-      }
-    }, 50);
+    // Guardar el método activo para que el listener delegado lo use
+    estado.modalPagoMetodo = metodo;
 
     document.getElementById('modal-pago').classList.remove('oculto');
   }
@@ -2446,18 +2394,86 @@ var qrcodegen = (function() {
     setTimeout(() => toast('Venta pendiente', ''), 200);
   });
 
-  document.getElementById('btn-modal-pago-cerrar').addEventListener('click', () => {
-    sonidoTap();
-    cerrarModalPago();
+  // Event delegation para el modal de pago: maneja todos los clicks dentro del modal
+  document.getElementById('modal-pago').addEventListener('click', (e) => {
+    // Botón cerrar (X)
+    if (e.target.closest('#btn-modal-pago-cerrar')) {
+      sonidoTap();
+      cerrarModalPago();
+      return;
+    }
+    // Botón continuar (Ya yapearon / Confirmar efectivo / etc.)
+    if (e.target.closest('#btn-pago-continuar')) {
+      e.preventDefault();
+      e.stopPropagation();
+      sonidoTap();
+      const metodo = estado.modalPagoMetodo;
+      if (metodo) procesarContinuarPago(metodo);
+      return;
+    }
+    // Botón tarjeta rechazada
+    if (e.target.closest('#btn-pago-tarjeta-rechazada')) {
+      sonidoTap();
+      cerrarModalPago();
+      return;
+    }
+    // Pestañas de bancos (transferencia)
+    const tab = e.target.closest('.pago-tab');
+    if (tab) {
+      const idx = tab.dataset.cuentaIdx;
+      document.querySelectorAll('.pago-tab').forEach(t => t.classList.remove('activa'));
+      tab.classList.add('activa');
+      document.querySelectorAll('.pago-cuenta-panel').forEach(p => {
+        if (p.dataset.cuentaIdx === idx) {
+          p.classList.remove('oculto');
+          p.classList.add('activa');
+        } else {
+          p.classList.remove('activa');
+          p.classList.add('oculto');
+        }
+      });
+      sonidoTap();
+      return;
+    }
+    // Copiar al portapapeles (N° de cuenta o CCI)
+    const copyEl = e.target.closest('[data-copy]');
+    if (copyEl) {
+      const txt = copyEl.dataset.copy;
+      sonidoTap();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt)
+          .then(() => toast('Copiado: ' + txt, 'exito'))
+          .catch(() => toast('No se pudo copiar', 'error'));
+      } else {
+        toast('No se pudo copiar', 'error');
+      }
+      return;
+    }
+  });
+
+  // Listener de input del modal efectivo (delegation por input)
+  document.getElementById('modal-pago').addEventListener('input', (e) => {
+    if (e.target.id === 'modal-efectivo-monto') {
+      actualizarVueltoEfectivo();
+    }
   });
 
   // ============================================================
   // VOLVER
   // ============================================================
+  // Listener especial para el botón ← de verificar que va a método
+  // Si hay pagos acumulados, pregunta si descartar
   document.querySelectorAll('[data-ir]').forEach(btn => {
     btn.addEventListener('click', () => {
       sonidoTap();
-      irA(btn.dataset.ir, { sentido: 'izquierda' });
+      const destino = btn.dataset.ir;
+      // Si venimos de verificar y vamos a metodo con pagos acumulados → preguntar
+      if (destino === 'metodo' && estado.pantalla === 'verificar' && estado.metodosPago.length > 0) {
+        if (!confirm('¿Descartar los pagos ya registrados y volver a elegir método?')) return;
+        estado.metodosPago = [];
+        actualizarPagosAcumulados();
+      }
+      irA(destino, { sentido: 'izquierda' });
     });
   });
 
