@@ -1,22 +1,12 @@
 // ============================================================
-// pagoOK Caja v3 - Lógica completa
-// ============================================================
-// Cambios v3:
-// - Parser inteligente que detecta items sin necesidad de comas
-// - Total siempre editable (toca el total para cambiarlo)
-// - RUC con autoselect, recordar último, mostrar nombre del negocio
-// - Dropdown de locales si hay múltiples
-// - Eliminado método "Tarjeta" del v1
-// - Pantalla de boleta tras pago confirmado
-// - Boleta con serie + correlativo, soporta "PENDIENTE DE EMISIÓN"
-// - Compartir + Imprimir
+// pagoOK Caja v4 - Catálogo emergente + Pago parcial + Online/Offline
 // ============================================================
 
 (function() {
   'use strict';
 
   // ============================================================
-  // ESTADO GLOBAL
+  // ESTADO
   // ============================================================
   const estado = {
     pantalla: 'login',
@@ -25,30 +15,35 @@
     empresa: null,
     localActual: null,
     vendedor: null,
-    items: [],
+    items: [], // [{cantidad, nombre, precioUnit?, subtotal?, calculado?}]
     total: 0,
-    metodoPago: null,
+    metodosPago: [], // [{metodo: 'yape'|'plin'|'efectivo', monto, nOperacion?, foto?}]
+    metodoActual: null,
     nOperacion: '',
     foto: null,
+    montoPagoActual: 0,
     cliente: { tipoDoc: 'ninguno', numero: '', nombre: '' },
     historial: [],
-    catalogo: [],
+    catalogo: [], // [{nombre, alias, precioUnit, veces, ultimaVez}]
     sonidoActivo: true,
-    correlativos: {}, // { 'B346': 142, 'B000': 3 }
+    correlativos: {},
+    itemEditandoIdx: -1,
+    online: navigator.onLine,
   };
 
   // ============================================================
-  // MOCK: Datos de empresas, locales y vendedores
+  // MOCK
   // ============================================================
   const EMPRESAS_DEMO = {
     '20615446565': {
       nombre: 'Pollería Bolognesi S.A.C.',
       tieneCDT: true,
+      aplicaIGV: false, // Iquitos = Amazonía, sin IGV
+      ciudad: 'Iquitos - Loreto',
       locales: [
         {
           id: 'local_1',
           direccion: 'Av. Bolognesi 346',
-          ciudad: 'Iquitos - Loreto',
           serieBase: 346,
           vendedores: [
             { alias: 'vendedor1', pin: '1234', nombre: 'Carlos', serieB: 'B346', serieF: 'F346' },
@@ -60,11 +55,12 @@
     '99999999999': {
       nombre: 'Negocio Demo',
       tieneCDT: false,
+      aplicaIGV: true,
+      ciudad: 'Lima - Lima',
       locales: [
         {
           id: 'local_demo',
           direccion: 'Calle Demo 100',
-          ciudad: 'Iquitos - Loreto',
           serieBase: null,
           vendedores: [
             { alias: 'vendedor1', pin: '0000', nombre: 'Demo', serieB: 'B000', serieF: 'F000' },
@@ -78,12 +74,10 @@
   // AUDIO
   // ============================================================
   let audioCtx = null;
-
   function getAudioCtx() {
     if (!audioCtx) {
-      try {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      } catch (e) {}
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch (e) {}
     }
     return audioCtx;
   }
@@ -94,15 +88,13 @@
     if (!ctx) return;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
+    osc.connect(gain); gain.connect(ctx.destination);
     osc.type = tipo;
     osc.frequency.setValueAtTime(freq, ctx.currentTime);
     gain.gain.setValueAtTime(0, ctx.currentTime);
     gain.gain.linearRampToValueAtTime(vol, ctx.currentTime + 0.005);
     gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + dur + 0.05);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + dur + 0.05);
   }
 
   function sonidoSwoosh() {
@@ -112,9 +104,7 @@
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     const filter = ctx.createBiquadFilter();
-    osc.connect(filter);
-    filter.connect(gain);
-    gain.connect(ctx.destination);
+    osc.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
     osc.type = 'sine';
     filter.type = 'lowpass';
     filter.frequency.setValueAtTime(2000, ctx.currentTime);
@@ -124,8 +114,7 @@
     gain.gain.setValueAtTime(0, ctx.currentTime);
     gain.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.2);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.2);
   }
 
   function sonidoExito() {
@@ -148,16 +137,14 @@
     if (!ctx) return;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
+    osc.connect(gain); gain.connect(ctx.destination);
     osc.type = 'sawtooth';
     osc.frequency.setValueAtTime(220, ctx.currentTime);
     osc.frequency.exponentialRampToValueAtTime(110, ctx.currentTime + 0.4);
     gain.gain.setValueAtTime(0, ctx.currentTime);
     gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.4);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.45);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.45);
   }
 
   function sonidoTap() {
@@ -170,7 +157,7 @@
   // ============================================================
   function cargarEstado() {
     try {
-      const saved = localStorage.getItem('pagook_caja_v3');
+      const saved = localStorage.getItem('pagook_caja_v4');
       if (saved) {
         const data = JSON.parse(saved);
         estado.catalogo = data.catalogo || [];
@@ -178,24 +165,20 @@
         estado.sonidoActivo = data.sonidoActivo !== false;
         estado.correlativos = data.correlativos || {};
       }
-      // Recordar último RUC
       const ultimoRuc = localStorage.getItem('pagook_ultimo_ruc');
       if (ultimoRuc) {
         document.getElementById('input-ruc').value = ultimoRuc;
-        // Disparar validación
         validarRucEnVivo(ultimoRuc);
       } else {
-        document.getElementById('input-ruc').value = '99999999999';
-        validarRucEnVivo('99999999999');
+        document.getElementById('input-ruc').value = '20615446565';
+        validarRucEnVivo('20615446565');
       }
-    } catch (e) {
-      console.warn('No se pudo cargar estado', e);
-    }
+    } catch (e) { console.warn('No se pudo cargar', e); }
   }
 
   function guardarEstado() {
     try {
-      localStorage.setItem('pagook_caja_v3', JSON.stringify({
+      localStorage.setItem('pagook_caja_v4', JSON.stringify({
         catalogo: estado.catalogo,
         historial: estado.historial,
         sonidoActivo: estado.sonidoActivo,
@@ -205,10 +188,31 @@
   }
 
   function guardarRuc(ruc) {
-    try {
-      localStorage.setItem('pagook_ultimo_ruc', ruc);
-    } catch (e) {}
+    try { localStorage.setItem('pagook_ultimo_ruc', ruc); } catch (e) {}
   }
+
+  // ============================================================
+  // CONEXIÓN ONLINE/OFFLINE
+  // ============================================================
+  function actualizarConexion() {
+    estado.online = navigator.onLine;
+    const bar = document.getElementById('conexion-bar');
+    const topbar = document.getElementById('topbar-dictar');
+    const texto = document.getElementById('conexion-texto');
+    if (!bar) return;
+    if (estado.online) {
+      bar.classList.remove('offline');
+      if (topbar) topbar.classList.remove('offline');
+      texto.textContent = 'En línea';
+    } else {
+      bar.classList.add('offline');
+      if (topbar) topbar.classList.add('offline');
+      texto.textContent = 'Sin conexión';
+    }
+  }
+
+  window.addEventListener('online', actualizarConexion);
+  window.addEventListener('offline', actualizarConexion);
 
   // ============================================================
   // NAVEGACIÓN
@@ -219,31 +223,21 @@
     const actual = document.querySelector('.pantalla.activa');
     const proxima = document.getElementById('p-' + nombre);
     if (!proxima || actual === proxima) return;
-
     const { sentido = 'derecha', conSwoosh = null } = opciones;
     const haceSonido = conSwoosh !== null
       ? conSwoosh
       : (PANTALLAS_CON_SWOOSH.includes(nombre) || PANTALLAS_CON_SWOOSH.includes(estado.pantalla));
-
     if (haceSonido) sonidoSwoosh();
-
     if (actual) {
-      if (sentido === 'derecha') {
-        actual.classList.add('saliente-izquierda');
-      }
+      if (sentido === 'derecha') actual.classList.add('saliente-izquierda');
       actual.classList.remove('activa');
     }
-
     proxima.classList.remove('saliente-izquierda', 'entrante-izquierda');
-    if (sentido === 'izquierda') {
-      proxima.classList.add('entrante-izquierda');
-    }
+    if (sentido === 'izquierda') proxima.classList.add('entrante-izquierda');
     void proxima.offsetWidth;
     proxima.classList.remove('entrante-izquierda');
     proxima.classList.add('activa');
-
     estado.pantalla = nombre;
-
     setTimeout(() => {
       document.querySelectorAll('.pantalla:not(.activa)').forEach(p => {
         p.classList.remove('saliente-izquierda', 'entrante-izquierda');
@@ -264,10 +258,21 @@
   }
 
   // ============================================================
-  // P1: LOGIN
+  // FORMATO
   // ============================================================
+  function fmt(n) {
+    if (n === undefined || n === null || isNaN(n)) return 'S/ 0';
+    return 'S/ ' + (n % 1 === 0 ? n.toFixed(0) : n.toFixed(2));
+  }
 
-  // Validar RUC en vivo (al ir escribiendo)
+  function fmt2(n) {
+    if (n === undefined || n === null || isNaN(n)) return '0.00';
+    return n.toFixed(2);
+  }
+
+  // ============================================================
+  // LOGIN
+  // ============================================================
   function validarRucEnVivo(ruc) {
     const display = document.getElementById('empresa-nombre-display');
     const localesGrupo = document.getElementById('locales-grupo');
@@ -280,7 +285,6 @@
       estado.localActual = null;
       return;
     }
-
     const empresa = EMPRESAS_DEMO[ruc];
     if (!empresa) {
       display.classList.add('oculto');
@@ -289,12 +293,9 @@
       estado.localActual = null;
       return;
     }
-
     estado.empresa = empresa;
     document.getElementById('empresa-nombre-txt').textContent = empresa.nombre;
     display.classList.remove('oculto');
-
-    // Si hay más de un local, mostrar dropdown
     if (empresa.locales.length > 1) {
       select.innerHTML = '<option value="">Selecciona el local...</option>';
       empresa.locales.forEach(l => {
@@ -305,7 +306,6 @@
       });
       localesGrupo.classList.remove('oculto');
     } else {
-      // Solo un local: seleccionar automáticamente
       estado.localActual = empresa.locales[0];
       localesGrupo.classList.add('oculto');
     }
@@ -317,12 +317,10 @@
     validarRucEnVivo(ruc);
   });
 
-  // Select all on focus
   document.getElementById('input-ruc').addEventListener('focus', (e) => {
     setTimeout(() => e.target.select(), 50);
   });
 
-  // Cambiar local
   document.getElementById('select-local').addEventListener('change', (e) => {
     const localId = e.target.value;
     if (estado.empresa && localId) {
@@ -343,29 +341,24 @@
     const ruc = document.getElementById('input-ruc').value.trim();
     const pin = estado.pin;
     const errorEl = document.getElementById('login-error');
-
     if (!estado.empresa) {
       errorEl.textContent = 'RUC no registrado';
       errorEl.classList.remove('oculto');
       sonidoError();
       return;
     }
-
     if (estado.empresa.locales.length > 1 && !estado.localActual) {
       errorEl.textContent = 'Selecciona el local primero';
       errorEl.classList.remove('oculto');
       sonidoError();
       return;
     }
-
     if (pin.length !== 4) {
       errorEl.textContent = 'El PIN debe tener 4 dígitos';
       errorEl.classList.remove('oculto');
       sonidoError();
       return;
     }
-
-    // Buscar vendedor con ese PIN en el local actual
     const vendedor = estado.localActual.vendedores.find(v => v.pin === pin);
     if (!vendedor) {
       errorEl.textContent = 'PIN incorrecto';
@@ -375,19 +368,17 @@
       sonidoError();
       return;
     }
-
     errorEl.classList.add('oculto');
     estado.ruc = ruc;
     estado.vendedor = vendedor;
     guardarRuc(ruc);
-
     document.getElementById('vendedor-nombre').textContent = vendedor.nombre;
     document.getElementById('local-display').textContent = estado.empresa.nombre + ' · ' + vendedor.serieB;
-
     estado.pin = '';
     actualizarPinDisplay();
-
+    actualizarConexion();
     irA('dictar');
+    actualizarSugerencias();
     setTimeout(() => toast('Bienvenido ' + vendedor.nombre, 'exito'), 200);
   }
 
@@ -412,12 +403,60 @@
   });
 
   // ============================================================
-  // P2: PARSER INTELIGENTE
+  // CATÁLOGO EMERGENTE - sugerencias
   // ============================================================
-  // Detecta items sin necesidad de comas. Usa regex que busca
-  // patrones "<número/palabra-numero> <texto hasta el siguiente número>"
-  // ============================================================
+  function actualizarSugerencias() {
+    const cont = document.getElementById('sugerencias');
+    const chips = document.getElementById('sugerencias-chips');
+    if (estado.catalogo.length === 0) {
+      cont.classList.add('oculto');
+      return;
+    }
+    // Top 5 más vendidos
+    const top = [...estado.catalogo].sort((a, b) => b.veces - a.veces).slice(0, 5);
+    chips.innerHTML = '';
+    top.forEach(p => {
+      const chip = document.createElement('button');
+      chip.className = 'sugerencia-chip';
+      chip.type = 'button';
+      let txt = p.nombre;
+      if (p.precioUnit) txt += `<span class="sugerencia-chip-precio">S/${fmt2(p.precioUnit)}</span>`;
+      chip.innerHTML = txt;
+      chip.addEventListener('click', () => {
+        sonidoTap();
+        agregarItemDelCatalogo(p);
+      });
+      chips.appendChild(chip);
+    });
+    cont.classList.remove('oculto');
+  }
 
+  function agregarItemDelCatalogo(prod) {
+    // Buscar si ya está en items actuales
+    const existe = estado.items.find(i => i.nombre.toLowerCase() === prod.nombre.toLowerCase());
+    if (existe) {
+      existe.cantidad++;
+      if (prod.precioUnit && !existe.precioUnit) existe.precioUnit = prod.precioUnit;
+    } else {
+      estado.items.push({
+        cantidad: 1,
+        nombre: prod.nombre,
+        precioUnit: prod.precioUnit || null,
+      });
+    }
+    recalcularTotal();
+    if (estado.items.length === 1) {
+      // Primer item agregado, ir a items
+      renderItems();
+      irA('items');
+    } else {
+      toast(`+ ${prod.nombre}`, 'exito');
+    }
+  }
+
+  // ============================================================
+  // PARSER
+  // ============================================================
   const NUM_PALABRAS = {
     'un': 1, 'una': 1, 'uno': 1,
     'dos': 2, 'tres': 3, 'cuatro': 4, 'cinco': 5,
@@ -428,161 +467,158 @@
     'media': 0.5, 'medio': 0.5,
   };
 
-  // Convierte texto a tokens: cada token es { tipo: 'num'|'palabra', valor }
   function tokenizar(texto) {
     const palabras = texto.toLowerCase().split(/\s+/).filter(p => p.length > 0);
     return palabras.map(p => {
-      // Limpiar puntos/comas si son solo separadores
       const limpia = p.replace(/[,;.]+$/, '');
-      // ¿Es número?
       if (/^\d+(?:[.,]\d+)?$/.test(limpia)) {
         return { tipo: 'num', valor: parseFloat(limpia.replace(',', '.')), texto: limpia };
       }
-      // ¿Es palabra-número?
       if (NUM_PALABRAS[limpia] !== undefined) {
         return { tipo: 'num', valor: NUM_PALABRAS[limpia], texto: limpia };
       }
-      // Palabra normal
       return { tipo: 'palabra', valor: limpia, texto: limpia };
     });
   }
 
   function parsearVenta(texto) {
     texto = texto.trim();
-    if (!texto) return { items: [], total: 0, error: 'Escribe o dicta la venta' };
-
+    if (!texto) return { items: [], total: 0 };
     let total = 0;
-
-    // 1. Detectar total al final con patrón explícito
     const patronTotalExplicito = /(?:total|son|=|s\/\s*)\s*(\d+(?:[.,]\d{1,2})?)\s*(?:soles?|s\/)?\s*$/i;
     let matchTotal = texto.match(patronTotalExplicito);
-
     if (matchTotal) {
       total = parseFloat(matchTotal[1].replace(',', '.'));
       texto = texto.substring(0, matchTotal.index).trim();
     } else {
-      // 2. Si no hay palabra "total/son", el último número grande puede ser el total
-      // (un número >= 10 al final, o "X soles")
       const patronImplicito = /(\d+(?:[.,]\d{1,2})?)\s*(?:soles?|s\/)?\s*$/i;
       const matchImpl = texto.match(patronImplicito);
       if (matchImpl) {
         const candidato = parseFloat(matchImpl[1].replace(',', '.'));
-        // Solo lo asumimos como total si es >= 10 (umbrales para negocio peruano)
         if (candidato >= 10) {
           total = candidato;
           texto = texto.substring(0, matchImpl.index).trim();
         }
       }
     }
-
-    // Si no detecta total, igual procesar items (el vendedor podrá editarlo)
-    // Ya no es bloqueante.
-
-    // Tokenizar lo que queda
     texto = texto.replace(/[,;]/g, ' ');
     const tokens = tokenizar(texto);
-
-    // Filtrar conectores irrelevantes
-    const STOP_WORDS = ['y', 'de', 'con', 'mas', 'más', 'el', 'la', 'los', 'las', 'un', 'una'];
+    const STOP_WORDS = ['y', 'de', 'con', 'mas', 'más', 'el', 'la', 'los', 'las'];
     const tokensFiltered = tokens.filter(t => {
       if (t.tipo === 'palabra' && STOP_WORDS.includes(t.valor)) return false;
       return true;
     });
-    // Excepto: "un/una" sí es número (1)
-    // Lo ya gestionamos en NUM_PALABRAS
-
-    // Agrupar items: cada vez que aparece un token tipo 'num', empieza nuevo item
     const items = [];
     let actual = null;
-
     for (let i = 0; i < tokensFiltered.length; i++) {
       const t = tokensFiltered[i];
       if (t.tipo === 'num') {
-        // Cerrar item anterior si tiene contenido
-        if (actual && actual.nombre.length > 0) {
-          items.push(actual);
-        }
-        // Empezar nuevo
+        if (actual && actual.nombre.length > 0) items.push(actual);
         actual = { cantidad: t.valor, nombre: '' };
       } else {
-        // Palabra → agregar al item actual
-        if (!actual) {
-          // Item sin cantidad explícita: cantidad = 1
-          actual = { cantidad: 1, nombre: '' };
-        }
+        if (!actual) actual = { cantidad: 1, nombre: '' };
         actual.nombre += (actual.nombre ? ' ' : '') + t.valor;
       }
     }
-
-    // Cerrar el último
-    if (actual && actual.nombre.length > 0) {
-      items.push(actual);
-    }
-
-    // Si no se detectaron items pero había texto, registrar como genérico
-    if (items.length === 0 && texto.trim().length > 0) {
-      items.push({ cantidad: 1, nombre: 'Venta' });
-    } else if (items.length === 0) {
-      items.push({ cantidad: 1, nombre: 'Venta' });
-    }
-
-    // Capitalizar nombres
+    if (actual && actual.nombre.length > 0) items.push(actual);
+    if (items.length === 0) items.push({ cantidad: 1, nombre: 'Venta' });
     items.forEach(item => {
       if (item.nombre.length > 0) {
         item.nombre = item.nombre.charAt(0).toUpperCase() + item.nombre.slice(1);
       } else {
         item.nombre = 'Item';
       }
+      // Buscar precio en catálogo
+      const enCat = estado.catalogo.find(c => c.nombre.toLowerCase() === item.nombre.toLowerCase());
+      if (enCat && enCat.precioUnit) {
+        item.precioUnit = enCat.precioUnit;
+      }
     });
-
     return { items, total };
   }
 
+  // ============================================================
+  // CÁLCULO INTELIGENTE: si hay 1 incógnita, resolver
+  // ============================================================
+  function recalcularTotal() {
+    // Si total fue fijado manualmente, no recalcular automáticamente
+    // EXCEPTO: si hay 1 item sin precio, calcularlo
+    const sinPrecio = estado.items.filter(i => !i.precioUnit);
+
+    if (sinPrecio.length === 0) {
+      // Todos tienen precio: total = suma
+      let suma = 0;
+      estado.items.forEach(i => {
+        i.subtotal = i.cantidad * i.precioUnit;
+        i.calculado = false;
+        suma += i.subtotal;
+      });
+      estado.total = Math.round(suma * 100) / 100;
+    } else if (sinPrecio.length === 1 && estado.total > 0) {
+      // 1 incógnita y total fijado: resolverla
+      let sumaConocidos = 0;
+      estado.items.forEach(i => {
+        if (i.precioUnit) {
+          i.subtotal = i.cantidad * i.precioUnit;
+          i.calculado = false;
+          sumaConocidos += i.subtotal;
+        }
+      });
+      const incognita = sinPrecio[0];
+      const restante = estado.total - sumaConocidos;
+      if (restante > 0 && incognita.cantidad > 0) {
+        incognita.precioUnit = Math.round((restante / incognita.cantidad) * 100) / 100;
+        incognita.subtotal = restante;
+        incognita.calculado = true;
+      } else {
+        incognita.subtotal = null;
+      }
+    }
+    // Si hay 2+ incógnitas, el total se respeta tal cual lo puso el vendedor
+    // Los items sin precio quedan sin subtotal
+  }
+
+  // ============================================================
+  // RENDER ITEMS
+  // ============================================================
   function renderItems() {
     const lista = document.getElementById('items-lista');
     lista.innerHTML = '';
-
     estado.items.forEach((item, idx) => {
       const li = document.createElement('li');
       li.className = 'item';
+      li.dataset.idx = idx;
+
+      let infoHtml = `<div class="item-nombre">${escapeHtml(item.nombre)}</div>`;
+      if (item.precioUnit) {
+        const calc = item.calculado ? 'calculado' : '';
+        const calcLabel = item.calculado ? ' (calculado)' : '';
+        infoHtml += `<div class="item-precio-unit ${calc}">S/ ${fmt2(item.precioUnit)} c/u${calcLabel}</div>`;
+      } else {
+        infoHtml += `<div class="item-precio-unit">Sin precio · toca para editar</div>`;
+      }
+
+      const subHtml = item.precioUnit
+        ? `<span class="item-subtotal">S/ ${fmt2(item.cantidad * item.precioUnit)}</span>`
+        : `<span class="item-edit-icono">›</span>`;
+
       li.innerHTML = `
-        <div class="item-cantidad-grupo">
-          <button class="item-btn-cant" data-accion="menos" data-idx="${idx}" aria-label="Menos">−</button>
-          <span class="item-cantidad">${item.cantidad}</span>
-          <button class="item-btn-cant" data-accion="mas" data-idx="${idx}" aria-label="Más">+</button>
-        </div>
-        <div class="item-info">
-          <div class="item-nombre">${escapeHtml(item.nombre)}</div>
-        </div>
-        <button class="item-eliminar" data-accion="eliminar" data-idx="${idx}" aria-label="Eliminar">×</button>
+        <div class="item-cantidad-box">${item.cantidad}</div>
+        <div class="item-info">${infoHtml}</div>
+        ${subHtml}
       `;
+      li.addEventListener('click', () => {
+        sonidoTap();
+        abrirModalItem(idx);
+      });
       lista.appendChild(li);
     });
-
     actualizarTotalDisplay();
-
-    lista.querySelectorAll('[data-accion]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        sonidoTap();
-        const idx = parseInt(btn.dataset.idx);
-        const accion = btn.dataset.accion;
-        const item = estado.items[idx];
-        if (!item) return;
-        if (accion === 'mas') item.cantidad++;
-        else if (accion === 'menos') { if (item.cantidad > 1) item.cantidad--; }
-        else if (accion === 'eliminar') estado.items.splice(idx, 1);
-        renderItems();
-      });
-    });
-
-    // Mostrar hint si total = 0
     document.getElementById('total-hint').classList.toggle('oculto', estado.total > 0);
   }
 
   function actualizarTotalDisplay() {
-    const t = estado.total;
-    const formatted = 'S/ ' + (t % 1 === 0 ? t.toFixed(0) : t.toFixed(2));
-    document.getElementById('items-total-btn').textContent = formatted;
+    document.getElementById('items-total-btn').textContent = fmt(estado.total);
   }
 
   function escapeHtml(str) {
@@ -591,17 +627,79 @@
     return div.innerHTML;
   }
 
-  // Click en total → abrir modal
+  // ============================================================
+  // MODAL DE ITEM
+  // ============================================================
+  function abrirModalItem(idx) {
+    const item = estado.items[idx];
+    if (!item) return;
+    estado.itemEditandoIdx = idx;
+    document.getElementById('modal-item-nombre').value = item.nombre;
+    document.getElementById('modal-item-cantidad').value = item.cantidad;
+    document.getElementById('modal-item-precio').value = item.precioUnit ? fmt2(item.precioUnit) : '';
+    actualizarSubtotalModal();
+    document.getElementById('modal-item').classList.remove('oculto');
+    setTimeout(() => document.getElementById('modal-item-nombre').focus(), 100);
+  }
+
+  function actualizarSubtotalModal() {
+    const cant = parseFloat(document.getElementById('modal-item-cantidad').value.replace(',', '.'));
+    const precio = parseFloat(document.getElementById('modal-item-precio').value.replace(',', '.'));
+    const display = document.getElementById('modal-subtotal-display');
+    if (!isNaN(cant) && !isNaN(precio) && precio > 0) {
+      display.textContent = `Subtotal: S/ ${fmt2(cant * precio)}`;
+    } else {
+      display.textContent = 'Subtotal: sin precio unitario';
+    }
+  }
+
+  ['modal-item-cantidad', 'modal-item-precio'].forEach(id => {
+    document.getElementById(id).addEventListener('input', actualizarSubtotalModal);
+  });
+
+  document.getElementById('btn-modal-item-cancelar').addEventListener('click', () => {
+    sonidoTap();
+    document.getElementById('modal-item').classList.add('oculto');
+  });
+
+  document.getElementById('btn-modal-item-eliminar').addEventListener('click', () => {
+    sonidoTap();
+    if (estado.itemEditandoIdx >= 0) {
+      estado.items.splice(estado.itemEditandoIdx, 1);
+      recalcularTotal();
+      renderItems();
+    }
+    document.getElementById('modal-item').classList.add('oculto');
+  });
+
+  document.getElementById('btn-modal-item-aceptar').addEventListener('click', () => {
+    sonidoTap();
+    const idx = estado.itemEditandoIdx;
+    const item = estado.items[idx];
+    if (!item) return;
+    const nombre = document.getElementById('modal-item-nombre').value.trim();
+    const cant = parseFloat(document.getElementById('modal-item-cantidad').value.replace(',', '.'));
+    const precioStr = document.getElementById('modal-item-precio').value.trim();
+    const precio = precioStr ? parseFloat(precioStr.replace(',', '.')) : null;
+    if (!nombre) { sonidoError(); toast('El nombre no puede estar vacío', 'error'); return; }
+    if (isNaN(cant) || cant <= 0) { sonidoError(); toast('Cantidad inválida', 'error'); return; }
+    item.nombre = nombre;
+    item.cantidad = cant;
+    item.precioUnit = (precio !== null && !isNaN(precio) && precio > 0) ? precio : null;
+    item.calculado = false;
+    recalcularTotal();
+    renderItems();
+    document.getElementById('modal-item').classList.add('oculto');
+  });
+
+  // Total modal
   document.getElementById('items-total-btn').addEventListener('click', () => {
     sonidoTap();
     const modal = document.getElementById('modal-total');
     const input = document.getElementById('input-total-edit');
     input.value = estado.total > 0 ? estado.total.toString() : '';
     modal.classList.remove('oculto');
-    setTimeout(() => {
-      input.focus();
-      input.select();
-    }, 100);
+    setTimeout(() => { input.focus(); input.select(); }, 100);
   });
 
   document.getElementById('btn-total-cancelar').addEventListener('click', () => {
@@ -616,8 +714,8 @@
       return;
     }
     estado.total = valor;
-    actualizarTotalDisplay();
-    document.getElementById('total-hint').classList.toggle('oculto', estado.total > 0);
+    recalcularTotal();
+    renderItems();
     document.getElementById('modal-total').classList.add('oculto');
     sonidoTap();
   });
@@ -627,7 +725,7 @@
     if (e.key === 'Escape') document.getElementById('btn-total-cancelar').click();
   });
 
-  // Procesar venta
+  // Procesar
   document.getElementById('btn-procesar').addEventListener('click', () => {
     const texto = document.getElementById('texto-venta').value.trim();
     if (!texto) {
@@ -638,13 +736,11 @@
     const parsed = parsearVenta(texto);
     estado.items = parsed.items;
     estado.total = parsed.total;
+    recalcularTotal();
     renderItems();
-
     if (parsed.total === 0) {
-      // Avisar al vendedor
-      toast('Falta el total — toca el monto para editarlo', '');
+      toast('Falta el total — toca el monto', '');
     }
-
     irA('items');
   });
 
@@ -654,22 +750,47 @@
       toast('Toca el total para ingresarlo', 'error');
       return;
     }
-    const formatTotal = 'S/ ' + (estado.total % 1 === 0 ? estado.total.toFixed(0) : estado.total.toFixed(2));
-    document.getElementById('monto-grande').textContent = formatTotal;
-    document.getElementById('metodo-monto-cabecera').textContent = formatTotal;
-    document.getElementById('verificar-monto').textContent = formatTotal;
-    document.getElementById('efectivo-monto').textContent = formatTotal;
-
-    estado.metodoPago = null;
-    estado.nOperacion = '';
-    estado.foto = null;
-    document.getElementById('input-operacion').value = '';
-    document.getElementById('foto-preview').classList.add('oculto');
-    document.getElementById('btn-foto-texto').textContent = 'Tomar foto';
-    document.getElementById('btn-verificar').disabled = true;
-
-    irA('metodo');
+    iniciarCobro();
   });
+
+  function iniciarCobro() {
+    estado.metodosPago = [];
+    document.getElementById('monto-grande').textContent = fmt(estado.total);
+    document.getElementById('metodo-monto-cabecera').textContent = fmt(estado.total);
+    actualizarPagosAcumulados();
+    irA('metodo');
+  }
+
+  function actualizarPagosAcumulados() {
+    const cont = document.getElementById('pagos-acumulados');
+    const lista = document.getElementById('pagos-lista');
+    if (estado.metodosPago.length === 0) {
+      cont.classList.add('oculto');
+      document.getElementById('metodos-titulo-txt').textContent = '¿Cómo te paga?';
+      return;
+    }
+    lista.innerHTML = '';
+    estado.metodosPago.forEach(p => {
+      const li = document.createElement('li');
+      li.className = 'pago-item';
+      const nombre = { yape: 'Yape', plin: 'Plin', efectivo: 'Efectivo' }[p.metodo];
+      let detalle = nombre;
+      if (p.nOperacion) detalle += ` · op ${p.nOperacion}`;
+      li.innerHTML = `
+        <span class="pago-item-metodo">${detalle}</span>
+        <span class="pago-item-monto">+ ${fmt(p.monto)}</span>
+      `;
+      lista.appendChild(li);
+    });
+    const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
+    const falta = estado.total - cobrado;
+    document.getElementById('pagos-cobrado').textContent = fmt(cobrado);
+    document.getElementById('pagos-falta').textContent = fmt(falta);
+    cont.classList.remove('oculto');
+    document.getElementById('metodos-titulo-txt').textContent = falta > 0
+      ? `Falta cobrar ${fmt(falta)}`
+      : 'Pago completo';
+  }
 
   document.getElementById('btn-rehacer').addEventListener('click', () => {
     estado.items = [];
@@ -678,39 +799,44 @@
     irA('dictar', { sentido: 'izquierda' });
   });
 
+  // Botón volver desde método: si hay pagos, advertir
+  document.getElementById('btn-volver-metodo').addEventListener('click', () => {
+    sonidoTap();
+    if (estado.metodosPago.length > 0) {
+      if (!confirm('Volver descartará los pagos parciales ya registrados. ¿Continuar?')) return;
+    }
+    estado.metodosPago = [];
+    irA('items', { sentido: 'izquierda' });
+  });
+
   // ============================================================
   // SPEECH
   // ============================================================
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   let recognition = null;
   let escuchando = false;
-
   if (SpeechRecognition) {
     recognition = new SpeechRecognition();
     recognition.lang = 'es-PE';
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
-
     recognition.onstart = () => {
       escuchando = true;
       document.getElementById('btn-dictar').classList.add('escuchando');
       document.querySelector('.dictar-texto').textContent = 'Habla ahora...';
       document.querySelector('.dictar-hint').textContent = 'Toca de nuevo para detener';
     };
-
     recognition.onresult = (e) => {
       const transcript = e.results[0][0].transcript;
       document.getElementById('texto-venta').value = transcript;
       tono(880, 0.1, 'sine', 0.12);
     };
-
     recognition.onerror = (e) => {
       sonidoError();
       if (e.error === 'no-speech') toast('No te escuché, intenta de nuevo', 'error');
       else if (e.error === 'not-allowed') toast('Permiso de micrófono denegado', 'error');
     };
-
     recognition.onend = () => {
       escuchando = false;
       document.getElementById('btn-dictar').classList.remove('escuchando');
@@ -727,13 +853,24 @@
   });
 
   // ============================================================
-  // P4: MÉTODOS
+  // MÉTODOS DE PAGO
   // ============================================================
   document.querySelectorAll('.metodo').forEach(btn => {
     btn.addEventListener('click', () => {
       sonidoTap();
       const metodo = btn.dataset.metodo;
-      estado.metodoPago = metodo;
+      estado.metodoActual = metodo;
+      const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
+      const falta = estado.total - cobrado;
+      // Pre-llenar monto sugerido
+      document.getElementById('input-monto-pago').value = falta > 0 ? falta.toString() : '';
+      document.getElementById('input-efectivo-monto').value = falta > 0 ? falta.toString() : '';
+      document.getElementById('input-operacion').value = '';
+      estado.nOperacion = '';
+      estado.foto = null;
+      document.getElementById('foto-preview').classList.add('oculto');
+      document.getElementById('btn-foto-texto').textContent = 'Tomar foto';
+      document.getElementById('btn-verificar').disabled = true;
 
       document.getElementById('verificacion-form').classList.add('oculto');
       document.getElementById('efectivo-form').classList.add('oculto');
@@ -741,29 +878,35 @@
 
       const titulo = { yape: 'Verificar Yape', plin: 'Verificar Plin', efectivo: 'Pago en efectivo' }[metodo];
       document.getElementById('verificar-titulo').textContent = titulo;
+      document.getElementById('verificar-monto').textContent = fmt(falta);
+      document.getElementById('verif-metodo-label').textContent = metodo === 'yape' ? 'Yape' : 'Plin';
 
       if (metodo === 'yape' || metodo === 'plin') {
         document.getElementById('verificacion-form').classList.remove('oculto');
         irA('verificar');
-        setTimeout(() => document.getElementById('input-operacion').focus(), 500);
+        setTimeout(() => document.getElementById('input-monto-pago').focus(), 500);
       } else if (metodo === 'efectivo') {
         document.getElementById('efectivo-form').classList.remove('oculto');
         irA('verificar');
+        setTimeout(() => document.getElementById('input-efectivo-monto').focus(), 500);
       }
     });
   });
 
   // ============================================================
-  // P5: VERIFICAR
+  // VERIFICAR YAPE/PLIN
   // ============================================================
   function validarVerificacion() {
+    const monto = parseFloat(document.getElementById('input-monto-pago').value.replace(',', '.'));
     const operacion = document.getElementById('input-operacion').value.trim();
     const tieneFoto = !!estado.foto;
-    document.getElementById('btn-verificar').disabled = !(operacion.length >= 4 && tieneFoto);
+    const ok = !isNaN(monto) && monto >= 0.5 && operacion.length >= 4 && tieneFoto;
+    document.getElementById('btn-verificar').disabled = !ok;
   }
 
-  document.getElementById('input-operacion').addEventListener('input', () => {
-    estado.nOperacion = document.getElementById('input-operacion').value.trim();
+  document.getElementById('input-monto-pago').addEventListener('input', validarVerificacion);
+  document.getElementById('input-operacion').addEventListener('input', (e) => {
+    estado.nOperacion = e.target.value.trim();
     validarVerificacion();
   });
 
@@ -783,56 +926,174 @@
     reader.readAsDataURL(file);
   });
 
+  // Mock: simula búsqueda en backend con timeout
   function mockBuscarPago(nOp, montoEsperado) {
-    const ult = parseInt(nOp.slice(-1));
-    if (isNaN(ult) || ult === 0) return { encontrado: false };
-    if (ult >= 1 && ult <= 4) {
-      return {
-        encontrado: true,
-        monto: Math.max(1, montoEsperado - (5 + ult * 2)),
-        remitente: 'Cliente Demo',
-        hora: 'Hace 2 minutos',
-      };
-    }
-    return {
-      encontrado: true,
-      monto: montoEsperado,
-      remitente: 'Cliente Demo',
-      hora: 'Hace 1 minuto',
-    };
+    return new Promise((resolve) => {
+      // Simular delay de red
+      const delay = 600 + Math.random() * 400;
+      setTimeout(() => {
+        const ult = parseInt(nOp.slice(-1));
+        if (isNaN(ult) || ult === 0) {
+          resolve({ encontrado: false });
+        } else if (ult >= 1 && ult <= 4) {
+          resolve({
+            encontrado: true,
+            monto: Math.max(1, montoEsperado - (5 + ult * 2)),
+            remitente: 'Cliente Demo',
+            hora: 'Hace 2 min',
+          });
+        } else {
+          resolve({
+            encontrado: true,
+            monto: montoEsperado,
+            remitente: 'Cliente Demo',
+            hora: 'Hace 1 min',
+          });
+        }
+      }, delay);
+    });
   }
 
-  document.getElementById('btn-verificar').addEventListener('click', () => {
-    const total = estado.total;
+  // Validación con timeout 3s
+  async function validarConTimeout(nOp, monto) {
+    if (!estado.online) {
+      return { offline: true };
+    }
+    try {
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('timeout')), 3000);
+      });
+      const result = await Promise.race([
+        mockBuscarPago(nOp, monto),
+        timeoutPromise,
+      ]);
+      return result;
+    } catch (e) {
+      return { timeout: true };
+    }
+  }
+
+  document.getElementById('btn-verificar').addEventListener('click', async () => {
+    const monto = parseFloat(document.getElementById('input-monto-pago').value.replace(',', '.'));
     const nOp = estado.nOperacion;
     document.getElementById('btn-verificar').disabled = true;
     document.getElementById('btn-verificar').querySelector('span').textContent = 'Verificando...';
 
-    setTimeout(() => {
-      const r = mockBuscarPago(nOp, total);
-      if (!r.encontrado) {
-        mostrarResultado('error', 'No encontrado',
-          `No hay registro de la operación ${nOp} en los últimos 10 minutos.`);
-        document.getElementById('btn-pendiente').classList.remove('oculto');
-      } else if (r.monto < total) {
-        const falta = total - r.monto;
-        mostrarResultado('advertencia', 'Falta dinero',
-          `Recibimos S/ ${r.monto.toFixed(2)} de ${r.remitente}. Faltan S/ ${falta.toFixed(2)}.`);
-      } else {
-        mostrarResultado('exito', '¡Pago confirmado!',
-          `Recibimos S/ ${r.monto.toFixed(2)} de ${r.remitente} ${r.hora}.`);
-      }
-      document.getElementById('btn-verificar').disabled = false;
-      document.getElementById('btn-verificar').querySelector('span').textContent = 'Verificar pago';
-    }, 800);
+    const r = await validarConTimeout(nOp, monto);
+
+    document.getElementById('btn-verificar').disabled = false;
+    document.getElementById('btn-verificar').querySelector('span').textContent = 'Verificar pago';
+
+    if (r.offline) {
+      // Modo offline: aceptar el monto tal cual lo digitó el vendedor
+      agregarPago('yape', monto, nOp);
+      mostrarResultadoOffline(monto);
+    } else if (r.timeout) {
+      agregarPago(estado.metodoActual, monto, nOp);
+      mostrarResultadoTimeout(monto);
+    } else if (!r.encontrado) {
+      mostrarResultadoNoEncontrado(monto);
+    } else if (r.monto < monto) {
+      // El monto que dice el vendedor es mayor a lo que llegó
+      // Aceptar lo que llegó realmente
+      agregarPago(estado.metodoActual, r.monto, nOp);
+      mostrarResultadoParcial(r);
+    } else {
+      agregarPago(estado.metodoActual, monto, nOp);
+      mostrarResultadoOK(r, monto);
+    }
   });
+
+  function agregarPago(metodo, monto, nOperacion) {
+    estado.metodosPago.push({
+      metodo,
+      monto,
+      nOperacion: nOperacion || null,
+      foto: estado.foto,
+    });
+  }
+
+  function mostrarResultadoOK(r, monto) {
+    const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
+    const falta = estado.total - cobrado;
+    if (falta > 0.01) {
+      mostrarResultado('advertencia', '¡Pago parcial recibido!',
+        `Recibimos ${fmt(monto)}. Faltan ${fmt(falta)} para completar.`,
+        { completar: true });
+    } else {
+      mostrarResultado('exito', '¡Pago completo!',
+        `Recibimos ${fmt(monto)} de ${r.remitente}.`,
+        { boleta: true });
+    }
+  }
+
+  function mostrarResultadoParcial(r) {
+    const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
+    const falta = estado.total - cobrado;
+    if (falta > 0.01) {
+      mostrarResultado('advertencia', 'Llegó menos de lo digitado',
+        `Recibimos ${fmt(r.monto)} (no el monto que dijiste). Faltan ${fmt(falta)}.`,
+        { completar: true });
+    } else {
+      mostrarResultado('exito', 'Pago completo',
+        `Recibimos ${fmt(r.monto)}.`,
+        { boleta: true });
+    }
+  }
+
+  function mostrarResultadoOffline(monto) {
+    const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
+    const falta = estado.total - cobrado;
+    if (falta > 0.01) {
+      mostrarResultado('advertencia', 'Pago registrado (sin verificar)',
+        `Sin conexión. Registramos ${fmt(monto)}. Se verificará cuando vuelva internet.`,
+        { completar: true });
+    } else {
+      mostrarResultado('exito', 'Venta registrada',
+        `Pago de ${fmt(monto)} guardado. Se verificará cuando vuelva internet.`,
+        { boleta: true });
+    }
+  }
+
+  function mostrarResultadoTimeout(monto) {
+    const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
+    const falta = estado.total - cobrado;
+    const msg = `${fmt(monto)} registrado. La verificación tardó más de lo normal — se completará en segundo plano.`;
+    if (falta > 0.01) {
+      mostrarResultado('advertencia', 'Pago registrado', msg, { completar: true });
+    } else {
+      mostrarResultado('exito', 'Venta registrada', msg, { boleta: true });
+    }
+  }
+
+  function mostrarResultadoNoEncontrado(monto) {
+    mostrarResultado('error', 'No encontrado',
+      `No hay registro de operación ${estado.nOperacion} en los últimos 10 minutos.`,
+      { pendiente: true });
+  }
 
   document.getElementById('btn-efectivo-confirmar').addEventListener('click', () => {
-    mostrarResultado('exito', '¡Venta registrada!',
-      `S/ ${estado.total.toFixed(2)} recibidos en efectivo.`);
+    const monto = parseFloat(document.getElementById('input-efectivo-monto').value.replace(',', '.'));
+    if (isNaN(monto) || monto < 0.5) {
+      sonidoError();
+      toast('Monto inválido', 'error');
+      return;
+    }
+    agregarPago('efectivo', monto, null);
+    const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
+    const falta = estado.total - cobrado;
+    if (falta > 0.01) {
+      mostrarResultado('advertencia', 'Efectivo registrado',
+        `${fmt(monto)} en efectivo. Faltan ${fmt(falta)}.`,
+        { completar: true });
+    } else {
+      mostrarResultado('exito', '¡Venta completa!',
+        `${fmt(monto)} recibidos en efectivo.`,
+        { boleta: true });
+    }
   });
 
-  function mostrarResultado(tipo, titulo, texto) {
+  function mostrarResultado(tipo, titulo, texto, botones = {}) {
     const card = document.getElementById('resultado-card');
     card.className = 'resultado-card ' + tipo;
     const svgs = {
@@ -843,8 +1104,12 @@
     document.getElementById('resultado-svg').innerHTML = svgs[tipo] || svgs.error;
     document.getElementById('resultado-titulo').textContent = titulo;
     document.getElementById('resultado-texto').textContent = texto;
-    document.getElementById('btn-pendiente').classList.add('oculto');
-    document.getElementById('btn-emitir-boleta').classList.toggle('oculto', tipo === 'error');
+
+    document.getElementById('btn-completar-pago').classList.toggle('oculto', !botones.completar);
+    document.getElementById('btn-emitir-boleta').classList.toggle('oculto', !botones.boleta);
+    document.getElementById('btn-finalizar').classList.toggle('oculto', !botones.boleta);
+    document.getElementById('btn-pendiente').classList.toggle('oculto', !botones.pendiente);
+
     document.getElementById('verificacion-form').classList.add('oculto');
     document.getElementById('efectivo-form').classList.add('oculto');
     card.classList.remove('oculto');
@@ -854,26 +1119,28 @@
     else sonidoError();
   }
 
-  // ============================================================
-  // P6: BOLETA
-  // ============================================================
+  // Completar pago: volver a elegir método
+  document.getElementById('btn-completar-pago').addEventListener('click', () => {
+    sonidoTap();
+    irA('metodo', { sentido: 'izquierda' });
+  });
 
-  // Click en "Emitir boleta"
+  // ============================================================
+  // BOLETA
+  // ============================================================
   document.getElementById('btn-emitir-boleta').addEventListener('click', () => {
+    sonidoTap();
     estado.cliente = { tipoDoc: 'ninguno', numero: '', nombre: '' };
     document.querySelectorAll('.tipo-doc-btn').forEach(b => b.classList.remove('activo'));
     document.querySelector('.tipo-doc-btn[data-tipo="ninguno"]').classList.add('activo');
     document.getElementById('doc-input-grupo').classList.add('oculto');
     document.getElementById('input-doc').value = '';
     document.getElementById('input-cliente-nombre').value = '';
-
     document.getElementById('cliente-form').classList.remove('oculto');
     document.getElementById('boleta-vista').classList.add('oculto');
-
     irA('boleta');
   });
 
-  // Tipo de documento
   document.querySelectorAll('.tipo-doc-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       sonidoTap();
@@ -881,21 +1148,14 @@
       btn.classList.add('activo');
       const tipo = btn.dataset.tipo;
       estado.cliente.tipoDoc = tipo;
-
       const grupo = document.getElementById('doc-input-grupo');
       const input = document.getElementById('input-doc');
-
       if (tipo === 'ninguno') {
         grupo.classList.add('oculto');
       } else {
         grupo.classList.remove('oculto');
-        if (tipo === 'dni') {
-          input.placeholder = 'DNI (8 dígitos)';
-          input.maxLength = 8;
-        } else if (tipo === 'ruc') {
-          input.placeholder = 'RUC (11 dígitos)';
-          input.maxLength = 11;
-        }
+        if (tipo === 'dni') { input.placeholder = 'DNI (8 dígitos)'; input.maxLength = 8; }
+        else if (tipo === 'ruc') { input.placeholder = 'RUC (11 dígitos)'; input.maxLength = 11; }
         input.value = '';
         setTimeout(() => input.focus(), 100);
       }
@@ -911,38 +1171,28 @@
     estado.cliente.nombre = e.target.value;
   });
 
-  // Generar boleta
   document.getElementById('btn-generar-boleta').addEventListener('click', () => {
     sonidoTap();
-    // Validar tipo doc
     if (estado.cliente.tipoDoc === 'dni' && estado.cliente.numero.length !== 8) {
-      sonidoError();
-      toast('DNI debe tener 8 dígitos', 'error');
-      return;
+      sonidoError(); toast('DNI debe tener 8 dígitos', 'error'); return;
     }
     if (estado.cliente.tipoDoc === 'ruc' && estado.cliente.numero.length !== 11) {
-      sonidoError();
-      toast('RUC debe tener 11 dígitos', 'error');
-      return;
+      sonidoError(); toast('RUC debe tener 11 dígitos', 'error'); return;
     }
+    generarBoleta();
+  });
 
-    // Generar correlativo
+  function generarBoleta() {
     const v = estado.vendedor;
     const empresa = estado.empresa;
     const local = estado.localActual;
-
     const tipoComprobante = estado.cliente.tipoDoc === 'ruc' ? 'F' : 'B';
     const serie = tipoComprobante === 'F' ? v.serieF : v.serieB;
-
-    const claveCorrelativo = serie;
-    if (!estado.correlativos[claveCorrelativo]) {
-      estado.correlativos[claveCorrelativo] = 0;
-    }
-    estado.correlativos[claveCorrelativo]++;
-    const correlativo = estado.correlativos[claveCorrelativo];
+    if (!estado.correlativos[serie]) estado.correlativos[serie] = 0;
+    estado.correlativos[serie]++;
+    const correlativo = estado.correlativos[serie];
     guardarEstado();
 
-    // Datos de la boleta
     const ahora = new Date();
     const dd = String(ahora.getDate()).padStart(2, '0');
     const mm = String(ahora.getMonth() + 1).padStart(2, '0');
@@ -951,25 +1201,32 @@
     const mi = String(ahora.getMinutes()).padStart(2, '0');
 
     const totalNum = estado.total;
-    const subtotal = +(totalNum / 1.18).toFixed(2);
-    const igv = +(totalNum - subtotal).toFixed(2);
+    const aplicaIGV = empresa.aplicaIGV;
+    let subtotal, igv;
+    if (aplicaIGV) {
+      subtotal = +(totalNum / 1.18).toFixed(2);
+      igv = +(totalNum - subtotal).toFixed(2);
+    } else {
+      subtotal = totalNum;
+      igv = 0;
+    }
 
     const tipoLabel = tipoComprobante === 'F' ? 'FACTURA ELECTRÓNICA' : 'BOLETA DE VENTA ELECTRÓNICA';
     const correlativoStr = String(correlativo).padStart(8, '0');
 
-    const metodoLabel = {
-      yape: 'YAPE op ' + estado.nOperacion,
-      plin: 'PLIN op ' + estado.nOperacion,
-      efectivo: 'EFECTIVO',
-    }[estado.metodoPago];
-
-    const itemsHtml = estado.items.map(item => `
-      <tr>
-        <td>${item.cantidad}</td>
-        <td>${escapeHtml(item.nombre)}</td>
-        <td></td>
-      </tr>
-    `).join('');
+    // Items con precio unitario calculado
+    const itemsHtml = estado.items.map(item => {
+      const punit = item.precioUnit ? fmt2(item.precioUnit) : '-';
+      const subtotalItem = item.precioUnit ? fmt2(item.cantidad * item.precioUnit) : '-';
+      return `
+        <tr>
+          <td>${item.cantidad}</td>
+          <td>${escapeHtml(item.nombre)}</td>
+          <td>${punit}</td>
+          <td>${subtotalItem}</td>
+        </tr>
+      `;
+    }).join('');
 
     const clienteHtml = estado.cliente.tipoDoc !== 'ninguno' ? `
       <div class="b-cliente">
@@ -979,90 +1236,87 @@
     ` : '';
 
     const pendienteHtml = !empresa.tieneCDT
-      ? `<div class="b-pendiente">PENDIENTE DE EMISIÓN</div>`
-      : '';
+      ? `<div class="b-pendiente">PENDIENTE DE EMISIÓN</div>` : '';
+
+    // Pagos
+    let pagoHtml;
+    if (estado.metodosPago.length === 1) {
+      const p = estado.metodosPago[0];
+      const nombre = { yape: 'YAPE', plin: 'PLIN', efectivo: 'EFECTIVO' }[p.metodo];
+      pagoHtml = `<div class="b-pago">Pago: ${nombre}${p.nOperacion ? ' op ' + p.nOperacion : ''} · ${fmt(p.monto)}</div>`;
+    } else {
+      const lineasPagos = estado.metodosPago.map(p => {
+        const nombre = { yape: 'YAPE', plin: 'PLIN', efectivo: 'EFECTIVO' }[p.metodo];
+        return `<div>${nombre}${p.nOperacion ? ' op ' + p.nOperacion : ''}: ${fmt(p.monto)}</div>`;
+      }).join('');
+      pagoHtml = `
+        <div class="b-pago b-pago-multi">
+          <div class="b-pago-multi-titulo">Pagos:</div>
+          ${lineasPagos}
+        </div>
+      `;
+    }
+
+    const totalesHtml = aplicaIGV
+      ? `<div class="b-tot-linea"><span>Op. gravada:</span><span>S/ ${subtotal.toFixed(2)}</span></div>
+         <div class="b-tot-linea"><span>IGV 18%:</span><span>S/ ${igv.toFixed(2)}</span></div>
+         <div class="b-tot-linea gran-total"><span>TOTAL:</span><span>S/ ${totalNum.toFixed(2)}</span></div>`
+      : `<div class="b-tot-linea"><span>Op. exonerada (Amazonía):</span><span>S/ ${subtotal.toFixed(2)}</span></div>
+         <div class="b-tot-linea gran-total"><span>TOTAL:</span><span>S/ ${totalNum.toFixed(2)}</span></div>`;
 
     const html = `
       <div class="b-header">
         <div class="b-empresa">${escapeHtml(empresa.nombre)}</div>
         <div class="b-empresa-info">RUC ${estado.ruc}</div>
         <div class="b-empresa-info">${escapeHtml(local.direccion)}</div>
-        <div class="b-empresa-info">${escapeHtml(local.ciudad)}</div>
+        <div class="b-empresa-info">${escapeHtml(empresa.ciudad)}</div>
       </div>
-
       <div class="b-divider"></div>
-
       <div class="b-tipo">${tipoLabel}</div>
       <div class="b-numero">${serie} - ${correlativoStr}</div>
       ${pendienteHtml}
-
       <div class="b-divider"></div>
-
       <div class="b-meta"><strong>Fecha:</strong> ${dd}/${mm}/${yyyy} ${hh}:${mi}</div>
       <div class="b-meta"><strong>Vendedor:</strong> ${escapeHtml(v.nombre)}</div>
       ${clienteHtml}
-
       <div class="b-divider"></div>
-
       <table class="b-items-tabla">
         <thead>
           <tr>
             <th>Cant</th>
             <th>Descripción</th>
-            <th></th>
+            <th>P.Unit</th>
+            <th>Subtotal</th>
           </tr>
         </thead>
-        <tbody>
-          ${itemsHtml}
-        </tbody>
+        <tbody>${itemsHtml}</tbody>
       </table>
-
       <div class="b-divider"></div>
-
-      <div class="b-totales">
-        <div class="b-tot-linea"><span>Op. gravada:</span><span>S/ ${subtotal.toFixed(2)}</span></div>
-        <div class="b-tot-linea"><span>IGV 18%:</span><span>S/ ${igv.toFixed(2)}</span></div>
-        <div class="b-tot-linea gran-total"><span>TOTAL:</span><span>S/ ${totalNum.toFixed(2)}</span></div>
-      </div>
-
-      <div class="b-pago">Pago: ${metodoLabel}</div>
-
-      <div class="b-qr-wrap">
-        <div class="b-qr"></div>
-      </div>
-
+      <div class="b-totales">${totalesHtml}</div>
+      ${pagoHtml}
+      <div class="b-qr-wrap"><div class="b-qr"></div></div>
       <div class="b-footer">
         Representación impresa<br>
         Consulta este comprobante en<br>
-        pagook.pro/v/${serie}-${correlativoStr}
+        facturalo.pro/v/${serie}-${correlativoStr}
       </div>
     `;
-
     document.getElementById('boleta-papel').innerHTML = html;
     document.getElementById('cliente-form').classList.add('oculto');
     document.getElementById('boleta-vista').classList.remove('oculto');
-
     sonidoExito();
-  });
+  }
 
-  // Compartir
   document.getElementById('btn-compartir').addEventListener('click', async () => {
     sonidoTap();
     const texto = generarTextoBoleta();
     if (navigator.share) {
-      try {
-        await navigator.share({
-          title: 'Comprobante de venta',
-          text: texto,
-        });
-      } catch (e) {}
+      try { await navigator.share({ title: 'Comprobante de venta', text: texto }); } catch (e) {}
     } else {
       try {
         await navigator.clipboard.writeText(texto);
-        toast('Boleta copiada al portapapeles', 'exito');
-      } catch (e) {
-        toast('No se pudo compartir', 'error');
-      }
+        toast('Copiado al portapapeles', 'exito');
+      } catch (e) { toast('No se pudo compartir', 'error'); }
     }
   });
 
@@ -1072,44 +1326,50 @@
     const v = estado.vendedor;
     const ahora = new Date();
     const fechaStr = ahora.toLocaleDateString('es-PE') + ' ' + ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
-
-    let txt = `*${empresa.nombre}*\n`;
-    txt += `RUC ${estado.ruc}\n`;
-    txt += `${local.direccion}\n\n`;
-    txt += `*${estado.cliente.tipoDoc === 'ruc' ? 'FACTURA' : 'BOLETA'} DE VENTA*\n`;
     const tipo = estado.cliente.tipoDoc === 'ruc' ? 'F' : 'B';
     const serie = tipo === 'F' ? v.serieF : v.serieB;
     const correlativo = String(estado.correlativos[serie]).padStart(8, '0');
-    txt += `${serie} - ${correlativo}\n`;
+
+    let txt = `*${empresa.nombre}*\nRUC ${estado.ruc}\n${local.direccion}\n\n`;
+    txt += `*${estado.cliente.tipoDoc === 'ruc' ? 'FACTURA' : 'BOLETA'} DE VENTA*\n${serie} - ${correlativo}\n`;
     if (!empresa.tieneCDT) txt += `_PENDIENTE DE EMISIÓN_\n`;
-    txt += `Fecha: ${fechaStr}\n`;
-    txt += `Vendedor: ${v.nombre}\n\n`;
+    txt += `Fecha: ${fechaStr}\nVendedor: ${v.nombre}\n\n`;
     if (estado.cliente.tipoDoc !== 'ninguno') {
       txt += `${estado.cliente.tipoDoc.toUpperCase()}: ${estado.cliente.numero}\n`;
       if (estado.cliente.nombre) txt += `Cliente: ${estado.cliente.nombre}\n`;
       txt += '\n';
     }
     estado.items.forEach(item => {
-      txt += `${item.cantidad}× ${item.nombre}\n`;
+      const sub = item.precioUnit ? ` = ${fmt(item.cantidad * item.precioUnit)}` : '';
+      const punit = item.precioUnit ? ` (S/${fmt2(item.precioUnit)} c/u)` : '';
+      txt += `${item.cantidad}× ${item.nombre}${punit}${sub}\n`;
     });
-    txt += `\n*TOTAL: S/ ${estado.total.toFixed(2)}*\n`;
-    const metodoLabel = { yape: 'Yape op ' + estado.nOperacion, plin: 'Plin op ' + estado.nOperacion, efectivo: 'Efectivo' }[estado.metodoPago];
-    txt += `Pago: ${metodoLabel}\n\n`;
-    txt += `_Gracias por tu compra_`;
+    txt += `\n*TOTAL: ${fmt(estado.total)}*\n`;
+    if (estado.metodosPago.length === 1) {
+      const p = estado.metodosPago[0];
+      const nombre = { yape: 'Yape', plin: 'Plin', efectivo: 'Efectivo' }[p.metodo];
+      txt += `Pago: ${nombre}${p.nOperacion ? ' op ' + p.nOperacion : ''}\n`;
+    } else {
+      txt += `Pagos:\n`;
+      estado.metodosPago.forEach(p => {
+        const nombre = { yape: 'Yape', plin: 'Plin', efectivo: 'Efectivo' }[p.metodo];
+        txt += `  ${nombre}${p.nOperacion ? ' op ' + p.nOperacion : ''}: ${fmt(p.monto)}\n`;
+      });
+    }
+    txt += `\nVerifica en: facturalo.pro/v/${serie}-${correlativo}\n\n_Gracias por tu compra_`;
     return txt;
   }
 
-  // Imprimir
   document.getElementById('btn-imprimir').addEventListener('click', () => {
     sonidoTap();
     window.print();
   });
 
-  // Finalizar
   function reiniciarFlujo() {
     estado.items = [];
     estado.total = 0;
-    estado.metodoPago = null;
+    estado.metodosPago = [];
+    estado.metodoActual = null;
     estado.nOperacion = '';
     estado.foto = null;
     estado.cliente = { tipoDoc: 'ninguno', numero: '', nombre: '' };
@@ -1117,6 +1377,7 @@
     document.getElementById('resultado-card').classList.add('oculto');
     document.getElementById('cliente-form').classList.remove('oculto');
     document.getElementById('boleta-vista').classList.add('oculto');
+    actualizarSugerencias();
   }
 
   function guardarVenta() {
@@ -1127,15 +1388,29 @@
       negocio: estado.empresa.nombre,
       items: [...estado.items],
       total: estado.total,
-      metodo: estado.metodoPago,
-      nOperacion: estado.nOperacion || null,
+      metodos: [...estado.metodosPago],
       cliente: estado.cliente.tipoDoc !== 'ninguno' ? { ...estado.cliente } : null,
+      online: estado.online,
     };
     estado.historial.push(venta);
+    // Actualizar catálogo
     estado.items.forEach(item => {
-      const e = estado.catalogo.find(c => c.nombre.toLowerCase() === item.nombre.toLowerCase());
-      if (e) e.veces++;
-      else estado.catalogo.push({ nombre: item.nombre, veces: 1 });
+      const existe = estado.catalogo.find(c => c.nombre.toLowerCase() === item.nombre.toLowerCase());
+      if (existe) {
+        existe.veces++;
+        existe.ultimaVez = new Date().toISOString();
+        if (item.precioUnit && !item.calculado) {
+          existe.precioUnit = item.precioUnit; // actualizar precio
+        }
+      } else {
+        estado.catalogo.push({
+          nombre: item.nombre,
+          alias: item.nombre.toLowerCase().split(' ')[0],
+          precioUnit: (item.precioUnit && !item.calculado) ? item.precioUnit : null,
+          veces: 1,
+          ultimaVez: new Date().toISOString(),
+        });
+      }
     });
     guardarEstado();
   }
@@ -1158,11 +1433,11 @@
     guardarVenta();
     reiniciarFlujo();
     irA('dictar', { sentido: 'izquierda' });
-    setTimeout(() => toast('Venta pendiente registrada'), 200);
+    setTimeout(() => toast('Venta pendiente', ''), 200);
   });
 
   // ============================================================
-  // BOTONES VOLVER
+  // VOLVER
   // ============================================================
   document.querySelectorAll('[data-ir]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1184,10 +1459,8 @@
     } else {
       document.getElementById('menu-info').classList.add('oculto');
     }
-    const sIcono = document.getElementById('sonido-icono');
-    const sEstado = document.getElementById('sonido-estado');
-    sIcono.textContent = estado.sonidoActivo ? '🔊' : '🔇';
-    sEstado.textContent = estado.sonidoActivo ? 'ON' : 'OFF';
+    document.getElementById('sonido-icono').textContent = estado.sonidoActivo ? '🔊' : '🔇';
+    document.getElementById('sonido-estado').textContent = estado.sonidoActivo ? 'ON' : 'OFF';
   }
 
   document.getElementById('btn-menu').addEventListener('click', () => {
@@ -1210,7 +1483,7 @@
     document.getElementById('menu-overlay').classList.add('oculto');
     if (estado.historial.length === 0) { toast('No hay ventas hoy'); return; }
     const total = estado.historial.reduce((s, v) => s + v.total, 0);
-    toast(`${estado.historial.length} ventas · Total: S/ ${total.toFixed(2)}`, 'exito');
+    toast(`${estado.historial.length} ventas · Total: ${fmt(total)}`, 'exito');
   });
 
   document.getElementById('menu-catalogo').addEventListener('click', () => {
@@ -1239,7 +1512,6 @@
   // PWA
   // ============================================================
   let deferredPrompt = null;
-
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
@@ -1269,7 +1541,7 @@
   // INIT
   // ============================================================
   cargarEstado();
-
+  actualizarConexion();
   document.body.addEventListener('click', function activarAudio() {
     getAudioCtx();
     document.body.removeEventListener('click', activarAudio);

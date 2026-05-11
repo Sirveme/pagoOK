@@ -56,13 +56,11 @@
           pattern="[0-9]*"
           autocomplete="off">
 
-        <!-- Nombre de empresa que aparece al validar RUC -->
         <div id="empresa-nombre-display" class="empresa-display oculto">
           <span class="empresa-icono">✓</span>
           <span class="empresa-nombre" id="empresa-nombre-txt"></span>
         </div>
 
-        <!-- Dropdown de locales (si hay >1) -->
         <div id="locales-grupo" class="locales-grupo oculto">
           <label class="campo-label" style="margin-top: 12px;">Local</label>
           <select id="select-local" class="campo-input">
@@ -99,10 +97,10 @@
   </section>
 
   <!-- ============================================================ -->
-  <!-- P2: DICTAR VENTA                                             -->
+  <!-- P2: DICTAR                                                   -->
   <!-- ============================================================ -->
   <section id="p-dictar" class="pantalla">
-    <header class="topbar">
+    <header class="topbar" id="topbar-dictar">
       <button class="topbar-btn" data-ir="login" aria-label="Volver">←</button>
       <div class="topbar-titulo">
         <span id="vendedor-nombre">Vendedor</span>
@@ -110,6 +108,13 @@
       </div>
       <button class="topbar-btn" id="btn-menu" aria-label="Menú">⋮</button>
     </header>
+
+    <!-- Indicador de conexión -->
+    <div class="conexion-bar" id="conexion-bar">
+      <span class="conexion-dot" id="conexion-dot"></span>
+      <span class="conexion-texto" id="conexion-texto">En línea</span>
+      <span class="conexion-pendientes oculto" id="conexion-pendientes">0 pendientes</span>
+    </div>
 
     <div class="contenido contenido-centrado">
       <div class="paso-indicador">
@@ -133,8 +138,14 @@
       <textarea
         id="texto-venta"
         class="texto-venta"
-        placeholder='Ej: "1 lomo saltado, 2 arroz con pollo, 60 soles"'
+        placeholder='Ej: "1 lomo saltado y 2 chichas, 60 soles"'
         rows="2"></textarea>
+
+      <!-- Sugerencias del catálogo -->
+      <div id="sugerencias" class="sugerencias oculto">
+        <div class="sugerencias-titulo">Productos frecuentes:</div>
+        <div class="sugerencias-chips" id="sugerencias-chips"></div>
+      </div>
 
       <button id="btn-procesar" class="btn-principal">
         <span>Procesar venta</span>
@@ -144,14 +155,14 @@
   </section>
 
   <!-- ============================================================ -->
-  <!-- P3: REVISAR ITEMS                                            -->
+  <!-- P3: ITEMS (edición inline)                                   -->
   <!-- ============================================================ -->
   <section id="p-items" class="pantalla">
     <header class="topbar">
       <button class="topbar-btn" data-ir="dictar" aria-label="Volver">←</button>
       <div class="topbar-titulo">
         <span>Revisa la venta</span>
-        <span class="topbar-pequeno">Ajusta cantidades y total</span>
+        <span class="topbar-pequeno">Toca un item para editarlo</span>
       </div>
       <span class="topbar-spacer"></span>
     </header>
@@ -171,10 +182,54 @@
         <p id="total-hint" class="total-hint oculto">Toca el total para editarlo</p>
       </div>
 
-      <!-- Modal de edición de total -->
-      <div id="modal-total" class="modal-total oculto">
-        <div class="modal-total-card">
-          <div class="modal-total-titulo">¿Cuál es el total?</div>
+      <!-- Modal de edición de item -->
+      <div id="modal-item" class="modal-overlay oculto">
+        <div class="modal-card">
+          <div class="modal-titulo">Editar item</div>
+
+          <label class="campo-label">Nombre</label>
+          <input
+            type="text"
+            id="modal-item-nombre"
+            class="campo-input campo-text"
+            autocomplete="off">
+
+          <div class="modal-row">
+            <div>
+              <label class="campo-label">Cantidad</label>
+              <input
+                type="text"
+                id="modal-item-cantidad"
+                class="campo-input"
+                inputmode="decimal"
+                autocomplete="off">
+            </div>
+            <div>
+              <label class="campo-label">Precio unit. (opc.)</label>
+              <input
+                type="text"
+                id="modal-item-precio"
+                class="campo-input"
+                inputmode="decimal"
+                placeholder="0.00"
+                autocomplete="off">
+            </div>
+          </div>
+
+          <div class="modal-subtotal" id="modal-subtotal-display">Subtotal: S/ 0.00</div>
+
+          <div class="modal-botones">
+            <button id="btn-modal-item-eliminar" class="btn-secundario btn-peligro">Eliminar</button>
+            <button id="btn-modal-item-cancelar" class="btn-secundario">Cancelar</button>
+            <button id="btn-modal-item-aceptar" class="btn-principal">Aceptar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal de total -->
+      <div id="modal-total" class="modal-overlay oculto">
+        <div class="modal-card">
+          <div class="modal-titulo">¿Cuál es el total?</div>
           <input
             type="text"
             id="input-total-edit"
@@ -182,7 +237,7 @@
             placeholder="0"
             inputmode="decimal"
             autocomplete="off">
-          <div class="modal-total-botones">
+          <div class="modal-botones">
             <button id="btn-total-cancelar" class="btn-secundario">Cancelar</button>
             <button id="btn-total-aceptar" class="btn-principal">Aceptar</button>
           </div>
@@ -200,11 +255,11 @@
   </section>
 
   <!-- ============================================================ -->
-  <!-- P4: ELEGIR MÉTODO                                            -->
+  <!-- P4: MÉTODO DE PAGO                                           -->
   <!-- ============================================================ -->
   <section id="p-metodo" class="pantalla">
     <header class="topbar">
-      <button class="topbar-btn" data-ir="items" aria-label="Volver">←</button>
+      <button class="topbar-btn" id="btn-volver-metodo" aria-label="Volver">←</button>
       <div class="topbar-titulo">
         <span>Cobrar</span>
         <span class="topbar-pequeno" id="metodo-monto-cabecera">S/ 0</span>
@@ -213,11 +268,23 @@
     </header>
 
     <div class="contenido contenido-centrado">
+      <!-- Resumen del cobro -->
       <div class="monto-grande-card">
         <small>Total a cobrar</small>
         <strong id="monto-grande" class="monto-grande-num">S/ 0</strong>
       </div>
 
+      <!-- Pagos acumulados (si hay) -->
+      <div id="pagos-acumulados" class="pagos-acumulados oculto">
+        <div class="pagos-titulo">Pagos recibidos</div>
+        <ul id="pagos-lista" class="pagos-lista"></ul>
+        <div class="pagos-resumen">
+          <div><span>Cobrado:</span><strong id="pagos-cobrado">S/ 0</strong></div>
+          <div class="pagos-falta"><span>Falta:</span><strong id="pagos-falta">S/ 0</strong></div>
+        </div>
+      </div>
+
+      <div class="metodos-titulo" id="metodos-titulo-txt">¿Cómo te paga?</div>
       <div class="metodos-grid metodos-grid-3">
         <button class="metodo metodo-yape" data-metodo="yape">
           <div class="metodo-circulo metodo-circulo-yape">
@@ -251,7 +318,7 @@
   </section>
 
   <!-- ============================================================ -->
-  <!-- P5: VERIFICAR PAGO                                           -->
+  <!-- P5: VERIFICAR                                                -->
   <!-- ============================================================ -->
   <section id="p-verificar" class="pantalla">
     <header class="topbar">
@@ -264,14 +331,22 @@
     </header>
 
     <div class="contenido">
-      <!-- Form de verificación (Yape/Plin) -->
       <div id="verificacion-form" class="verificacion-form">
         <div class="card">
-          <label class="campo-label">N° de operación</label>
+          <label class="campo-label">Monto que llegó por <span id="verif-metodo-label">Yape</span></label>
+          <input
+            type="text"
+            id="input-monto-pago"
+            class="campo-input campo-grande"
+            placeholder="0.00"
+            inputmode="decimal"
+            autocomplete="off">
+
+          <label class="campo-label" style="margin-top: 12px;">N° de operación</label>
           <input
             type="text"
             id="input-operacion"
-            class="campo-input campo-grande"
+            class="campo-input"
             placeholder="Ej: 12345678"
             inputmode="numeric"
             autocomplete="off">
@@ -294,19 +369,19 @@
         </button>
       </div>
 
-      <!-- Form de efectivo -->
+      <!-- Form efectivo -->
       <div id="efectivo-form" class="efectivo-form oculto">
-        <div class="card card-centrado">
-          <div class="efectivo-icono-wrap">
-            <svg viewBox="0 0 24 24" class="efectivo-svg" aria-hidden="true">
-              <rect x="2" y="6" width="20" height="12" rx="2"/>
-              <circle cx="12" cy="12" r="3"/>
-            </svg>
-          </div>
-          <p class="efectivo-pregunta">¿Recibiste <strong id="efectivo-monto">S/ 0</strong> en efectivo?</p>
+        <div class="card">
+          <label class="campo-label">Monto recibido en efectivo</label>
+          <input
+            type="text"
+            id="input-efectivo-monto"
+            class="campo-input campo-grande"
+            inputmode="decimal"
+            autocomplete="off">
         </div>
         <button id="btn-efectivo-confirmar" class="btn-principal btn-principal-grande">
-          <span>Sí, confirmar venta</span>
+          <span>Confirmar efectivo</span>
           <span class="btn-flecha">✓</span>
         </button>
       </div>
@@ -318,11 +393,17 @@
         </div>
         <div class="resultado-titulo" id="resultado-titulo"></div>
         <div class="resultado-texto" id="resultado-texto"></div>
+
+        <!-- Botones según contexto -->
+        <button id="btn-completar-pago" class="btn-principal btn-principal-grande oculto">
+          <span>Completar con otro pago</span>
+          <span class="btn-flecha">→</span>
+        </button>
         <button id="btn-emitir-boleta" class="btn-principal btn-principal-grande oculto">
           <span>Emitir boleta</span>
           <span class="btn-flecha">→</span>
         </button>
-        <button id="btn-finalizar" class="btn-principal btn-principal-grande">
+        <button id="btn-finalizar" class="btn-principal btn-principal-grande oculto">
           <span>Nueva venta</span>
           <span class="btn-flecha">→</span>
         </button>
@@ -347,7 +428,6 @@
     </header>
 
     <div class="contenido">
-      <!-- Form de datos del cliente -->
       <div id="cliente-form" class="cliente-form">
         <div class="card">
           <label class="campo-label">¿El cliente quiere boleta a su nombre?</label>
@@ -370,7 +450,7 @@
             <input
               type="text"
               id="input-cliente-nombre"
-              class="campo-input"
+              class="campo-input campo-text"
               placeholder="Nombre del cliente"
               autocomplete="off"
               style="margin-top: 10px;">
@@ -383,11 +463,8 @@
         </button>
       </div>
 
-      <!-- Vista previa de la boleta -->
       <div id="boleta-vista" class="boleta-vista oculto">
-        <div class="boleta-papel" id="boleta-papel">
-          <!-- Se rellena dinámicamente -->
-        </div>
+        <div class="boleta-papel" id="boleta-papel"></div>
 
         <div class="boleta-acciones">
           <button id="btn-compartir" class="btn-principal">
