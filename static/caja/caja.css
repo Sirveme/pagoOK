@@ -446,281 +446,6 @@ input, textarea, select {
 }
 
 /* ============================================================
-   MODAL DE PAGO (v7) - aparece al elegir método
-   ============================================================ */
-.modal-card-pago {
-  max-width: 420px;
-  padding: 28px 22px 22px;
-  position: relative;
-}
-
-.modal-cerrar-x {
-  position: absolute;
-  top: 10px;
-  right: 12px;
-  width: 32px;
-  height: 32px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--border);
-  color: var(--txt);
-  border-radius: 50%;
-  font-size: 22px;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: inherit;
-  line-height: 1;
-  z-index: 1;
-}
-.modal-cerrar-x:active {
-  background: var(--bg-card-hover);
-  transform: scale(0.92);
-}
-
-.modal-pago-contenido {
-  margin-bottom: 16px;
-}
-
-.pago-titulo {
-  text-align: center;
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--ambar);
-  margin-bottom: 16px;
-}
-
-/* QR placeholder grande para Yape/Plin */
-.pago-qr-wrap {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 14px;
-}
-.pago-qr-placeholder {
-  width: 200px;
-  height: 200px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 2px dashed var(--border-strong);
-  border-radius: var(--r-md);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 12px;
-}
-.pago-qr-icono {
-  font-size: 48px;
-  margin-bottom: 8px;
-}
-.pago-qr-texto {
-  font-size: 14px;
-  font-weight: 800;
-  color: var(--ambar);
-  letter-spacing: 1px;
-  margin-bottom: 6px;
-}
-.pago-qr-sub {
-  font-size: 11px;
-  color: var(--txt-mute);
-  line-height: 1.4;
-}
-.pago-qr-img {
-  width: 200px;
-  height: 200px;
-  object-fit: contain;
-  border-radius: var(--r-md);
-  background: #fff;
-}
-
-.pago-celular-label {
-  text-align: center;
-  font-size: 11px;
-  color: var(--txt-soft);
-  font-weight: 700;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  margin-bottom: 2px;
-}
-.pago-celular {
-  text-align: center;
-  font-family: Georgia, serif;
-  font-size: 28px;
-  font-weight: 900;
-  color: var(--txt);
-  letter-spacing: 1px;
-  margin-bottom: 4px;
-}
-.pago-titular {
-  text-align: center;
-  font-size: 12px;
-  color: var(--txt-soft);
-  margin-bottom: 14px;
-}
-
-.pago-monto-grande {
-  background: rgba(245, 166, 35, 0.1);
-  border: 1.5px solid var(--ambar);
-  border-radius: var(--r-md);
-  padding: 14px;
-  text-align: center;
-  margin-top: 10px;
-}
-.pago-monto-grande small {
-  display: block;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--txt-soft);
-  margin-bottom: 4px;
-}
-.pago-monto-grande strong {
-  font-family: Georgia, serif;
-  font-size: 36px;
-  font-weight: 900;
-  color: var(--ambar);
-  letter-spacing: -1px;
-}
-
-/* Transferencia - pestañas */
-.pago-tabs {
-  display: flex;
-  gap: 4px;
-  background: rgba(0, 0, 0, 0.25);
-  border-radius: var(--r-sm);
-  padding: 4px;
-  margin-bottom: 14px;
-}
-.pago-tab {
-  flex: 1;
-  background: transparent;
-  border: none;
-  color: var(--txt-soft);
-  padding: 10px 8px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: inherit;
-  transition: all 0.15s;
-  letter-spacing: 0.5px;
-}
-.pago-tab:active { transform: scale(0.96); }
-.pago-tab.activa {
-  background: var(--ambar);
-  color: var(--txt-dark);
-  font-weight: 800;
-  box-shadow: var(--sh-glow-amber);
-}
-
-.pago-cuenta-panel {
-  text-align: center;
-}
-.pago-cuenta-tipo {
-  font-size: 12px;
-  color: var(--txt-soft);
-  margin-bottom: 8px;
-}
-.pago-cuenta-num {
-  font-family: Georgia, serif;
-  font-size: 22px;
-  font-weight: 900;
-  color: var(--txt);
-  letter-spacing: 1px;
-  padding: 8px;
-  background: rgba(0, 0, 0, 0.25);
-  border-radius: var(--r-sm);
-  cursor: pointer;
-  border: 1px solid var(--border);
-  margin-bottom: 10px;
-  transition: all 0.15s;
-}
-.pago-cuenta-num:active {
-  background: var(--ambar);
-  color: var(--txt-dark);
-}
-.pago-cuenta-label {
-  font-size: 10px;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  color: var(--txt-mute);
-  margin-bottom: 4px;
-}
-.pago-cuenta-cci {
-  font-family: 'Courier New', monospace;
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--txt);
-  padding: 6px;
-  background: rgba(0, 0, 0, 0.25);
-  border-radius: var(--r-sm);
-  cursor: pointer;
-  border: 1px solid var(--border);
-  margin-bottom: 10px;
-}
-.pago-cuenta-cci:active {
-  background: var(--ambar);
-  color: var(--txt-dark);
-}
-.pago-cuenta-titular {
-  font-size: 11px;
-  color: var(--txt-soft);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 6px;
-}
-
-/* Tarjeta */
-.pago-tarjeta-icono {
-  text-align: center;
-  font-size: 64px;
-  margin: 10px 0;
-}
-.pago-tarjeta-instr {
-  text-align: center;
-  font-size: 14px;
-  color: var(--txt-soft);
-  line-height: 1.4;
-  margin-bottom: 6px;
-}
-
-/* Efectivo: vuelto */
-.pago-vuelto {
-  background: rgba(16, 185, 129, 0.15);
-  border: 1px solid var(--verde);
-  border-radius: var(--r-sm);
-  padding: 10px;
-  margin-top: 8px;
-  text-align: center;
-  color: var(--verde);
-  font-size: 13px;
-  font-weight: 600;
-}
-.pago-vuelto strong {
-  font-size: 18px;
-  font-weight: 800;
-  font-family: Georgia, serif;
-}
-
-.label-obligatorio {
-  font-weight: 600;
-  color: var(--rojo);
-  text-transform: none;
-  letter-spacing: 0.5px;
-  font-size: 10px;
-  font-style: italic;
-}
-
-.modal-pago-acciones {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.modal-pago-acciones .btn-principal,
-.modal-pago-acciones .btn-secundario { margin-top: 0; }
-
-/* ============================================================
    VERIFICAR - Montos a cobrar / pagado (v7)
    ============================================================ */
 .verif-montos {
@@ -2227,3 +1952,277 @@ select.campo-input {
   .b-pagos-box { border: 1.5px solid #000; background: #fff; }
   .b-pagos-titulo { border-bottom-color: #000; }
 }
+/* ============================================================
+   MODAL DE PAGO (v7) - aparece al elegir método
+   ============================================================ */
+.modal-card-pago {
+  max-width: 420px;
+  padding: 28px 22px 22px;
+  position: relative;
+}
+
+.modal-cerrar-x {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  color: var(--txt);
+  border-radius: 50%;
+  font-size: 22px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1;
+  z-index: 1;
+}
+.modal-cerrar-x:active {
+  background: var(--bg-card-hover);
+  transform: scale(0.92);
+}
+
+.modal-pago-contenido {
+  margin-bottom: 16px;
+}
+
+.pago-titulo {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--ambar);
+  margin-bottom: 16px;
+}
+
+/* QR placeholder grande para Yape/Plin */
+.pago-qr-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.pago-qr-placeholder {
+  width: 200px;
+  height: 200px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--r-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 12px;
+}
+.pago-qr-icono {
+  font-size: 48px;
+  margin-bottom: 8px;
+}
+.pago-qr-texto {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ambar);
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+.pago-qr-sub {
+  font-size: 11px;
+  color: var(--txt-mute);
+  line-height: 1.4;
+}
+.pago-qr-img {
+  width: 200px;
+  height: 200px;
+  object-fit: contain;
+  border-radius: var(--r-md);
+  background: #fff;
+}
+
+.pago-celular-label {
+  text-align: center;
+  font-size: 11px;
+  color: var(--txt-soft);
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.pago-celular {
+  text-align: center;
+  font-family: Georgia, serif;
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--txt);
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+.pago-titular {
+  text-align: center;
+  font-size: 12px;
+  color: var(--txt-soft);
+  margin-bottom: 14px;
+}
+
+.pago-monto-grande {
+  background: rgba(245, 166, 35, 0.1);
+  border: 1.5px solid var(--ambar);
+  border-radius: var(--r-md);
+  padding: 14px;
+  text-align: center;
+  margin-top: 10px;
+}
+.pago-monto-grande small {
+  display: block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--txt-soft);
+  margin-bottom: 4px;
+}
+.pago-monto-grande strong {
+  font-family: Georgia, serif;
+  font-size: 36px;
+  font-weight: 900;
+  color: var(--ambar);
+  letter-spacing: -1px;
+}
+
+/* Transferencia - pestañas */
+.pago-tabs {
+  display: flex;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: var(--r-sm);
+  padding: 4px;
+  margin-bottom: 14px;
+}
+.pago-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--txt-soft);
+  padding: 10px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+  letter-spacing: 0.5px;
+}
+.pago-tab:active { transform: scale(0.96); }
+.pago-tab.activa {
+  background: var(--ambar);
+  color: var(--txt-dark);
+  font-weight: 800;
+  box-shadow: var(--sh-glow-amber);
+}
+
+.pago-cuenta-panel {
+  text-align: center;
+}
+.pago-cuenta-tipo {
+  font-size: 12px;
+  color: var(--txt-soft);
+  margin-bottom: 8px;
+}
+.pago-cuenta-num {
+  font-family: Georgia, serif;
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--txt);
+  letter-spacing: 1px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  border: 1px solid var(--border);
+  margin-bottom: 10px;
+  transition: all 0.15s;
+}
+.pago-cuenta-num:active {
+  background: var(--ambar);
+  color: var(--txt-dark);
+}
+.pago-cuenta-label {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--txt-mute);
+  margin-bottom: 4px;
+}
+.pago-cuenta-cci {
+  font-family: 'Courier New', monospace;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--txt);
+  padding: 6px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  border: 1px solid var(--border);
+  margin-bottom: 10px;
+}
+.pago-cuenta-cci:active {
+  background: var(--ambar);
+  color: var(--txt-dark);
+}
+.pago-cuenta-titular {
+  font-size: 11px;
+  color: var(--txt-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+/* Tarjeta */
+.pago-tarjeta-icono {
+  text-align: center;
+  font-size: 64px;
+  margin: 10px 0;
+}
+.pago-tarjeta-instr {
+  text-align: center;
+  font-size: 14px;
+  color: var(--txt-soft);
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+
+/* Efectivo: vuelto */
+.pago-vuelto {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid var(--verde);
+  border-radius: var(--r-sm);
+  padding: 10px;
+  margin-top: 8px;
+  text-align: center;
+  color: var(--verde);
+  font-size: 13px;
+  font-weight: 600;
+}
+.pago-vuelto strong {
+  font-size: 18px;
+  font-weight: 800;
+  font-family: Georgia, serif;
+}
+
+.label-obligatorio {
+  font-weight: 600;
+  color: var(--rojo);
+  text-transform: none;
+  letter-spacing: 0.5px;
+  font-size: 10px;
+  font-style: italic;
+}
+
+.modal-pago-acciones {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.modal-pago-acciones .btn-principal,
+.modal-pago-acciones .btn-secundario { margin-top: 0; }

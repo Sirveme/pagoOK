@@ -565,7 +565,7 @@ var qrcodegen = (function() {
       ],
       // Configuración Tarjeta v7
       tarjetaConfig: {
-        voucherObligatorio: false, // dueño decide
+        voucherObligatorio: true, // dueño decide
       },
       // Configuración Foto v7
       fotoConfig: {
@@ -1430,7 +1430,20 @@ var qrcodegen = (function() {
   function abrirModalPago(metodo) {
     const empresa = estado.empresa;
     const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
-    const falta = estado.total - cobrado;
+    const falta = +(estado.total - cobrado).toFixed(2);
+
+    // Validar que haya monto a cobrar
+    if (falta <= 0.001) {
+      sonidoError();
+      toast('Ya cobraste el total. Emite la boleta.', 'error');
+      return;
+    }
+    if (estado.total < 0.5) {
+      sonidoError();
+      toast('Primero ingresa el total a cobrar', 'error');
+      return;
+    }
+
     estado.montoPagoActual = falta;
 
     const cont = document.getElementById('modal-pago-contenido');
@@ -1599,15 +1612,18 @@ var qrcodegen = (function() {
     }
 
     // Listener del botón continuar (común a todos los métodos)
+    // Usamos onclick para que se reemplace cada vez (no se acumulen listeners)
     setTimeout(() => {
       const btnContinuar = document.getElementById('btn-pago-continuar');
       if (btnContinuar) {
-        btnContinuar.addEventListener('click', () => {
+        btnContinuar.onclick = function(e) {
+          e.preventDefault();
+          e.stopPropagation();
           sonidoTap();
           procesarContinuarPago(metodo);
-        });
+        };
       }
-    }, 100);
+    }, 50);
 
     document.getElementById('modal-pago').classList.remove('oculto');
   }
@@ -1640,8 +1656,7 @@ var qrcodegen = (function() {
       const falta = estado.montoPagoActual;
       const aRegistrar = Math.min(monto, falta);
       agregarPago('efectivo', aRegistrar, null);
-      // Mostrar resultado directo (sin pasar por verificar)
-      mostrarResultadoEfectivo(monto, falta);
+      setTimeout(() => mostrarResultadoEfectivo(monto, falta), 50);
     }
     else if (metodo === 'tarjeta') {
       const empresa = estado.empresa;
@@ -1649,18 +1664,18 @@ var qrcodegen = (function() {
       const voucher = document.getElementById('modal-tarjeta-voucher').value.trim();
       if (obligatorio && voucher.length < 3) {
         sonidoError();
-        toast('El n° de voucher es obligatorio', 'error');
+        toast('El n° de voucher es obligatorio (mín. 3 dígitos)', 'error');
         return;
       }
       cerrarModalPago();
       const falta = estado.montoPagoActual;
       agregarPago('tarjeta', falta, voucher || null);
-      mostrarResultadoTarjeta(falta, voucher);
+      setTimeout(() => mostrarResultadoTarjeta(falta, voucher), 50);
     }
     else {
       // Yape, Plin, Transferencia → ir a pantalla Verificar
       cerrarModalPago();
-      irAPantallaVerificar(metodo);
+      setTimeout(() => irAPantallaVerificar(metodo), 50);
     }
   }
 
