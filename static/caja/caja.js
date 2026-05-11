@@ -9,7 +9,6 @@
  */
 
 var qrcodegen = (function() {
-  console.log("[pagoOK Caja] v7.2 cargado");
   "use strict";
   
   function appendBits(val, len, bb) {
@@ -1642,10 +1641,8 @@ var qrcodegen = (function() {
 
     const falta = estado.montoPagoActual;
     const titulos = { yape: 'Verificar Yape', plin: 'Verificar Plin', transferencia: 'Verificar Transferencia' };
-    const labels = { yape: 'Yape', plin: 'Plin', transferencia: 'transferencia' };
     document.getElementById('verificar-titulo').textContent = titulos[metodo];
     document.getElementById('verificar-monto').textContent = 'falta S/ ' + fmt2(falta);
-    document.getElementById('verif-metodo-label').textContent = labels[metodo];
     document.getElementById('display-monto-cobrar').textContent = 'S/ ' + fmt2(falta);
     document.getElementById('display-monto-pagado').textContent = '--';
     document.getElementById('display-monto-pagado').classList.remove('verde', 'rojo');
