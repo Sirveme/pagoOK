@@ -9,6 +9,7 @@
  */
 
 var qrcodegen = (function() {
+  console.log("[pagoOK Caja] v7.2 cargado");
   "use strict";
   
   function appendBits(val, len, bb) {
