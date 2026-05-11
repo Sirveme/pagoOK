@@ -352,15 +352,27 @@
             autocomplete="off">
 
           <label class="campo-label" style="margin-top: 12px;">Foto del voucher</label>
-          <label for="input-foto" class="btn-foto">
-            <svg viewBox="0 0 24 24" class="btn-foto-svg" aria-hidden="true">
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-              <circle cx="12" cy="13" r="4"/>
-            </svg>
-            <span id="btn-foto-texto">Tomar foto</span>
-          </label>
-          <input type="file" id="input-foto" accept="image/*" capture="environment" hidden>
+          <div class="foto-botones">
+            <label for="input-foto-camara" class="btn-foto btn-foto-camara">
+              <svg viewBox="0 0 24 24" class="btn-foto-svg" aria-hidden="true">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
+              <span>Cámara</span>
+            </label>
+            <label for="input-foto-galeria" class="btn-foto btn-foto-galeria">
+              <svg viewBox="0 0 24 24" class="btn-foto-svg" aria-hidden="true">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <circle cx="9" cy="9" r="2"/>
+                <path d="M21 15l-5-5L5 21"/>
+              </svg>
+              <span>Galería</span>
+            </label>
+          </div>
+          <input type="file" id="input-foto-camara" accept="image/*" capture="environment" hidden>
+          <input type="file" id="input-foto-galeria" accept="image/*" hidden>
           <img id="foto-preview" class="foto-preview oculto" alt="Voucher">
+          <div id="foto-fuente" class="foto-fuente oculto"></div>
         </div>
 
         <button id="btn-verificar" class="btn-principal btn-principal-grande" disabled>

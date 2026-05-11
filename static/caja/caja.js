@@ -869,7 +869,9 @@
       estado.nOperacion = '';
       estado.foto = null;
       document.getElementById('foto-preview').classList.add('oculto');
-      document.getElementById('btn-foto-texto').textContent = 'Tomar foto';
+      document.getElementById('foto-fuente').classList.add('oculto');
+      document.getElementById('input-foto-camara').value = '';
+      document.getElementById('input-foto-galeria').value = '';
       document.getElementById('btn-verificar').disabled = true;
 
       document.getElementById('verificacion-form').classList.add('oculto');
@@ -910,8 +912,7 @@
     validarVerificacion();
   });
 
-  document.getElementById('input-foto').addEventListener('change', (e) => {
-    const file = e.target.files[0];
+  function procesarFoto(file, fuente) {
     if (!file) return;
     sonidoTap();
     const reader = new FileReader();
@@ -920,10 +921,20 @@
       const preview = document.getElementById('foto-preview');
       preview.src = ev.target.result;
       preview.classList.remove('oculto');
-      document.getElementById('btn-foto-texto').textContent = 'Cambiar foto';
+      const fuenteEl = document.getElementById('foto-fuente');
+      fuenteEl.textContent = fuente === 'camara' ? '✓ Foto tomada' : '✓ Foto subida desde galería';
+      fuenteEl.classList.remove('oculto');
       validarVerificacion();
     };
     reader.readAsDataURL(file);
+  }
+
+  document.getElementById('input-foto-camara').addEventListener('change', (e) => {
+    procesarFoto(e.target.files[0], 'camara');
+  });
+
+  document.getElementById('input-foto-galeria').addEventListener('change', (e) => {
+    procesarFoto(e.target.files[0], 'galeria');
   });
 
   // Mock: simula búsqueda en backend con timeout
@@ -1534,6 +1545,41 @@
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
+
+  // ============================================================
+  // FIX TECLADO: auto-scroll al input enfocado
+  // ============================================================
+  // Cuando aparece el teclado virtual en móvil, el viewport se reduce.
+  // Si el input está debajo del nuevo viewport, scrolleamos para que quede visible.
+  function asegurarVisible(el) {
+    if (!el) return;
+    setTimeout(() => {
+      try {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      } catch (e) {
+        el.scrollIntoView();
+      }
+    }, 350); // dar tiempo a que aparezca el teclado
+  }
+
+  // Aplicar a todos los inputs y textareas relevantes
+  document.querySelectorAll('input[type="text"], input[type="tel"], textarea').forEach(el => {
+    el.addEventListener('focus', () => asegurarVisible(el));
+  });
+
+  // visualViewport API (más confiable en móvil moderno)
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', () => {
+      const focused = document.activeElement;
+      if (focused && (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA')) {
+        // Si el teclado redujo el viewport, asegurar que el input quede visible
+        const rect = focused.getBoundingClientRect();
+        if (rect.bottom > window.visualViewport.height - 20) {
+          asegurarVisible(focused);
+        }
+      }
     });
   }
 

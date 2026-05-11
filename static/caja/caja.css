@@ -894,10 +894,12 @@ select.campo-input {
   backdrop-filter: blur(8px);
   z-index: 150;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 20px;
+  padding: 60px 16px 16px;
   animation: fade-in 0.2s ease;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .modal-card {
@@ -908,6 +910,7 @@ select.campo-input {
   width: 100%;
   max-width: 380px;
   box-shadow: var(--sh-lg);
+  margin-bottom: 40px;
 }
 
 .modal-titulo {
@@ -1118,18 +1121,24 @@ select.campo-input {
 /* Verificar */
 .verificacion-form > .btn-principal { margin-top: 14px; }
 
+.foto-botones {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
 .btn-foto {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
   background: rgba(245, 166, 35, 0.10);
   border: 2px dashed var(--ambar);
   border-radius: var(--r-md);
-  padding: 14px;
+  padding: 14px 8px;
   text-align: center;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--ambar);
   cursor: pointer;
@@ -1155,6 +1164,15 @@ select.campo-input {
   object-fit: cover;
   background: var(--bg-card);
   border: 1px solid var(--border);
+}
+
+.foto-fuente {
+  text-align: center;
+  font-size: 11px;
+  color: var(--ambar);
+  margin-top: 6px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
 }
 
 .efectivo-form .btn-principal { margin-top: 16px; }

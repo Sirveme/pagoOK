@@ -1,10 +1,9 @@
 // ============================================================
-// pagoOK Caja - Service Worker (Nivel 1: shell mínimo)
+// pagoOK Caja - Service Worker (v4.1)
 // ============================================================
-// Versión simple: cachea archivos estáticos para arranque rápido,
-// pero deja que las llamadas a la API vayan siempre a la red.
+// Cambio de versión fuerza limpieza de caché viejo automático.
 
-const CACHE_NAME = 'pagook-caja-v1';
+const CACHE_NAME = 'pagook-caja-v4-1';
 const SHELL_FILES = [
   './',
   './index.html',
@@ -14,7 +13,6 @@ const SHELL_FILES = [
   './icon.svg',
 ];
 
-// Instalación: cachear el shell
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -26,47 +24,68 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Activación: limpiar caches viejos
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((names) => {
       return Promise.all(
         names
           .filter((name) => name !== CACHE_NAME)
-          .map((name) => caches.delete(name))
+          .map((name) => {
+            console.log('SW: limpiando caché viejo', name);
+            return caches.delete(name);
+          })
       );
     })
   );
   self.clients.claim();
 });
 
-// Fetch: estrategia network-first para API, cache-first para shell
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Las llamadas a API siempre van a la red (no se cachean)
+  // API siempre va a la red (no se cachea)
   if (url.pathname.includes('/api/')) {
     event.respondWith(fetch(event.request));
     return;
   }
 
-  // Para el shell: intenta cache primero, si no está → red
+  // Network-first para HTML (siempre intenta lo último)
+  if (event.request.mode === 'navigate' ||
+      (event.request.method === 'GET' && event.request.headers.get('accept')?.includes('text/html'))) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request).then(r => r || caches.match('./index.html')))
+    );
+    return;
+  }
+
+  // Cache-first para assets (más rápido)
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) {
+        // Refresca en background
+        fetch(event.request).then((response) => {
+          if (response.ok && url.origin === location.origin) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+        }).catch(() => {});
         return cached;
       }
       return fetch(event.request).then((response) => {
-        // Solo cachear respuestas exitosas del mismo origen
         if (response.ok && url.origin === location.origin) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
         return response;
-      }).catch(() => {
-        // Sin red ni caché: devolver index para SPA-like behavior
-        return caches.match('./index.html');
-      });
+      }).catch(() => caches.match('./index.html'));
     })
   );
 });
