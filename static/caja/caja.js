@@ -1780,10 +1780,10 @@ var qrcodegen = (function() {
          <div class="b-empresa-info">Anexo: ${escapeHtml(local.direccion)}</div>`
       : `<div class="b-empresa-info">${escapeHtml(local.direccion)}</div>`;
 
-    // Logo
+    // Logo placeholder o imagen
     const logoHtml = empresa.logoUrl
-      ? `<img src="${empresa.logoUrl}" class="b-logo" alt="Logo">`
-      : '';
+      ? `<div class="b-logo-box"><img src="${empresa.logoUrl}" class="b-logo-img" alt="Logo"></div>`
+      : `<div class="b-logo-box b-logo-placeholder">LOGO</div>`;
 
     // Leyenda Amazonía
     const leyendaHtml = empresa.esAmazonia
@@ -1814,11 +1814,13 @@ var qrcodegen = (function() {
     const html = `
       <div class="b-header">
         ${logoHtml}
-        <div class="b-empresa">${escapeHtml(empresa.nombreComercial).toUpperCase()}</div>
-        <div class="b-empresa-razon">${escapeHtml(empresa.razonSocial)}</div>
-        <div class="b-empresa-info">RUC ${estado.ruc}</div>
-        ${direccionHtml}
-        <div class="b-empresa-info">${escapeHtml(empresa.ciudad)}</div>
+        <div class="b-header-info">
+          <div class="b-empresa">${escapeHtml(empresa.nombreComercial).toUpperCase()}</div>
+          <div class="b-empresa-razon">${escapeHtml(empresa.razonSocial)}</div>
+          <div class="b-empresa-info">RUC ${estado.ruc}</div>
+          ${direccionHtml}
+          <div class="b-empresa-info">${escapeHtml(empresa.ciudad)}</div>
+        </div>
       </div>
       <div class="b-divider"></div>
       <div class="b-tipo">${tipoLabel}</div>
