@@ -507,7 +507,13 @@ var qrcodegen = (function() {
     correlativos: {},
     itemEditandoIdx: -1,
     online: navigator.onLine,
+    // PUSH SILENCIOSO DE PAGOS (v6)
+    pagosEnMemoria: [], // [{nOp, monto, operador, nombre, hora}]
   };
+
+  // Constantes v6
+  const PAGOS_VENTANA_MIN = 30; // pagos expiran a los 30 min
+  const PAGOS_MAX = 50; // tope de items en memoria
 
   // ============================================================
   // MOCK
@@ -1352,8 +1358,9 @@ var qrcodegen = (function() {
       estado.metodoActual = metodo;
       const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
       const falta = estado.total - cobrado;
-      // Pre-llenar monto sugerido
-      document.getElementById('input-monto-pago').value = falta > 0 ? falta.toString() : '';
+      // Mostrar monto faltante (solo lectura)
+      document.getElementById('display-monto-pago').textContent = 'S/ ' + fmt2(falta);
+      estado.montoPagoActual = falta;
       document.getElementById('input-efectivo-monto').value = falta > 0 ? falta.toString() : '';
       document.getElementById('input-operacion').value = '';
       estado.nOperacion = '';
@@ -1376,7 +1383,7 @@ var qrcodegen = (function() {
       if (metodo === 'yape' || metodo === 'plin') {
         document.getElementById('verificacion-form').classList.remove('oculto');
         irA('verificar');
-        setTimeout(() => document.getElementById('input-monto-pago').focus(), 500);
+        setTimeout(() => document.getElementById('input-operacion').focus(), 500);
       } else if (metodo === 'efectivo') {
         document.getElementById('efectivo-form').classList.remove('oculto');
         irA('verificar');
@@ -1389,14 +1396,11 @@ var qrcodegen = (function() {
   // VERIFICAR YAPE/PLIN
   // ============================================================
   function validarVerificacion() {
-    const monto = parseFloat(document.getElementById('input-monto-pago').value.replace(',', '.'));
     const operacion = document.getElementById('input-operacion').value.trim();
-    const tieneFoto = !!estado.foto;
-    const ok = !isNaN(monto) && monto >= 0.5 && operacion.length >= 4 && tieneFoto;
+    const ok = operacion.length >= 4;
     document.getElementById('btn-verificar').disabled = !ok;
   }
 
-  document.getElementById('input-monto-pago').addEventListener('input', validarVerificacion);
   document.getElementById('input-operacion').addEventListener('input', (e) => {
     estado.nOperacion = e.target.value.trim();
     validarVerificacion();
@@ -1475,19 +1479,41 @@ var qrcodegen = (function() {
   }
 
   document.getElementById('btn-verificar').addEventListener('click', async () => {
-    const monto = parseFloat(document.getElementById('input-monto-pago').value.replace(',', '.'));
+    const monto = estado.montoPagoActual; // monto faltante por cobrar
     const nOp = estado.nOperacion;
     document.getElementById('btn-verificar').disabled = true;
     document.getElementById('btn-verificar').querySelector('span').textContent = 'Verificando...';
 
+    // PRIMERO: buscar en memoria local (push silencioso)
+    const enMemoria = buscarEnMemoria(nOp);
+    if (enMemoria) {
+      // Match instantáneo desde la memoria
+      document.getElementById('btn-verificar').disabled = false;
+      document.getElementById('btn-verificar').querySelector('span').textContent = 'Verificar pago';
+      const operadorOk = (estado.metodoActual === enMemoria.operador);
+      if (!operadorOk) {
+        // Operación encontrada pero con otro operador (yape vs plin)
+        mostrarResultadoNoEncontrado(monto);
+        return;
+      }
+      if (enMemoria.monto < monto) {
+        agregarPago(estado.metodoActual, enMemoria.monto, nOp);
+        mostrarResultadoParcial({ monto: enMemoria.monto, remitente: iniciales(enMemoria.nombre) });
+      } else {
+        agregarPago(estado.metodoActual, monto, nOp);
+        mostrarResultadoOK({ monto: enMemoria.monto, remitente: iniciales(enMemoria.nombre), hora: 'recién' }, monto);
+      }
+      return;
+    }
+
+    // SEGUNDO: fallback a búsqueda en BD (con timeout)
     const r = await validarConTimeout(nOp, monto);
 
     document.getElementById('btn-verificar').disabled = false;
     document.getElementById('btn-verificar').querySelector('span').textContent = 'Verificar pago';
 
     if (r.offline) {
-      // Modo offline: aceptar el monto tal cual lo digitó el vendedor
-      agregarPago('yape', monto, nOp);
+      agregarPago(estado.metodoActual, monto, nOp);
       mostrarResultadoOffline(monto);
     } else if (r.timeout) {
       agregarPago(estado.metodoActual, monto, nOp);
@@ -1495,8 +1521,6 @@ var qrcodegen = (function() {
     } else if (!r.encontrado) {
       mostrarResultadoNoEncontrado(monto);
     } else if (r.monto < monto) {
-      // El monto que dice el vendedor es mayor a lo que llegó
-      // Aceptar lo que llegó realmente
       agregarPago(estado.metodoActual, r.monto, nOp);
       mostrarResultadoParcial(r);
     } else {
@@ -2047,6 +2071,7 @@ var qrcodegen = (function() {
   function actualizarMenu() {
     document.getElementById('catalogo-count').textContent = estado.catalogo.length;
     document.getElementById('historial-count').textContent = estado.historial.length;
+    actualizarContadorPagos();
     if (estado.vendedor) {
       document.getElementById('menu-info-vendedor').textContent = estado.vendedor.nombre + ' · ' + estado.empresa.nombreComercial;
       document.getElementById('menu-info-serie').textContent = 'SERIE ' + estado.vendedor.serieB + ' / ' + estado.vendedor.serieF;
@@ -2072,6 +2097,25 @@ var qrcodegen = (function() {
     if (e.target.id === 'menu-overlay') {
       document.getElementById('menu-overlay').classList.add('oculto');
     }
+  });
+
+  document.getElementById('menu-pagos-disponibles').addEventListener('click', () => {
+    document.getElementById('menu-overlay').classList.add('oculto');
+    limpiarPagosExpirados();
+    const count = estado.pagosEnMemoria.length;
+    if (count === 0) {
+      toast('No hay pagos en memoria');
+    } else {
+      toast(`${count} pago${count !== 1 ? 's' : ''} disponible${count !== 1 ? 's' : ''} en memoria`);
+    }
+  });
+
+  document.getElementById('menu-simular-pago').addEventListener('click', () => {
+    document.getElementById('menu-overlay').classList.add('oculto');
+    const p = simularPagoEntrante();
+    sonidoTap();
+    // Mostrar toast con info para que el vendedor pueda usar este nOp en la prueba
+    toast(`🎲 Demo: pago N° ${p.nOp} · S/ ${fmt2(p.monto)} · ${p.operador.toUpperCase()}`);
   });
 
   document.getElementById('menu-historial').addEventListener('click', () => {
@@ -2133,7 +2177,77 @@ var qrcodegen = (function() {
   }
 
   // ============================================================
-  // FIX TECLADO: auto-scroll al input enfocado
+  // PUSH SILENCIOSO DE PAGOS - v6
+  // ============================================================
+  // En producción, estos pagos llegan vía SSE/WebSocket desde Gestix
+  // Por ahora, simulamos con el botón "Simular pago entrante"
+  // ============================================================
+
+  function limpiarPagosExpirados() {
+    const ahora = Date.now();
+    const limite = ahora - (PAGOS_VENTANA_MIN * 60 * 1000);
+    const antes = estado.pagosEnMemoria.length;
+    estado.pagosEnMemoria = estado.pagosEnMemoria.filter(p => p.timestamp > limite);
+    if (estado.pagosEnMemoria.length > PAGOS_MAX) {
+      // Quedarse con los más recientes
+      estado.pagosEnMemoria = estado.pagosEnMemoria
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, PAGOS_MAX);
+    }
+    return antes !== estado.pagosEnMemoria.length;
+  }
+
+  function agregarPagoEnMemoria(pago) {
+    limpiarPagosExpirados();
+    // Evitar duplicados por N° Op
+    if (estado.pagosEnMemoria.some(p => p.nOp === pago.nOp)) return;
+    estado.pagosEnMemoria.push({
+      ...pago,
+      timestamp: Date.now(),
+    });
+    actualizarContadorPagos();
+  }
+
+  function actualizarContadorPagos() {
+    limpiarPagosExpirados();
+    const count = estado.pagosEnMemoria.length;
+    const elCount = document.getElementById('pagos-disponibles-count');
+    if (elCount) elCount.textContent = count;
+  }
+
+  // Buscar pago en memoria por N° de operación
+  function buscarEnMemoria(nOp) {
+    limpiarPagosExpirados();
+    return estado.pagosEnMemoria.find(p => p.nOp === nOp);
+  }
+
+  // Iniciales del nombre para privacidad
+  function iniciales(nombre) {
+    if (!nombre) return '***';
+    const partes = nombre.trim().split(/\s+/);
+    return partes.map(p => p.charAt(0).toUpperCase() + '***').join(' ');
+  }
+
+  // Datos demo para simular pagos
+  const NOMBRES_DEMO = [
+    'Juan Pérez Mendoza', 'María García Rojas', 'Carlos López Díaz',
+    'Ana Torres Vega', 'Luis Ramírez Flores', 'Sofía Castro Núñez',
+    'Pedro Vargas Quispe', 'Rosa Mendoza Pinto', 'José Sánchez León',
+    'Cesitar Ruiz Aguilar',
+  ];
+  const OPERADORES = ['yape', 'plin'];
+
+  function simularPagoEntrante() {
+    // Generar pago aleatorio plausible
+    const nOp = String(Math.floor(Math.random() * 90000000) + 10000000); // 8 dígitos
+    const monto = +(Math.floor(Math.random() * 20000) / 100 + 5).toFixed(2);
+    const operador = OPERADORES[Math.floor(Math.random() * OPERADORES.length)];
+    const nombre = NOMBRES_DEMO[Math.floor(Math.random() * NOMBRES_DEMO.length)];
+
+    agregarPagoEnMemoria({ nOp, monto, operador, nombre });
+    return { nOp, monto, operador, nombre };
+  }
+
   // ============================================================
   // Cuando aparece el teclado virtual en móvil, el viewport se reduce.
   // Si el input está debajo del nuevo viewport, scrolleamos para que quede visible.

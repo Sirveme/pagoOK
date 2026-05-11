@@ -334,13 +334,7 @@
       <div id="verificacion-form" class="verificacion-form">
         <div class="card">
           <label class="campo-label">Monto que llegó por <span id="verif-metodo-label">Yape</span></label>
-          <input
-            type="text"
-            id="input-monto-pago"
-            class="campo-input campo-grande"
-            placeholder="0.00"
-            inputmode="decimal"
-            autocomplete="off">
+          <div id="display-monto-pago" class="campo-display campo-grande">S/ 0.00</div>
 
           <label class="campo-label" style="margin-top: 12px;">N° de operación</label>
           <input
@@ -351,7 +345,7 @@
             inputmode="numeric"
             autocomplete="off">
 
-          <label class="campo-label" style="margin-top: 12px;">Foto del voucher</label>
+          <label class="campo-label" style="margin-top: 12px;">Foto del voucher <span class="label-opcional">(opcional)</span></label>
           <div class="foto-botones">
             <label for="input-foto-camara" class="btn-foto btn-foto-camara">
               <svg viewBox="0 0 24 24" class="btn-foto-svg" aria-hidden="true">
@@ -517,6 +511,11 @@
       <div class="menu-info-vendedor" id="menu-info-vendedor"></div>
       <div class="menu-info-serie" id="menu-info-serie"></div>
     </div>
+    <button class="menu-item" id="menu-pagos-disponibles">
+      <span class="menu-icono">💰</span>
+      <span class="menu-label">Pagos disponibles</span>
+      <span class="menu-extra" id="pagos-disponibles-count">0</span>
+    </button>
     <button class="menu-item" id="menu-historial">
       <span class="menu-icono">📋</span>
       <span class="menu-label">Ventas de hoy</span>
@@ -531,6 +530,11 @@
       <span class="menu-icono" id="sonido-icono">🔊</span>
       <span class="menu-label">Sonido</span>
       <span class="menu-extra" id="sonido-estado">ON</span>
+    </button>
+    <button class="menu-item menu-item-demo" id="menu-simular-pago">
+      <span class="menu-icono">🎲</span>
+      <span class="menu-label">Simular pago entrante</span>
+      <span class="menu-extra menu-extra-demo">DEMO</span>
     </button>
     <button class="menu-item menu-item-danger" id="menu-cambiar">
       <span class="menu-icono">🚪</span>

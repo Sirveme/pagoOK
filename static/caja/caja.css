@@ -409,6 +409,42 @@ input, textarea, select {
   padding: 16px;
 }
 
+/* Campo solo-lectura tipo display */
+.campo-display {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.35);
+  border: 2px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 14px;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ambar);
+  text-align: center;
+  letter-spacing: 1px;
+  font-family: Georgia, serif;
+}
+
+.label-opcional {
+  font-weight: 500;
+  color: var(--txt-mute);
+  text-transform: none;
+  letter-spacing: 0.5px;
+  font-size: 10px;
+  font-style: italic;
+}
+
+/* Menu item demo */
+.menu-item-demo {
+  border-color: rgba(245, 166, 35, 0.3) !important;
+  background: rgba(245, 166, 35, 0.05) !important;
+}
+.menu-extra-demo {
+  background: var(--ambar) !important;
+  color: var(--txt-dark) !important;
+  font-size: 10px !important;
+  letter-spacing: 1px !important;
+}
+
 select.campo-input {
   appearance: none;
   -webkit-appearance: none;
