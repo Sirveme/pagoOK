@@ -821,6 +821,24 @@ var qrcodegen = (function() {
   }
 
   // ============================================================
+  // MODAL CONFIRMAR REUTILIZABLE
+  // ============================================================
+  let confirmarCallback = null;
+  function confirmarModal({ titulo, texto, textoBotonSi, textoBotonNo, icono, onConfirmar }) {
+    document.getElementById('modal-confirmar-titulo').textContent = titulo || '¿Confirmar?';
+    document.getElementById('modal-confirmar-texto').textContent = texto || '';
+    document.getElementById('modal-confirmar-icono').textContent = icono || '⚠';
+    document.getElementById('btn-confirmar-si').textContent = textoBotonSi || 'Sí';
+    document.getElementById('btn-confirmar-no').textContent = textoBotonNo || 'Cancelar';
+    confirmarCallback = onConfirmar;
+    document.getElementById('modal-confirmar').classList.remove('oculto');
+  }
+  function cerrarModalConfirmar() {
+    document.getElementById('modal-confirmar').classList.add('oculto');
+    confirmarCallback = null;
+  }
+
+  // ============================================================
   // FORMATO
   // ============================================================
   function fmt(n) {
@@ -1366,9 +1384,18 @@ var qrcodegen = (function() {
   document.getElementById('btn-volver-metodo').addEventListener('click', () => {
     sonidoTap();
     if (estado.metodosPago.length > 0) {
-      if (!confirm('Volver descartará los pagos parciales ya registrados. ¿Continuar?')) return;
+      confirmarModal({
+        titulo: '¿Volver y descartar pagos?',
+        texto: 'Se perderán los pagos parciales ya registrados en esta venta.',
+        textoBotonSi: 'Sí, volver',
+        icono: '↩',
+        onConfirmar: () => {
+          estado.metodosPago = [];
+          irA('items', { sentido: 'izquierda' });
+        },
+      });
+      return;
     }
-    estado.metodosPago = [];
     irA('items', { sentido: 'izquierda' });
   });
 
@@ -2052,9 +2079,16 @@ var qrcodegen = (function() {
     const tipoSunatCod = tipoComprobante === 'F' ? '01' : '03';
     const serie = tipoComprobante === 'F' ? v.serieF : v.serieB;
     if (!estado.correlativos[serie]) estado.correlativos[serie] = 0;
-    estado.correlativos[serie]++;
-    const correlativo = estado.correlativos[serie];
-    guardarEstado();
+    // PREVIEW: el correlativo se asigna al GRABAR Y EMITIR, no aquí
+    // Mostramos el "próximo correlativo" como referencia, pero aún no se guarda
+    const correlativo = estado.correlativos[serie] + 1;
+    estado.boletaPreview = {
+      serie,
+      correlativo,
+      tipoComprobante,
+      tipoSunatCod,
+      emitida: false,
+    };
 
     const ahora = new Date();
     const dd = String(ahora.getDate()).padStart(2, '0');
@@ -2230,7 +2264,46 @@ var qrcodegen = (function() {
     document.getElementById('boleta-papel').innerHTML = html;
     document.getElementById('cliente-form').classList.add('oculto');
     document.getElementById('boleta-vista').classList.remove('oculto');
+    // Mostrar estado PREVIEW (antes de grabar)
+    document.getElementById('boleta-estado-preview').classList.remove('oculto');
+    document.getElementById('boleta-estado-emitida').classList.add('oculto');
+    sonidoTap();
+  }
+
+  // ============================================================
+  // GRABAR Y EMITIR - el punto sin retorno
+  // ============================================================
+  function grabarYEmitir() {
+    if (!estado.boletaPreview) return;
+    const { serie, correlativo } = estado.boletaPreview;
+    // Asignar correlativo definitivo
+    estado.correlativos[serie] = correlativo;
+    estado.boletaPreview.emitida = true;
+    estado.boletaPreview.emitidaEn = new Date().toISOString();
+    // Guardar venta en historial
+    guardarVenta();
+    guardarEstado();
+    // Cambiar UI a estado emitida
+    document.getElementById('boleta-estado-preview').classList.add('oculto');
+    document.getElementById('boleta-estado-emitida').classList.remove('oculto');
+    document.getElementById('boleta-emitida-msg').textContent =
+      `Comprobante ${serie}-${String(correlativo).padStart(8, '0')} emitido`;
     sonidoExito();
+    toast('Comprobante grabado y emitido', 'exito');
+  }
+
+  function descartarVentaPreview() {
+    confirmarModal({
+      titulo: '¿Descartar venta?',
+      texto: 'Se perderán los items, pagos y datos del cliente. El correlativo NO se usará.',
+      textoBotonSi: 'Sí, descartar',
+      onConfirmar: () => {
+        sonidoTap();
+        toast('Venta descartada', '');
+        reiniciarFlujo();
+        irA('dictar', { sentido: 'izquierda' });
+      },
+    });
   }
 
   // ============================================================
@@ -2329,10 +2402,13 @@ var qrcodegen = (function() {
     estado.nOperacion = '';
     estado.foto = null;
     estado.cliente = { tipoDoc: 'ninguno', numero: '', nombre: '' };
+    estado.boletaPreview = null;
     document.getElementById('texto-venta').value = '';
     document.getElementById('resultado-card').classList.add('oculto');
     document.getElementById('cliente-form').classList.remove('oculto');
     document.getElementById('boleta-vista').classList.add('oculto');
+    document.getElementById('boleta-estado-preview').classList.add('oculto');
+    document.getElementById('boleta-estado-emitida').classList.add('oculto');
     actualizarSugerencias();
   }
 
@@ -2378,11 +2454,10 @@ var qrcodegen = (function() {
     setTimeout(() => toast('Venta registrada', 'exito'), 200);
   });
 
+  // btn-boleta-finalizar: la venta ya se guardó en grabarYEmitir; aquí solo limpiamos
   document.getElementById('btn-boleta-finalizar').addEventListener('click', () => {
-    guardarVenta();
     reiniciarFlujo();
     irA('dictar', { sentido: 'izquierda' });
-    setTimeout(() => toast('Venta registrada', 'exito'), 200);
   });
 
   document.getElementById('btn-pendiente').addEventListener('click', () => {
@@ -2390,6 +2465,35 @@ var qrcodegen = (function() {
     reiniciarFlujo();
     irA('dictar', { sentido: 'izquierda' });
     setTimeout(() => toast('Venta pendiente', ''), 200);
+  });
+
+  // Listeners del modal confirmar
+  document.getElementById('btn-confirmar-si').addEventListener('click', () => {
+    const cb = confirmarCallback;
+    cerrarModalConfirmar();
+    if (cb) cb();
+  });
+  document.getElementById('btn-confirmar-no').addEventListener('click', () => {
+    sonidoTap();
+    cerrarModalConfirmar();
+  });
+  document.getElementById('modal-confirmar').addEventListener('click', (e) => {
+    // Cerrar al tocar fuera de la card
+    if (e.target.id === 'modal-confirmar') {
+      cerrarModalConfirmar();
+    }
+  });
+
+  // GRABAR Y EMITIR - punto sin retorno
+  document.getElementById('btn-grabar-emitir').addEventListener('click', () => {
+    sonidoTap();
+    grabarYEmitir();
+  });
+
+  // DESCARTAR - con confirmación
+  document.getElementById('btn-descartar').addEventListener('click', () => {
+    sonidoTap();
+    descartarVentaPreview();
   });
 
   // Event delegation para el modal de pago: maneja todos los clicks dentro del modal
@@ -2467,9 +2571,18 @@ var qrcodegen = (function() {
       const destino = btn.dataset.ir;
       // Si venimos de verificar y vamos a metodo con pagos acumulados → preguntar
       if (destino === 'metodo' && estado.pantalla === 'verificar' && estado.metodosPago.length > 0) {
-        if (!confirm('¿Descartar los pagos ya registrados y volver a elegir método?')) return;
-        estado.metodosPago = [];
-        actualizarPagosAcumulados();
+        confirmarModal({
+          titulo: '¿Volver y descartar pagos?',
+          texto: 'Se perderán los pagos ya registrados en esta venta.',
+          textoBotonSi: 'Sí, volver',
+          icono: '↩',
+          onConfirmar: () => {
+            estado.metodosPago = [];
+            actualizarPagosAcumulados();
+            irA(destino, { sentido: 'izquierda' });
+          },
+        });
+        return;
       }
       irA(destino, { sentido: 'izquierda' });
     });

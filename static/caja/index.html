@@ -474,7 +474,7 @@
         </div>
 
         <button id="btn-generar-boleta" class="btn-principal btn-principal-grande">
-          <span>Generar boleta</span>
+          <span>Generar comprobante</span>
           <span class="btn-flecha">→</span>
         </button>
       </div>
@@ -482,31 +482,59 @@
       <div id="boleta-vista" class="boleta-vista oculto">
         <div class="boleta-papel" id="boleta-papel"></div>
 
-        <div class="boleta-acciones">
-          <button id="btn-compartir" class="btn-principal">
-            <svg viewBox="0 0 24 24" class="btn-svg" aria-hidden="true">
-              <circle cx="18" cy="5" r="3"/>
-              <circle cx="6" cy="12" r="3"/>
-              <circle cx="18" cy="19" r="3"/>
-              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
-              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-            </svg>
-            <span>Compartir</span>
-          </button>
-          <button id="btn-imprimir" class="btn-principal">
-            <svg viewBox="0 0 24 24" class="btn-svg" aria-hidden="true">
-              <polyline points="6 9 6 2 18 2 18 9"/>
-              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
-              <rect x="6" y="14" width="12" height="8"/>
-            </svg>
-            <span>Imprimir</span>
-          </button>
+        <!-- ESTADO PREVIEW: antes de grabar -->
+        <div id="boleta-estado-preview" class="boleta-estado-preview">
+          <div class="boleta-aviso boleta-aviso-preview">
+            <span class="boleta-aviso-icono">⚠</span>
+            <span class="boleta-aviso-texto">Esta venta aún no está grabada</span>
+          </div>
+          <div class="boleta-acciones-preview">
+            <button id="btn-descartar" class="btn-secundario btn-peligro">
+              <svg viewBox="0 0 24 24" class="btn-svg" aria-hidden="true">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6l-2 14H7L5 6"/>
+                <path d="M10 11v6M14 11v6"/>
+              </svg>
+              <span>Descartar</span>
+            </button>
+            <button id="btn-grabar-emitir" class="btn-principal btn-principal-grande">
+              <span>Grabar y emitir</span>
+              <span class="btn-flecha">✓</span>
+            </button>
+          </div>
         </div>
 
-        <button id="btn-boleta-finalizar" class="btn-principal btn-principal-grande" style="margin-top: 14px;">
-          <span>Nueva venta</span>
-          <span class="btn-flecha">→</span>
-        </button>
+        <!-- ESTADO EMITIDA: después de grabar -->
+        <div id="boleta-estado-emitida" class="boleta-estado-emitida oculto">
+          <div class="boleta-aviso boleta-aviso-ok">
+            <span class="boleta-aviso-icono">✓</span>
+            <span class="boleta-aviso-texto" id="boleta-emitida-msg">Comprobante emitido</span>
+          </div>
+          <div class="boleta-acciones">
+            <button id="btn-compartir" class="btn-principal">
+              <svg viewBox="0 0 24 24" class="btn-svg" aria-hidden="true">
+                <circle cx="18" cy="5" r="3"/>
+                <circle cx="6" cy="12" r="3"/>
+                <circle cx="18" cy="19" r="3"/>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+              </svg>
+              <span>Compartir</span>
+            </button>
+            <button id="btn-imprimir" class="btn-principal">
+              <svg viewBox="0 0 24 24" class="btn-svg" aria-hidden="true">
+                <polyline points="6 9 6 2 18 2 18 9"/>
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                <rect x="6" y="14" width="12" height="8"/>
+              </svg>
+              <span>Imprimir</span>
+            </button>
+          </div>
+          <button id="btn-boleta-finalizar" class="btn-principal btn-principal-grande" style="margin-top: 14px;">
+            <span>Nueva venta</span>
+            <span class="btn-flecha">→</span>
+          </button>
+        </div>
       </div>
     </div>
   </section>
@@ -514,6 +542,21 @@
 </div>
 
 <!-- Menú -->
+<!-- Modal "Confirmar descarte" -->
+<div id="modal-confirmar" class="modal-overlay oculto">
+  <div class="modal-card modal-card-confirmar">
+    <div class="modal-confirmar-icono" id="modal-confirmar-icono">⚠</div>
+    <div class="modal-titulo" id="modal-confirmar-titulo">¿Descartar venta?</div>
+    <div class="modal-confirmar-texto" id="modal-confirmar-texto">
+      Se perderán los items, pagos y datos del cliente. ¿Continuar?
+    </div>
+    <div class="modal-botones">
+      <button id="btn-confirmar-no" class="btn-secundario">Cancelar</button>
+      <button id="btn-confirmar-si" class="btn-principal btn-peligro-principal">Sí, descartar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal "Preparar pago" - se abre al elegir método (Yape/Plin/Transferencia/Tarjeta/Efectivo) -->
 <div id="modal-pago" class="modal-overlay oculto">
   <div class="modal-card modal-card-pago">
