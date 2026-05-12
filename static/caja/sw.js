@@ -1,10 +1,6 @@
-// ============================================================
-// pagoOK Caja - Service Worker (v4.1)
-// ============================================================
-// Cambio de versión fuerza limpieza de caché viejo automático.
-
-const CACHE_NAME = 'pagook-caja-v7-4';
-const SHELL_FILES = [
+// pagoOK Caja Service Worker v8
+const CACHE_NAME = 'pagook-caja-v8';
+const ASSETS = [
   './',
   './index.html',
   './caja.css',
@@ -14,78 +10,59 @@ const SHELL_FILES = [
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(SHELL_FILES).catch((err) => {
-        console.warn('SW: algunos archivos no se cachearon:', err);
-      });
+      return cache.addAll(ASSETS).catch(() => {});
     })
   );
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((names) => {
-      return Promise.all(
+    caches.keys().then((names) =>
+      Promise.all(
         names
           .filter((name) => name !== CACHE_NAME)
-          .map((name) => {
-            console.log('SW: limpiando caché viejo', name);
-            return caches.delete(name);
-          })
-      );
-    })
+          .map((name) => caches.delete(name))
+      )
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-
-  // API siempre va a la red (no se cachea)
-  if (url.pathname.includes('/api/')) {
-    event.respondWith(fetch(event.request));
-    return;
-  }
-
-  // Network-first para HTML (siempre intenta lo último)
-  if (event.request.mode === 'navigate' ||
-      (event.request.method === 'GET' && event.request.headers.get('accept')?.includes('text/html'))) {
+  if (event.request.method !== 'GET') return;
+  // Network-first para HTML (siempre la última versión)
+  if (event.request.mode === 'navigate' || url.pathname.endsWith('.html')) {
     event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          if (response.ok) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          }
-          return response;
-        })
-        .catch(() => caches.match(event.request).then(r => r || caches.match('./index.html')))
+      fetch(event.request).then((res) => {
+        const clone = res.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        return res;
+      }).catch(() => caches.match(event.request).then((r) => r || caches.match('./index.html')))
     );
     return;
   }
-
-  // Cache-first para assets (más rápido)
+  // Network-first también para JS y CSS (evita caches viejas que dan dolor de cabeza)
+  if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) {
+    event.respondWith(
+      fetch(event.request).then((res) => {
+        const clone = res.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        return res;
+      }).catch(() => caches.match(event.request))
+    );
+    return;
+  }
+  // Cache-first para íconos y otros
   event.respondWith(
     caches.match(event.request).then((cached) => {
-      if (cached) {
-        // Refresca en background
-        fetch(event.request).then((response) => {
-          if (response.ok && url.origin === location.origin) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          }
-        }).catch(() => {});
-        return cached;
-      }
-      return fetch(event.request).then((response) => {
-        if (response.ok && url.origin === location.origin) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-        }
-        return response;
-      }).catch(() => caches.match('./index.html'));
+      return cached || fetch(event.request).then((res) => {
+        const clone = res.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        return res;
+      });
     })
   );
 });

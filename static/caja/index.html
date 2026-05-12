@@ -1,37 +1,22 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es-PE">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#3d0606">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="pagoOK Caja">
-<meta name="mobile-web-app-capable" content="yes">
-
-<title>pagoOK Caja</title>
-
-<link rel="manifest" href="manifest.json">
-<link rel="icon" type="image/svg+xml" href="icon.svg">
-<link rel="apple-touch-icon" href="icon.svg">
-
-<link rel="stylesheet" href="caja.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#7a0e0e">
+  <title>pagoOK Caja</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="stylesheet" href="caja.css">
 </head>
 <body>
 
-<!-- Marca de agua -->
-<div class="watermark" aria-hidden="true">
+<!-- Watermark de fondo -->
+<div class="watermark">
   <div class="watermark-pattern"></div>
 </div>
 
-<!-- Banner instalar PWA -->
-<div id="banner-instalar" class="banner-instalar oculto">
-  <span class="banner-icono">📱</span>
-  <div class="banner-texto">Instala pagoOK Caja</div>
-  <button id="btn-instalar" class="banner-btn">Instalar</button>
-  <button id="btn-banner-cerrar" class="banner-cerrar" aria-label="Cerrar">×</button>
-</div>
-
+<!-- Pantallas principales -->
 <div class="pantallas">
 
   <!-- ============================================================ -->
@@ -42,7 +27,7 @@
       <div class="logo-grande">
         <span class="logo-pago">pago</span><span class="logo-ok">OK</span>
       </div>
-      <p class="logo-tagline">Caja del vendedor</p>
+      <div class="logo-tagline">CAJA · VENDEDOR</div>
 
       <div class="card login-card">
         <label class="campo-label">RUC del negocio</label>
@@ -50,30 +35,26 @@
           type="tel"
           id="input-ruc"
           class="campo-input"
-          placeholder="20123456789"
-          maxlength="11"
+          placeholder="11 dígitos"
           inputmode="numeric"
-          pattern="[0-9]*"
+          maxlength="11"
           autocomplete="off">
-
         <div id="empresa-nombre-display" class="empresa-display oculto">
-          <span class="empresa-icono">✓</span>
-          <span class="empresa-nombre" id="empresa-nombre-txt"></span>
+          <div class="empresa-icono">✓</div>
+          <div class="empresa-nombre" id="empresa-nombre-txt"></div>
         </div>
 
-        <div id="locales-grupo" class="locales-grupo oculto">
-          <label class="campo-label" style="margin-top: 12px;">Local</label>
-          <select id="select-local" class="campo-input">
-            <option value="">Selecciona el local...</option>
-          </select>
+        <div id="locales-grupo" class="oculto" style="margin-top: 10px;">
+          <label class="campo-label">Local / Anexo</label>
+          <select id="select-local" class="campo-input"></select>
         </div>
 
         <label class="campo-label" style="margin-top: 14px;">PIN del vendedor</label>
-        <div class="pin-display" id="pin-display">
-          <span class="pin-dot"></span>
-          <span class="pin-dot"></span>
-          <span class="pin-dot"></span>
-          <span class="pin-dot"></span>
+        <div class="pin-display">
+          <div class="pin-dot"></div>
+          <div class="pin-dot"></div>
+          <div class="pin-dot"></div>
+          <div class="pin-dot"></div>
         </div>
 
         <div class="teclado-pin">
@@ -86,9 +67,9 @@
           <button class="tecla" data-num="7">7</button>
           <button class="tecla" data-num="8">8</button>
           <button class="tecla" data-num="9">9</button>
-          <button class="tecla tecla-aux" data-accion="borrar" aria-label="Borrar">⌫</button>
+          <button class="tecla tecla-aux" data-accion="borrar">←</button>
           <button class="tecla" data-num="0">0</button>
-          <button class="tecla tecla-entrar" data-accion="entrar" aria-label="Entrar">→</button>
+          <button class="tecla tecla-entrar" data-accion="entrar">✓</button>
         </div>
 
         <div id="login-error" class="mensaje-error oculto"></div>
@@ -101,34 +82,30 @@
   <!-- ============================================================ -->
   <section id="p-dictar" class="pantalla">
     <header class="topbar" id="topbar-dictar">
-      <button class="topbar-btn" data-ir="login" aria-label="Volver">←</button>
+      <button class="topbar-btn" data-volver aria-label="Volver">←</button>
       <div class="topbar-titulo">
         <span id="vendedor-nombre">Vendedor</span>
-        <span class="topbar-pequeno" id="local-display">Negocio</span>
+        <span class="topbar-pequeno" id="local-display"></span>
       </div>
-      <button class="topbar-btn" id="btn-menu" aria-label="Menú">⋮</button>
+      <button class="topbar-btn" id="btn-menu" aria-label="Menú">≡</button>
     </header>
-
-    <!-- Indicador de conexión -->
     <div class="conexion-bar" id="conexion-bar">
-      <span class="conexion-dot" id="conexion-dot"></span>
-      <span class="conexion-texto" id="conexion-texto">En línea</span>
-      <span class="conexion-pendientes oculto" id="conexion-pendientes">0 pendientes</span>
+      <span class="conexion-dot"></span>
+      <span id="conexion-texto">En línea</span>
     </div>
 
-    <div class="contenido contenido-centrado">
+    <div class="contenido">
       <div class="paso-indicador">
         <span class="paso-num">1</span>
-        <span class="paso-texto">Describe la venta</span>
+        <span>Dicta la venta</span>
       </div>
 
       <button id="btn-dictar" class="btn-dictar">
         <div class="dictar-circulo">
-          <svg viewBox="0 0 24 24" class="dictar-svg" aria-hidden="true">
-            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-            <line x1="12" y1="19" x2="12" y2="23"/>
-            <line x1="8" y1="23" x2="16" y2="23"/>
+          <svg viewBox="0 0 24 24" class="dictar-svg">
+            <rect x="9" y="3" width="6" height="12" rx="3"/>
+            <path d="M5 11v1a7 7 0 0 0 14 0v-1"/>
+            <line x1="12" y1="19" x2="12" y2="22"/>
           </svg>
         </div>
         <div class="dictar-texto">Toca para hablar</div>
@@ -138,16 +115,15 @@
       <textarea
         id="texto-venta"
         class="texto-venta"
-        placeholder='Ej: "1 lomo saltado y 2 chichas, 60 soles"'
+        placeholder="Ej: 3 pollos brasa, 2 chicha morada, total 95"
         rows="2"></textarea>
 
-      <!-- Sugerencias del catálogo -->
       <div id="sugerencias" class="sugerencias oculto">
         <div class="sugerencias-titulo">Productos frecuentes:</div>
-        <div class="sugerencias-chips" id="sugerencias-chips"></div>
+        <div id="sugerencias-chips" class="sugerencias-chips"></div>
       </div>
 
-      <button id="btn-procesar" class="btn-principal">
+      <button id="btn-procesar" class="btn-principal btn-principal-grande">
         <span>Procesar venta</span>
         <span class="btn-flecha">→</span>
       </button>
@@ -155,102 +131,73 @@
   </section>
 
   <!-- ============================================================ -->
-  <!-- P3: ITEMS (edición inline)                                   -->
+  <!-- P3: ITEMS                                                    -->
   <!-- ============================================================ -->
   <section id="p-items" class="pantalla">
     <header class="topbar">
-      <button class="topbar-btn" data-ir="dictar" aria-label="Volver">←</button>
-      <div class="topbar-titulo">
-        <span>Revisa la venta</span>
-        <span class="topbar-pequeno">Toca un item para editarlo</span>
-      </div>
-      <span class="topbar-spacer"></span>
+      <button class="topbar-btn" data-volver aria-label="Volver">←</button>
+      <div class="topbar-titulo"><span>Revisar venta</span></div>
+      <div class="topbar-spacer"></div>
     </header>
 
     <div class="contenido">
       <div class="paso-indicador">
         <span class="paso-num">2</span>
-        <span class="paso-texto">Confirma los items</span>
+        <span>Revisa items</span>
       </div>
 
       <div class="card items-card">
         <ul id="items-lista" class="items-lista"></ul>
         <div class="items-total-grupo">
-          <span class="items-total-label">TOTAL</span>
-          <button id="items-total-btn" class="items-total-monto" type="button">S/ 0</button>
+          <span class="items-total-label">Total</span>
+          <button id="items-total-btn" class="items-total-monto">S/ 0</button>
         </div>
-        <p id="total-hint" class="total-hint oculto">Toca el total para editarlo</p>
+        <div id="total-hint" class="total-hint">Toca el total para ingresarlo</div>
       </div>
 
-      <!-- Modal de edición de item -->
+      <button id="btn-cobrar" class="btn-principal btn-principal-grande">
+        <span>Cobrar ahora</span>
+        <span class="btn-flecha">→</span>
+      </button>
+
+      <button id="btn-rehacer" class="btn-secundario">Rehacer dictado</button>
+
+      <!-- Modal edición de item -->
       <div id="modal-item" class="modal-overlay oculto">
         <div class="modal-card">
           <div class="modal-titulo">Editar item</div>
-
           <label class="campo-label">Nombre</label>
-          <input
-            type="text"
-            id="modal-item-nombre"
-            class="campo-input campo-text"
-            autocomplete="off">
-
-          <div class="modal-row">
+          <input type="text" id="modal-item-nombre" class="campo-input campo-text" autocomplete="off">
+          <div class="modal-row" style="margin-top: 10px;">
             <div>
               <label class="campo-label">Cantidad</label>
-              <input
-                type="text"
-                id="modal-item-cantidad"
-                class="campo-input"
-                inputmode="decimal"
-                autocomplete="off">
+              <input type="text" id="modal-item-cantidad" class="campo-input" inputmode="decimal" autocomplete="off">
             </div>
             <div>
-              <label class="campo-label">Precio unit. (opc.)</label>
-              <input
-                type="text"
-                id="modal-item-precio"
-                class="campo-input"
-                inputmode="decimal"
-                placeholder="0.00"
-                autocomplete="off">
+              <label class="campo-label">Precio unit.</label>
+              <input type="text" id="modal-item-precio" class="campo-input" inputmode="decimal" autocomplete="off">
             </div>
           </div>
-
           <div class="modal-subtotal" id="modal-subtotal-display">Subtotal: S/ 0.00</div>
-
           <div class="modal-botones">
-            <button id="btn-modal-item-eliminar" class="btn-secundario btn-peligro">Eliminar</button>
             <button id="btn-modal-item-cancelar" class="btn-secundario">Cancelar</button>
-            <button id="btn-modal-item-aceptar" class="btn-principal">Aceptar</button>
+            <button id="btn-modal-item-eliminar" class="btn-secundario btn-peligro">Eliminar</button>
+            <button id="btn-modal-item-aceptar" class="btn-principal" style="grid-column: 1/-1;">Aceptar</button>
           </div>
         </div>
       </div>
 
-      <!-- Modal de total -->
+      <!-- Modal total -->
       <div id="modal-total" class="modal-overlay oculto">
         <div class="modal-card">
-          <div class="modal-titulo">¿Cuál es el total?</div>
-          <input
-            type="text"
-            id="input-total-edit"
-            class="campo-input campo-grande"
-            placeholder="0"
-            inputmode="decimal"
-            autocomplete="off">
-          <div class="modal-botones">
+          <div class="modal-titulo">Ingresa el total</div>
+          <input type="text" id="input-total-edit" class="campo-input campo-grande" inputmode="decimal" placeholder="0.00" autocomplete="off">
+          <div class="modal-botones" style="margin-top: 14px;">
             <button id="btn-total-cancelar" class="btn-secundario">Cancelar</button>
             <button id="btn-total-aceptar" class="btn-principal">Aceptar</button>
           </div>
         </div>
       </div>
-
-      <button id="btn-cobrar" class="btn-principal btn-principal-grande">
-        <span>Cobrar</span>
-        <span class="btn-flecha">→</span>
-      </button>
-      <button id="btn-rehacer" class="btn-secundario">
-        Rehacer dictado
-      </button>
     </div>
   </section>
 
@@ -259,22 +206,25 @@
   <!-- ============================================================ -->
   <section id="p-metodo" class="pantalla">
     <header class="topbar">
-      <button class="topbar-btn" id="btn-volver-metodo" aria-label="Volver">←</button>
+      <button class="topbar-btn" data-volver aria-label="Volver">←</button>
       <div class="topbar-titulo">
         <span>Cobrar</span>
         <span class="topbar-pequeno" id="metodo-monto-cabecera">S/ 0</span>
       </div>
-      <span class="topbar-spacer"></span>
+      <div class="topbar-spacer"></div>
     </header>
 
-    <div class="contenido contenido-centrado">
-      <!-- Resumen del cobro -->
-      <div class="monto-grande-card">
-        <small>Total a cobrar</small>
-        <strong id="monto-grande" class="monto-grande-num">S/ 0</strong>
+    <div class="contenido">
+      <div class="paso-indicador">
+        <span class="paso-num">3</span>
+        <span>Elige método</span>
       </div>
 
-      <!-- Pagos acumulados (si hay) -->
+      <div class="monto-grande-card">
+        <small>Total a cobrar</small>
+        <div class="monto-grande-num" id="monto-grande">S/ 0</div>
+      </div>
+
       <div id="pagos-acumulados" class="pagos-acumulados oculto">
         <div class="pagos-titulo">Pagos recibidos</div>
         <ul id="pagos-lista" class="pagos-lista"></ul>
@@ -285,8 +235,8 @@
       </div>
 
       <div class="metodos-titulo" id="metodos-titulo-txt">¿Cómo te paga?</div>
-      <div class="metodos-grid metodos-grid-3">
-        <button class="metodo metodo-yape" data-metodo="yape">
+      <div class="metodos-grid">
+        <button class="metodo" data-metodo="yape">
           <div class="metodo-circulo metodo-circulo-yape">
             <svg viewBox="0 0 24 24" class="metodo-svg" aria-hidden="true">
               <circle cx="12" cy="12" r="10"/>
@@ -295,7 +245,7 @@
           </div>
           <span class="metodo-nombre">Yape</span>
         </button>
-        <button class="metodo metodo-plin" data-metodo="plin">
+        <button class="metodo" data-metodo="plin">
           <div class="metodo-circulo metodo-circulo-plin">
             <svg viewBox="0 0 24 24" class="metodo-svg" aria-hidden="true">
               <path d="M12 2L4 6v6c0 5 3.5 9 8 10 4.5-1 8-5 8-10V6l-8-4z"/>
@@ -304,7 +254,7 @@
           </div>
           <span class="metodo-nombre">Plin</span>
         </button>
-        <button class="metodo metodo-efectivo" data-metodo="efectivo">
+        <button class="metodo" data-metodo="efectivo">
           <div class="metodo-circulo metodo-circulo-efectivo">
             <svg viewBox="0 0 24 24" class="metodo-svg" aria-hidden="true">
               <rect x="2" y="6" width="20" height="12" rx="2"/>
@@ -313,7 +263,7 @@
           </div>
           <span class="metodo-nombre">Efectivo</span>
         </button>
-        <button class="metodo metodo-transferencia" data-metodo="transferencia">
+        <button class="metodo" data-metodo="transferencia">
           <div class="metodo-circulo metodo-circulo-transferencia">
             <svg viewBox="0 0 24 24" class="metodo-svg" aria-hidden="true">
               <path d="M3 21h18M5 21V10M9 21V10M15 21V10M19 21V10M2 10l10-7 10 7"/>
@@ -321,7 +271,7 @@
           </div>
           <span class="metodo-nombre">Transfer.</span>
         </button>
-        <button class="metodo metodo-tarjeta" data-metodo="tarjeta">
+        <button class="metodo" data-metodo="tarjeta">
           <div class="metodo-circulo metodo-circulo-tarjeta">
             <svg viewBox="0 0 24 24" class="metodo-svg" aria-hidden="true">
               <rect x="2" y="5" width="20" height="14" rx="2"/>
@@ -340,15 +290,20 @@
   <!-- ============================================================ -->
   <section id="p-verificar" class="pantalla">
     <header class="topbar">
-      <button class="topbar-btn" data-ir="metodo" aria-label="Volver">←</button>
+      <button class="topbar-btn" data-volver aria-label="Volver">←</button>
       <div class="topbar-titulo">
-        <span id="verificar-titulo">Verificar Yape</span>
+        <span id="verificar-titulo">Verificar</span>
         <span class="topbar-pequeno" id="verificar-monto">S/ 0</span>
       </div>
-      <span class="topbar-spacer"></span>
+      <div class="topbar-spacer"></div>
     </header>
 
     <div class="contenido">
+      <div class="paso-indicador">
+        <span class="paso-num">4</span>
+        <span>Verifica el pago</span>
+      </div>
+
       <div id="verificacion-form" class="verificacion-form">
         <div class="card">
           <div class="verif-montos">
@@ -371,27 +326,28 @@
             inputmode="numeric"
             autocomplete="off">
 
-          <label class="campo-label" style="margin-top: 12px;" id="label-foto">Foto del voucher <span class="label-opcional">(opcional)</span></label>
+          <label class="campo-label" style="margin-top: 12px;">Foto del voucher <span class="label-opcional">(opcional)</span></label>
           <div class="foto-botones">
-            <label for="input-foto-camara" class="btn-foto btn-foto-camara">
+            <label for="input-foto-camara" class="btn-foto">
               <svg viewBox="0 0 24 24" class="btn-foto-svg" aria-hidden="true">
                 <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
                 <circle cx="12" cy="13" r="4"/>
               </svg>
               <span>Cámara</span>
             </label>
-            <label for="input-foto-galeria" class="btn-foto btn-foto-galeria">
+            <input type="file" id="input-foto-camara" accept="image/*" capture="environment" class="oculto">
+
+            <label for="input-foto-galeria" class="btn-foto">
               <svg viewBox="0 0 24 24" class="btn-foto-svg" aria-hidden="true">
                 <rect x="3" y="3" width="18" height="18" rx="2"/>
-                <circle cx="9" cy="9" r="2"/>
-                <path d="M21 15l-5-5L5 21"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
               </svg>
               <span>Galería</span>
             </label>
+            <input type="file" id="input-foto-galeria" accept="image/*" class="oculto">
           </div>
-          <input type="file" id="input-foto-camara" accept="image/*" capture="environment" hidden>
-          <input type="file" id="input-foto-galeria" accept="image/*" hidden>
-          <img id="foto-preview" class="foto-preview oculto" alt="Voucher">
+          <img id="foto-preview" class="foto-preview oculto" alt="">
           <div id="foto-fuente" class="foto-fuente oculto"></div>
         </div>
 
@@ -403,53 +359,39 @@
 
       <!-- Resultado -->
       <div id="resultado-card" class="resultado-card oculto">
-        <div class="resultado-icono" id="resultado-icono">
+        <div class="resultado-icono">
           <svg viewBox="0 0 24 24" id="resultado-svg" aria-hidden="true"></svg>
         </div>
         <div class="resultado-titulo" id="resultado-titulo"></div>
         <div class="resultado-texto" id="resultado-texto"></div>
-
-        <!-- Botones según contexto -->
-        <button id="btn-completar-pago" class="btn-principal btn-principal-grande oculto">
+        <button id="btn-completar-pago" class="btn-principal oculto">
           <span>Completar con otro pago</span>
           <span class="btn-flecha">→</span>
         </button>
-        <button id="btn-emitir-boleta" class="btn-principal btn-principal-grande oculto">
-          <span>Emitir boleta</span>
-          <span class="btn-flecha">→</span>
-        </button>
-        <button id="btn-finalizar" class="btn-principal btn-principal-grande oculto">
-          <span>Nueva venta</span>
-          <span class="btn-flecha">→</span>
-        </button>
-        <button id="btn-pendiente" class="btn-secundario oculto">
-          Registrar como pendiente
-        </button>
+        <button id="btn-pendiente" class="btn-secundario oculto">Registrar como pendiente</button>
       </div>
     </div>
   </section>
 
   <!-- ============================================================ -->
-  <!-- P6: BOLETA                                                   -->
+  <!-- P6: BOLETA (Cliente + Preview + Emitida)                     -->
   <!-- ============================================================ -->
   <section id="p-boleta" class="pantalla">
     <header class="topbar">
-      <button class="topbar-btn" data-ir="verificar" aria-label="Volver">←</button>
+      <button class="topbar-btn" data-volver aria-label="Volver">←</button>
       <div class="topbar-titulo">
         <span>Datos del cliente</span>
         <span class="topbar-pequeno">Opcional</span>
       </div>
-      <span class="topbar-spacer"></span>
+      <div class="topbar-spacer"></div>
     </header>
 
     <div class="contenido">
       <div id="cliente-form" class="cliente-form">
         <div class="card">
-          <label class="campo-label">¿El cliente quiere boleta a su nombre?</label>
-          <p class="cliente-hint">Si no, se emite boleta sin nombre.</p>
-
+          <label class="campo-label">Tipo de comprobante</label>
           <div class="tipo-doc-grupo">
-            <button class="tipo-doc-btn activo" data-tipo="ninguno">Sin nombre</button>
+            <button class="tipo-doc-btn activo" data-tipo="ninguno">Sin doc</button>
             <button class="tipo-doc-btn" data-tipo="dni">DNI</button>
             <button class="tipo-doc-btn" data-tipo="ruc">RUC</button>
           </div>
@@ -482,8 +424,8 @@
       <div id="boleta-vista" class="boleta-vista oculto">
         <div class="boleta-papel" id="boleta-papel"></div>
 
-        <!-- ESTADO PREVIEW: antes de grabar -->
-        <div id="boleta-estado-preview" class="boleta-estado-preview">
+        <!-- Estado PREVIEW: antes de grabar -->
+        <div id="boleta-estado-preview" class="boleta-estado-preview oculto">
           <div class="boleta-aviso boleta-aviso-preview">
             <span class="boleta-aviso-icono">⚠</span>
             <span class="boleta-aviso-texto">Esta venta aún no está grabada</span>
@@ -504,7 +446,7 @@
           </div>
         </div>
 
-        <!-- ESTADO EMITIDA: después de grabar -->
+        <!-- Estado EMITIDA: después de grabar -->
         <div id="boleta-estado-emitida" class="boleta-estado-emitida oculto">
           <div class="boleta-aviso boleta-aviso-ok">
             <span class="boleta-aviso-icono">✓</span>
@@ -541,78 +483,120 @@
 
 </div>
 
-<!-- Menú -->
-<!-- Modal "Confirmar descarte" -->
+<!-- ============================================================ -->
+<!-- Modal "Confirmar"                                            -->
+<!-- ============================================================ -->
 <div id="modal-confirmar" class="modal-overlay oculto">
   <div class="modal-card modal-card-confirmar">
     <div class="modal-confirmar-icono" id="modal-confirmar-icono">⚠</div>
-    <div class="modal-titulo" id="modal-confirmar-titulo">¿Descartar venta?</div>
-    <div class="modal-confirmar-texto" id="modal-confirmar-texto">
-      Se perderán los items, pagos y datos del cliente. ¿Continuar?
-    </div>
+    <div class="modal-titulo" id="modal-confirmar-titulo">¿Confirmar?</div>
+    <div class="modal-confirmar-texto" id="modal-confirmar-texto"></div>
     <div class="modal-botones">
       <button id="btn-confirmar-no" class="btn-secundario">Cancelar</button>
-      <button id="btn-confirmar-si" class="btn-principal btn-peligro-principal">Sí, descartar</button>
+      <button id="btn-confirmar-si" class="btn-principal btn-peligro-principal">Sí</button>
     </div>
   </div>
 </div>
 
-<!-- Modal "Preparar pago" - se abre al elegir método (Yape/Plin/Transferencia/Tarjeta/Efectivo) -->
+<!-- ============================================================ -->
+<!-- Modal "Preparar pago"                                        -->
+<!-- ============================================================ -->
 <div id="modal-pago" class="modal-overlay oculto">
   <div class="modal-card modal-card-pago">
     <button class="modal-cerrar-x" id="btn-modal-pago-cerrar" aria-label="Cerrar">×</button>
-    <div class="modal-pago-contenido" id="modal-pago-contenido">
-      <!-- Se llena dinámicamente según método -->
-    </div>
-    <div class="modal-pago-acciones" id="modal-pago-acciones">
-      <!-- Se llena dinámicamente -->
-    </div>
+    <div class="modal-pago-contenido" id="modal-pago-contenido"></div>
+    <div class="modal-pago-acciones" id="modal-pago-acciones"></div>
   </div>
 </div>
 
+<!-- ============================================================ -->
+<!-- Menú lateral                                                 -->
+<!-- ============================================================ -->
 <div id="menu-overlay" class="menu-overlay oculto">
-  <div class="menu-contenido">
-    <div class="menu-handle"></div>
-    <div class="menu-info" id="menu-info">
-      <div class="menu-info-vendedor" id="menu-info-vendedor"></div>
-      <div class="menu-info-serie" id="menu-info-serie"></div>
+  <div class="menu-panel">
+    <div class="menu-header">
+      <div class="menu-titulo">Menú</div>
+      <button class="menu-cerrar" id="menu-cerrar" aria-label="Cerrar">×</button>
     </div>
+
+    <div id="menu-info" class="menu-info oculto">
+      <div id="menu-info-vendedor" class="menu-info-vendedor"></div>
+      <div id="menu-info-serie" class="menu-info-serie"></div>
+    </div>
+
     <button class="menu-item" id="menu-pagos-disponibles">
-      <span class="menu-icono">💰</span>
-      <span class="menu-label">Pagos disponibles</span>
-      <span class="menu-extra" id="pagos-disponibles-count">0</span>
+      <span class="menu-item-icono">📡</span>
+      <div class="menu-item-info">
+        <div class="menu-item-titulo">Pagos en memoria</div>
+        <div class="menu-item-subtitulo">Listos para verificar</div>
+      </div>
+      <span class="menu-item-extra" id="pagos-disponibles-count">0</span>
     </button>
-    <button class="menu-item" id="menu-historial">
-      <span class="menu-icono">📋</span>
-      <span class="menu-label">Ventas de hoy</span>
-      <span class="menu-extra" id="historial-count">0</span>
-    </button>
-    <button class="menu-item" id="menu-catalogo">
-      <span class="menu-icono">📦</span>
-      <span class="menu-label">Catálogo</span>
-      <span class="menu-extra" id="catalogo-count">0</span>
-    </button>
-    <button class="menu-item" id="menu-sonido">
-      <span class="menu-icono" id="sonido-icono">🔊</span>
-      <span class="menu-label">Sonido</span>
-      <span class="menu-extra" id="sonido-estado">ON</span>
-    </button>
+
     <button class="menu-item menu-item-demo" id="menu-simular-pago">
-      <span class="menu-icono">🎲</span>
-      <span class="menu-label">Simular pago entrante</span>
-      <span class="menu-extra menu-extra-demo">DEMO</span>
+      <span class="menu-item-icono">🎲</span>
+      <div class="menu-item-info">
+        <div class="menu-item-titulo">Simular pago entrante</div>
+        <div class="menu-item-subtitulo">Para probar verificación</div>
+      </div>
+      <span class="menu-item-extra menu-extra-demo">DEMO</span>
     </button>
-    <button class="menu-item menu-item-danger" id="menu-cambiar">
-      <span class="menu-icono">🚪</span>
-      <span class="menu-label">Cambiar de vendedor</span>
+
+    <div class="menu-separador"></div>
+
+    <button class="menu-item" id="menu-historial">
+      <span class="menu-item-icono">📋</span>
+      <div class="menu-item-info">
+        <div class="menu-item-titulo">Ventas de hoy</div>
+        <div class="menu-item-subtitulo" id="historial-subtitulo">Resumen del turno</div>
+      </div>
+      <span class="menu-item-extra" id="historial-count">0</span>
     </button>
-    <button class="menu-cerrar" id="menu-cerrar">Cerrar</button>
+
+    <button class="menu-item" id="menu-catalogo">
+      <span class="menu-item-icono">📦</span>
+      <div class="menu-item-info">
+        <div class="menu-item-titulo">Catálogo</div>
+        <div class="menu-item-subtitulo">Productos frecuentes</div>
+      </div>
+      <span class="menu-item-extra" id="catalogo-count">0</span>
+    </button>
+
+    <div class="menu-separador"></div>
+
+    <button class="menu-item" id="menu-sonido">
+      <span class="menu-item-icono" id="sonido-icono">🔊</span>
+      <div class="menu-item-info">
+        <div class="menu-item-titulo">Sonidos</div>
+        <div class="menu-item-subtitulo">Tono de confirmación</div>
+      </div>
+      <span class="menu-item-extra" id="sonido-estado">ON</span>
+    </button>
+
+    <button class="menu-item" id="menu-cambiar">
+      <span class="menu-item-icono">🚪</span>
+      <div class="menu-item-info">
+        <div class="menu-item-titulo">Cambiar vendedor</div>
+        <div class="menu-item-subtitulo">Cerrar sesión actual</div>
+      </div>
+    </button>
+
+    <div class="menu-footer">pagoOK Caja</div>
   </div>
 </div>
 
 <!-- Toast -->
 <div id="toast" class="toast"></div>
 
+<!-- Banner instalar -->
+<div id="banner-instalar" class="banner-instalar oculto">
+  <div class="banner-icono">📲</div>
+  <div class="banner-texto">Instala pagoOK Caja</div>
+  <button id="btn-instalar" class="btn-instalar">Instalar</button>
+  <button id="btn-banner-cerrar" class="banner-cerrar" aria-label="Cerrar">×</button>
+</div>
+
 <script src="caja.js"></script>
+
 </body>
 </html>

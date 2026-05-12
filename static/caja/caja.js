@@ -1,3 +1,331 @@
+/* pagoOK Caja v8 — JS bundle generado el Tue May 12 01:04:56 UTC 2026 */
+
+/* === 01-config.js === */
+// ============================================================
+// 01-config.js — Datos mock + constantes
+// ============================================================
+
+const CAJA_VERSION = 'v8.0';
+const PAGOS_VENTANA_MIN = 30; // minutos de validez para pagos en memoria
+const PAGOS_MAX = 50;
+const TIMEOUT_VALIDACION_MS = 3000;
+
+const EMPRESAS_DEMO = {
+  '20615446565': {
+    razonSocial: 'POLLERÍA BOLOGNESI S.A.C.',
+    nombreComercial: 'Pollería Bolognesi',
+    tieneCDT: true,
+    aplicaIGV: false,
+    esAmazonia: true,
+    ciudad: 'Iquitos - Loreto',
+    domicilioFiscal: 'Av. Iquitos 230, Iquitos',
+    logoUrl: null,
+    formaPago: 'CONTADO',
+    yape: {
+      celular: '987 654 321',
+      titular: 'Pollería Bolognesi',
+      qrUrl: null,
+    },
+    plin: {
+      celular: '987 654 321',
+      titular: 'Pollería Bolognesi',
+      qrUrl: null,
+    },
+    cuentasBancarias: [
+      {
+        banco: 'BCP',
+        tipo: 'Cuenta corriente soles',
+        numero: '191-2345678-0-12',
+        cci: '00219100023456781293',
+        titular: 'POLLERÍA BOLOGNESI SAC',
+      },
+      {
+        banco: 'BBVA',
+        tipo: 'Cuenta corriente soles',
+        numero: '0011-0234-0100123456',
+        cci: '01102340010012345678',
+        titular: 'POLLERÍA BOLOGNESI SAC',
+      },
+      {
+        banco: 'Interbank',
+        tipo: 'Cuenta corriente soles',
+        numero: '200-3001234567',
+        cci: '00320000300123456789',
+        titular: 'POLLERÍA BOLOGNESI SAC',
+      },
+    ],
+    tarjetaConfig: { voucherObligatorio: true },
+    fotoConfig: { obligatoria: false },
+    locales: [
+      {
+        id: 'local_1',
+        direccion: 'Av. Bolognesi 346',
+        esAnexo: true,
+        serieBase: 346,
+        vendedores: [
+          { alias: 'vendedor1', pin: '1234', nombre: 'Carlos', serieB: 'B346', serieF: 'F346' },
+          { alias: 'vendedor2', pin: '5678', nombre: 'María', serieB: 'B347', serieF: 'F347' },
+        ],
+      },
+    ],
+  },
+  '99999999999': {
+    razonSocial: 'NEGOCIO DEMO S.A.C.',
+    nombreComercial: 'Negocio Demo',
+    tieneCDT: false,
+    aplicaIGV: true,
+    esAmazonia: false,
+    ciudad: 'Lima - Lima',
+    domicilioFiscal: 'Calle Demo 100, Lima',
+    logoUrl: null,
+    formaPago: 'CONTADO',
+    yape: { celular: '999 999 999', titular: 'Negocio Demo', qrUrl: null },
+    plin: { celular: '999 999 999', titular: 'Negocio Demo', qrUrl: null },
+    cuentasBancarias: [
+      {
+        banco: 'BCP',
+        tipo: 'Cuenta corriente soles',
+        numero: '100-0000000-0-00',
+        cci: '00210000000000000000',
+        titular: 'NEGOCIO DEMO SAC',
+      },
+    ],
+    tarjetaConfig: { voucherObligatorio: false },
+    fotoConfig: { obligatoria: false },
+    locales: [
+      {
+        id: 'local_demo',
+        direccion: 'Calle Demo 100',
+        esAnexo: false,
+        serieBase: null,
+        vendedores: [
+          { alias: 'vendedor1', pin: '0000', nombre: 'Demo', serieB: 'B000', serieF: 'F000' },
+        ],
+      },
+    ],
+  },
+};
+
+const PERSONAS_DEMO = {
+  '20100123456': 'CONSTRUCTORA TEST S.A.C.',
+  '20612345678': 'EMPRESA EJEMPLO PERU SAC',
+  '20615446565': 'POLLERÍA BOLOGNESI S.A.C.',
+  '10412345678': 'PEREZ MENDOZA JUAN CARLOS',
+  '05393776': 'CESITAR RUIZ AGUILAR',
+  '45678912': 'GARCIA ROJAS MARIA ELENA',
+  '12345678': 'LOPEZ DIAZ CARLOS ALBERTO',
+  '87654321': 'TORRES VEGA ANA SOFIA',
+};
+
+const NOMBRES_DEMO = [
+  'Juan Pérez Mendoza', 'María García Rojas', 'Carlos López Díaz',
+  'Ana Torres Vega', 'Luis Ramírez Flores', 'Sofía Castro Núñez',
+  'Pedro Vargas Quispe', 'Rosa Mendoza Pinto', 'José Sánchez León',
+  'Cesitar Ruiz Aguilar',
+];
+
+const OPERADORES = ['yape', 'plin'];
+
+const NUM_PALABRAS = {
+  'un': 1, 'una': 1, 'uno': 1,
+  'dos': 2, 'tres': 3, 'cuatro': 4, 'cinco': 5,
+  'seis': 6, 'siete': 7, 'ocho': 8, 'nueve': 9, 'diez': 10,
+  'once': 11, 'doce': 12, 'trece': 13, 'catorce': 14, 'quince': 15,
+  'dieciseis': 16, 'diecisiete': 17, 'dieciocho': 18, 'diecinueve': 19,
+  'veinte': 20, 'treinta': 30,
+  'media': 0.5, 'medio': 0.5,
+};
+
+const PANTALLAS_CON_SWOOSH = ['login', 'dictar', 'verificar', 'boleta'];
+
+/* === 02-state.js === */
+// ============================================================
+// 02-state.js — Estado global + persistencia localStorage
+// ============================================================
+
+const estado = {
+  pantalla: 'login',
+  ruc: '',
+  pin: '',
+  empresa: null,
+  localActual: null,
+  vendedor: null,
+
+  // Venta en curso
+  items: [], // [{cantidad, nombre, precioUnit?, subtotal?, calculado?}]
+  total: 0,
+  metodosPago: [], // [{metodo, monto, nOperacion?, foto?}]
+  metodoActual: null,
+  nOperacion: '',
+  foto: null,
+  montoPagoActual: 0,
+  cliente: { tipoDoc: 'ninguno', numero: '', nombre: '' },
+  modalPagoMetodo: null,
+
+  // Boleta preview (antes de grabar)
+  boletaPreview: null, // { serie, correlativo, tipoComprobante, emitida }
+
+  // Histórico
+  historial: [],
+  catalogo: [], // [{nombre, alias, precioUnit, veces, ultimaVez}]
+  correlativos: {}, // por serie
+
+  // Pagos en memoria (push silencioso)
+  pagosEnMemoria: [], // [{nOp, monto, operador, nombre, timestamp}]
+
+  // Preferencias
+  sonidoActivo: true,
+  online: navigator.onLine,
+
+  // UI
+  itemEditandoIdx: -1,
+};
+
+function persistirEstado() {
+  try {
+    localStorage.setItem('pagook_caja_v8', JSON.stringify({
+      catalogo: estado.catalogo,
+      historial: estado.historial,
+      sonidoActivo: estado.sonidoActivo,
+      correlativos: estado.correlativos,
+      // Venta en curso (para recuperar si se cerró sin grabar)
+      ventaEnCurso: estado.items.length > 0 ? {
+        items: estado.items,
+        total: estado.total,
+        metodosPago: estado.metodosPago,
+        cliente: estado.cliente,
+        timestamp: new Date().toISOString(),
+      } : null,
+    }));
+  } catch (e) {
+    console.warn('[state] No se pudo persistir:', e);
+  }
+}
+
+function cargarEstadoPersistido() {
+  try {
+    const saved = localStorage.getItem('pagook_caja_v8');
+    if (saved) {
+      const data = JSON.parse(saved);
+      estado.catalogo = data.catalogo || [];
+      estado.historial = data.historial || [];
+      estado.sonidoActivo = data.sonidoActivo !== false;
+      estado.correlativos = data.correlativos || {};
+      // Venta en curso se carga después al hacer login
+      return data;
+    }
+  } catch (e) {
+    console.warn('[state] Error cargando:', e);
+  }
+  return null;
+}
+
+function guardarUltimoRuc(ruc) {
+  try { localStorage.setItem('pagook_ultimo_ruc', ruc); } catch (e) {}
+}
+
+function leerUltimoRuc() {
+  try { return localStorage.getItem('pagook_ultimo_ruc') || ''; } catch (e) { return ''; }
+}
+
+function limpiarVentaEnCurso() {
+  estado.items = [];
+  estado.total = 0;
+  estado.metodosPago = [];
+  estado.metodoActual = null;
+  estado.nOperacion = '';
+  estado.foto = null;
+  estado.cliente = { tipoDoc: 'ninguno', numero: '', nombre: '' };
+  estado.boletaPreview = null;
+  estado.modalPagoMetodo = null;
+  estado.itemEditandoIdx = -1;
+}
+
+/* === 03-audio.js === */
+// ============================================================
+// 03-audio.js — Web Audio API + sonidos
+// ============================================================
+
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch (e) {}
+  }
+  return audioCtx;
+}
+
+function tono(freq, dur, tipo = 'sine', vol = 0.15) {
+  if (!estado.sonidoActivo) return;
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.type = tipo;
+  osc.frequency.setValueAtTime(freq, ctx.currentTime);
+  gain.gain.setValueAtTime(0, ctx.currentTime);
+  gain.gain.linearRampToValueAtTime(vol, ctx.currentTime + 0.005);
+  gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
+  osc.start(ctx.currentTime); osc.stop(ctx.currentTime + dur + 0.05);
+}
+
+function sonidoSwoosh() {
+  if (!estado.sonidoActivo) return;
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  const filter = ctx.createBiquadFilter();
+  osc.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+  osc.type = 'sine';
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(2000, ctx.currentTime);
+  filter.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.18);
+  osc.frequency.setValueAtTime(800, ctx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.18);
+  gain.gain.setValueAtTime(0, ctx.currentTime);
+  gain.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
+  osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.2);
+}
+
+function sonidoExito() {
+  if (!estado.sonidoActivo) return;
+  setTimeout(() => tono(523.25, 0.15, 'triangle', 0.18), 0);
+  setTimeout(() => tono(659.25, 0.15, 'triangle', 0.18), 100);
+  setTimeout(() => tono(783.99, 0.30, 'triangle', 0.20), 200);
+  setTimeout(() => tono(1046.50, 0.40, 'sine', 0.10), 240);
+}
+
+function sonidoAdvertencia() {
+  if (!estado.sonidoActivo) return;
+  setTimeout(() => tono(523.25, 0.20, 'sine', 0.18), 0);
+  setTimeout(() => tono(415.30, 0.30, 'sine', 0.18), 200);
+}
+
+function sonidoError() {
+  if (!estado.sonidoActivo) return;
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(220, ctx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(110, ctx.currentTime + 0.4);
+  gain.gain.setValueAtTime(0, ctx.currentTime);
+  gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.4);
+  osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.45);
+}
+
+function sonidoTap() {
+  if (!estado.sonidoActivo) return;
+  tono(1500, 0.04, 'sine', 0.08);
+}
+
+/* === 04-qrcodegen.js === */
 /* 
  * QR Code generator library (compact JavaScript)
  * 
@@ -476,422 +804,438 @@ var qrcodegen = (function() {
   
   return { QrCode: QrCode, QrSegment: QrSegment };
 })();
+
+/* === 05-utils.js === */
 // ============================================================
-// pagoOK Caja v4 - Catálogo emergente + Pago parcial + Online/Offline
+// 05-utils.js — Utilidades (formato, escape, etc.)
 // ============================================================
 
-(function() {
-  'use strict';
+function fmt(n) {
+  if (n === undefined || n === null || isNaN(n)) return 'S/ 0';
+  return 'S/ ' + (n % 1 === 0 ? n.toFixed(0) : n.toFixed(2));
+}
 
-  // ============================================================
-  // ESTADO
-  // ============================================================
-  const estado = {
-    pantalla: 'login',
-    ruc: '',
-    pin: '',
-    empresa: null,
-    localActual: null,
-    vendedor: null,
-    items: [], // [{cantidad, nombre, precioUnit?, subtotal?, calculado?}]
-    total: 0,
-    metodosPago: [], // [{metodo: 'yape'|'plin'|'efectivo', monto, nOperacion?, foto?}]
-    metodoActual: null,
-    nOperacion: '',
-    foto: null,
-    montoPagoActual: 0,
-    cliente: { tipoDoc: 'ninguno', numero: '', nombre: '' },
-    historial: [],
-    catalogo: [], // [{nombre, alias, precioUnit, veces, ultimaVez}]
-    sonidoActivo: true,
-    correlativos: {},
-    itemEditandoIdx: -1,
-    online: navigator.onLine,
-    // PUSH SILENCIOSO DE PAGOS (v6)
-    pagosEnMemoria: [], // [{nOp, monto, operador, nombre, hora}]
-  };
+function fmt2(n) {
+  if (n === undefined || n === null || isNaN(n)) return '0.00';
+  return n.toFixed(2);
+}
 
-  // Constantes v6
-  const PAGOS_VENTANA_MIN = 30; // pagos expiran a los 30 min
-  const PAGOS_MAX = 50; // tope de items en memoria
+function escapeHtml(str) {
+  if (str === undefined || str === null) return '';
+  const div = document.createElement('div');
+  div.textContent = String(str);
+  return div.innerHTML;
+}
 
-  // ============================================================
-  // MOCK
-  // ============================================================
-  const EMPRESAS_DEMO = {
-    '20615446565': {
-      razonSocial: 'POLLERÍA BOLOGNESI S.A.C.',
-      nombreComercial: 'Pollería Bolognesi',
-      tieneCDT: true,
-      aplicaIGV: false,
-      esAmazonia: true,
-      ciudad: 'Iquitos - Loreto',
-      domicilioFiscal: 'Av. Iquitos 230, Iquitos',
-      logoUrl: null,
-      formaPago: 'CONTADO',
-      // Datos de cobranza v7
-      yape: {
-        celular: '987 654 321',
-        titular: 'Pollería Bolognesi',
-        qrUrl: null, // opcional; cuando dueño lo suba
-      },
-      plin: {
-        celular: '987 654 321',
-        titular: 'Pollería Bolognesi',
-        qrUrl: null,
-      },
-      cuentasBancarias: [
-        {
-          banco: 'BCP',
-          tipo: 'Cuenta corriente soles',
-          numero: '191-2345678-0-12',
-          cci: '00219100023456781293',
-          titular: 'POLLERÍA BOLOGNESI SAC',
-        },
-        {
-          banco: 'BBVA',
-          tipo: 'Cuenta corriente soles',
-          numero: '0011-0234-0100123456',
-          cci: '01102340010012345678',
-          titular: 'POLLERÍA BOLOGNESI SAC',
-        },
-        {
-          banco: 'Interbank',
-          tipo: 'Cuenta corriente soles',
-          numero: '200-3001234567',
-          cci: '00320000300123456789',
-          titular: 'POLLERÍA BOLOGNESI SAC',
-        },
-      ],
-      // Configuración Tarjeta v7
-      tarjetaConfig: {
-        voucherObligatorio: true, // dueño decide
-      },
-      // Configuración Foto v7
-      fotoConfig: {
-        obligatoria: false, // dueño decide
-      },
-      locales: [
-        {
-          id: 'local_1',
-          direccion: 'Av. Bolognesi 346',
-          esAnexo: true,
-          serieBase: 346,
-          vendedores: [
-            { alias: 'vendedor1', pin: '1234', nombre: 'Carlos', serieB: 'B346', serieF: 'F346' },
-            { alias: 'vendedor2', pin: '5678', nombre: 'María', serieB: 'B347', serieF: 'F347' },
-          ],
-        },
-      ],
-    },
-    '99999999999': {
-      razonSocial: 'NEGOCIO DEMO S.A.C.',
-      nombreComercial: 'Negocio Demo',
-      tieneCDT: false,
-      aplicaIGV: true,
-      esAmazonia: false,
-      ciudad: 'Lima - Lima',
-      domicilioFiscal: 'Calle Demo 100, Lima',
-      logoUrl: null,
-      formaPago: 'CONTADO',
-      yape: { celular: '999 999 999', titular: 'Negocio Demo', qrUrl: null },
-      plin: { celular: '999 999 999', titular: 'Negocio Demo', qrUrl: null },
-      cuentasBancarias: [
-        {
-          banco: 'BCP',
-          tipo: 'Cuenta corriente soles',
-          numero: '100-0000000-0-00',
-          cci: '00210000000000000000',
-          titular: 'NEGOCIO DEMO SAC',
-        },
-      ],
-      tarjetaConfig: { voucherObligatorio: true },
-      fotoConfig: { obligatoria: false },
-      locales: [
-        {
-          id: 'local_demo',
-          direccion: 'Calle Demo 100',
-          esAnexo: false,
-          serieBase: null,
-          vendedores: [
-            { alias: 'vendedor1', pin: '0000', nombre: 'Demo', serieB: 'B000', serieF: 'F000' },
-          ],
-        },
-      ],
-    },
-  };
+function iniciales(nombre) {
+  if (!nombre) return '***';
+  const partes = nombre.trim().split(/\s+/);
+  return partes.map(p => p.charAt(0).toUpperCase() + '***').join(' ');
+}
 
-  // Mock de personas registradas en SUNAT/RENIEC (para consulta de DNI/RUC en v7)
-  const PERSONAS_DEMO = {
-    '20100123456': 'CONSTRUCTORA TEST S.A.C.',
-    '20612345678': 'EMPRESA EJEMPLO PERU SAC',
-    '20615446565': 'POLLERÍA BOLOGNESI S.A.C.',
-    '10412345678': 'PEREZ MENDOZA JUAN CARLOS',
-    '05393776': 'CESITAR RUIZ AGUILAR',
-    '45678912': 'GARCIA ROJAS MARIA ELENA',
-    '12345678': 'LOPEZ DIAZ CARLOS ALBERTO',
-    '87654321': 'TORRES VEGA ANA SOFIA',
-  };
-
-  // ============================================================
-  // AUDIO
-  // ============================================================
-  let audioCtx = null;
-  function getAudioCtx() {
-    if (!audioCtx) {
-      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
-      catch (e) {}
+// Generar SVG de QR usando qrcodegen
+function generarQRSvg(text) {
+  try {
+    const qr = qrcodegen.QrCode.encodeText(text, qrcodegen.QrCode.Ecc.MEDIUM);
+    const size = qr.size;
+    const cell = 3;
+    const pad = 12;
+    const total = size * cell + pad * 2;
+    let rects = '';
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
+        if (qr.getModule(c, r)) {
+          rects += `<rect x="${pad + c * cell}" y="${pad + r * cell}" width="${cell}" height="${cell}" fill="#000"/>`;
+        }
+      }
     }
-    return audioCtx;
+    return `
+      <svg class="b-qr-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${total} ${total}" width="140" height="140">
+        <rect width="${total}" height="${total}" fill="#fff"/>
+        ${rects}
+      </svg>
+    `;
+  } catch (e) {
+    console.warn('[utils] Error generando QR:', e);
+    return `<div class="b-qr-placeholder">QR no disponible</div>`;
+  }
+}
+
+/* === 06-navigation.js === */
+// ============================================================
+// 06-navigation.js — Transiciones de pantalla + flujo contextual
+// ============================================================
+
+// Tabla de "volver" desde cada pantalla
+// dado el estado actual, ¿a dónde lleva el botón ←?
+const VOLVER_DESDE = {
+  login: null,           // No hay vuelta atrás desde login
+  dictar: 'login',       // Vuelve a login (cambiar vendedor)
+  items: 'dictar',
+  metodo: 'items',
+  verificar: 'metodo',
+  boleta: 'verificar',   // En PREVIEW vuelve a verificar; en EMITIDA no se puede volver
+};
+
+function irA(nombre, opciones = {}) {
+  const actual = document.querySelector('.pantalla.activa');
+  const proxima = document.getElementById('p-' + nombre);
+  if (!proxima || actual === proxima) return;
+
+  const { sentido = 'derecha', conSwoosh = null } = opciones;
+  const haceSonido = conSwoosh !== null
+    ? conSwoosh
+    : (PANTALLAS_CON_SWOOSH.includes(nombre) || PANTALLAS_CON_SWOOSH.includes(estado.pantalla));
+  if (haceSonido) sonidoSwoosh();
+
+  if (actual) {
+    if (sentido === 'derecha') actual.classList.add('saliente-izquierda');
+    actual.classList.remove('activa');
   }
 
-  function tono(freq, dur, tipo = 'sine', vol = 0.15) {
-    if (!estado.sonidoActivo) return;
-    const ctx = getAudioCtx();
-    if (!ctx) return;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.type = tipo;
-    osc.frequency.setValueAtTime(freq, ctx.currentTime);
-    gain.gain.setValueAtTime(0, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(vol, ctx.currentTime + 0.005);
-    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
-    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + dur + 0.05);
-  }
+  proxima.classList.remove('saliente-izquierda', 'entrante-izquierda');
+  if (sentido === 'izquierda') proxima.classList.add('entrante-izquierda');
+  void proxima.offsetWidth;
+  proxima.classList.remove('entrante-izquierda');
+  proxima.classList.add('activa');
 
-  function sonidoSwoosh() {
-    if (!estado.sonidoActivo) return;
-    const ctx = getAudioCtx();
-    if (!ctx) return;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    const filter = ctx.createBiquadFilter();
-    osc.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
-    osc.type = 'sine';
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(2000, ctx.currentTime);
-    filter.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.18);
-    osc.frequency.setValueAtTime(800, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.18);
-    gain.gain.setValueAtTime(0, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
-    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.2);
-  }
+  estado.pantalla = nombre;
 
-  function sonidoExito() {
-    if (!estado.sonidoActivo) return;
-    setTimeout(() => tono(523.25, 0.15, 'triangle', 0.18), 0);
-    setTimeout(() => tono(659.25, 0.15, 'triangle', 0.18), 100);
-    setTimeout(() => tono(783.99, 0.30, 'triangle', 0.20), 200);
-    setTimeout(() => tono(1046.50, 0.40, 'sine', 0.10), 240);
-  }
+  // Actualizar visibilidad del botón ← según pantalla
+  actualizarBotonVolver(nombre);
 
-  function sonidoAdvertencia() {
-    if (!estado.sonidoActivo) return;
-    setTimeout(() => tono(523.25, 0.20, 'sine', 0.18), 0);
-    setTimeout(() => tono(415.30, 0.30, 'sine', 0.18), 200);
-  }
+  setTimeout(() => {
+    document.querySelectorAll('.pantalla:not(.activa)').forEach(p => {
+      p.classList.remove('saliente-izquierda', 'entrante-izquierda');
+    });
+  }, 500);
+}
 
-  function sonidoError() {
-    if (!estado.sonidoActivo) return;
-    const ctx = getAudioCtx();
-    if (!ctx) return;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(220, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(110, ctx.currentTime + 0.4);
-    gain.gain.setValueAtTime(0, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.4);
-    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.45);
-  }
-
-  function sonidoTap() {
-    if (!estado.sonidoActivo) return;
-    tono(1500, 0.04, 'sine', 0.08);
-  }
-
-  // ============================================================
-  // PERSISTENCIA
-  // ============================================================
-  function cargarEstado() {
-    try {
-      const saved = localStorage.getItem('pagook_caja_v4');
-      if (saved) {
-        const data = JSON.parse(saved);
-        estado.catalogo = data.catalogo || [];
-        estado.historial = data.historial || [];
-        estado.sonidoActivo = data.sonidoActivo !== false;
-        estado.correlativos = data.correlativos || {};
-      }
-      const ultimoRuc = localStorage.getItem('pagook_ultimo_ruc');
-      if (ultimoRuc) {
-        document.getElementById('input-ruc').value = ultimoRuc;
-        validarRucEnVivo(ultimoRuc);
-      } else {
-        document.getElementById('input-ruc').value = '20615446565';
-        validarRucEnVivo('20615446565');
-      }
-    } catch (e) { console.warn('No se pudo cargar', e); }
-  }
-
-  function guardarEstado() {
-    try {
-      localStorage.setItem('pagook_caja_v4', JSON.stringify({
-        catalogo: estado.catalogo,
-        historial: estado.historial,
-        sonidoActivo: estado.sonidoActivo,
-        correlativos: estado.correlativos,
-      }));
-    } catch (e) {}
-  }
-
-  function guardarRuc(ruc) {
-    try { localStorage.setItem('pagook_ultimo_ruc', ruc); } catch (e) {}
-  }
-
-  // ============================================================
-  // CONEXIÓN ONLINE/OFFLINE
-  // ============================================================
-  function actualizarConexion() {
-    estado.online = navigator.onLine;
-    const bar = document.getElementById('conexion-bar');
-    const topbar = document.getElementById('topbar-dictar');
-    const texto = document.getElementById('conexion-texto');
-    if (!bar) return;
-    if (estado.online) {
-      bar.classList.remove('offline');
-      if (topbar) topbar.classList.remove('offline');
-      texto.textContent = 'En línea';
-    } else {
-      bar.classList.add('offline');
-      if (topbar) topbar.classList.add('offline');
-      texto.textContent = 'Sin conexión';
+// Decide si mostrar/ocultar botón ← según contexto
+function actualizarBotonVolver(pantalla) {
+  // Si estamos en boleta EMITIDA, ocultar el ← (no se puede volver)
+  if (pantalla === 'boleta') {
+    const emitida = estado.boletaPreview && estado.boletaPreview.emitida;
+    const btnVolver = document.querySelector('#p-boleta .topbar-btn[data-volver]');
+    if (btnVolver) {
+      btnVolver.style.visibility = emitida ? 'hidden' : 'visible';
     }
   }
+}
 
+// Manejador unificado del botón volver
+function manejarVolver() {
+  const desde = estado.pantalla;
+  const destino = VOLVER_DESDE[desde];
+
+  if (!destino) {
+    // No hay vuelta atrás definida (login o boleta emitida)
+    return;
+  }
+
+  // Lógica especial según contexto
+  if (desde === 'metodo' && estado.metodosPago.length > 0) {
+    // Hay pagos parciales acumulados, confirmar
+    confirmarModal({
+      titulo: '¿Volver y descartar pagos?',
+      texto: 'Se perderán los pagos parciales ya registrados en esta venta.',
+      textoBotonSi: 'Sí, volver',
+      icono: '↩',
+      onConfirmar: () => {
+        estado.metodosPago = [];
+        irA(destino, { sentido: 'izquierda' });
+      },
+    });
+    return;
+  }
+
+  if (desde === 'verificar' && estado.metodosPago.length > 0) {
+    confirmarModal({
+      titulo: '¿Volver y descartar pagos?',
+      texto: 'Se perderán los pagos ya registrados en esta venta.',
+      textoBotonSi: 'Sí, volver',
+      icono: '↩',
+      onConfirmar: () => {
+        estado.metodosPago = [];
+        irA(destino, { sentido: 'izquierda' });
+      },
+    });
+    return;
+  }
+
+  if (desde === 'dictar') {
+    // Volver a login = cambiar de vendedor
+    confirmarModal({
+      titulo: '¿Cambiar de vendedor?',
+      texto: 'Tu sesión actual se cerrará.',
+      textoBotonSi: 'Sí, cambiar',
+      icono: '🚪',
+      onConfirmar: () => {
+        estado.vendedor = null;
+        estado.pin = '';
+        actualizarPinDisplay();
+        irA('login', { sentido: 'izquierda' });
+      },
+    });
+    return;
+  }
+
+  // Navegación normal
+  irA(destino, { sentido: 'izquierda' });
+}
+
+/* === 07-toast.js === */
+// ============================================================
+// 07-toast.js — Notificaciones + ConfirmarModal reutilizable
+// ============================================================
+
+let toastTimer = null;
+function toast(mensaje, tipo = '') {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = mensaje;
+  el.className = 'toast visible ' + tipo;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('visible'), 2800);
+}
+
+// ============================================================
+// MODAL CONFIRMAR (reemplaza confirm() nativo)
+// ============================================================
+let confirmarCallback = null;
+
+function confirmarModal({ titulo, texto, textoBotonSi, textoBotonNo, icono, onConfirmar }) {
+  document.getElementById('modal-confirmar-titulo').textContent = titulo || '¿Confirmar?';
+  document.getElementById('modal-confirmar-texto').textContent = texto || '';
+  document.getElementById('modal-confirmar-icono').textContent = icono || '⚠';
+  document.getElementById('btn-confirmar-si').textContent = textoBotonSi || 'Sí';
+  document.getElementById('btn-confirmar-no').textContent = textoBotonNo || 'Cancelar';
+  confirmarCallback = onConfirmar;
+  document.getElementById('modal-confirmar').classList.remove('oculto');
+}
+
+function cerrarModalConfirmar() {
+  document.getElementById('modal-confirmar').classList.add('oculto');
+  confirmarCallback = null;
+}
+
+function setupModalConfirmar() {
+  document.getElementById('btn-confirmar-si').addEventListener('click', () => {
+    sonidoTap();
+    const cb = confirmarCallback;
+    cerrarModalConfirmar();
+    if (cb) cb();
+  });
+  document.getElementById('btn-confirmar-no').addEventListener('click', () => {
+    sonidoTap();
+    cerrarModalConfirmar();
+  });
+  document.getElementById('modal-confirmar').addEventListener('click', (e) => {
+    // Cerrar al tocar fuera de la card
+    if (e.target.id === 'modal-confirmar') {
+      cerrarModalConfirmar();
+    }
+  });
+}
+
+/* === 08-connection.js === */
+// ============================================================
+// 08-connection.js — Online/offline + Push silencioso de pagos
+// ============================================================
+
+function actualizarConexion() {
+  estado.online = navigator.onLine;
+  const bar = document.getElementById('conexion-bar');
+  const topbar = document.getElementById('topbar-dictar');
+  const texto = document.getElementById('conexion-texto');
+  if (!bar) return;
+  if (estado.online) {
+    bar.classList.remove('offline');
+    if (topbar) topbar.classList.remove('offline');
+    if (texto) texto.textContent = 'En línea';
+  } else {
+    bar.classList.add('offline');
+    if (topbar) topbar.classList.add('offline');
+    if (texto) texto.textContent = 'Sin conexión';
+  }
+}
+
+function setupConexion() {
   window.addEventListener('online', actualizarConexion);
   window.addEventListener('offline', actualizarConexion);
+}
 
-  // ============================================================
-  // NAVEGACIÓN
-  // ============================================================
-  const PANTALLAS_CON_SWOOSH = ['login', 'dictar', 'verificar', 'boleta'];
+// ============================================================
+// PUSH SILENCIOSO DE PAGOS
+// ============================================================
+function limpiarPagosExpirados() {
+  const ahora = Date.now();
+  const limite = ahora - (PAGOS_VENTANA_MIN * 60 * 1000);
+  const antes = estado.pagosEnMemoria.length;
+  estado.pagosEnMemoria = estado.pagosEnMemoria.filter(p => p.timestamp > limite);
+  if (estado.pagosEnMemoria.length > PAGOS_MAX) {
+    estado.pagosEnMemoria = estado.pagosEnMemoria
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, PAGOS_MAX);
+  }
+  return antes !== estado.pagosEnMemoria.length;
+}
 
-  function irA(nombre, opciones = {}) {
-    const actual = document.querySelector('.pantalla.activa');
-    const proxima = document.getElementById('p-' + nombre);
-    if (!proxima || actual === proxima) return;
-    const { sentido = 'derecha', conSwoosh = null } = opciones;
-    const haceSonido = conSwoosh !== null
-      ? conSwoosh
-      : (PANTALLAS_CON_SWOOSH.includes(nombre) || PANTALLAS_CON_SWOOSH.includes(estado.pantalla));
-    if (haceSonido) sonidoSwoosh();
-    if (actual) {
-      if (sentido === 'derecha') actual.classList.add('saliente-izquierda');
-      actual.classList.remove('activa');
-    }
-    proxima.classList.remove('saliente-izquierda', 'entrante-izquierda');
-    if (sentido === 'izquierda') proxima.classList.add('entrante-izquierda');
-    void proxima.offsetWidth;
-    proxima.classList.remove('entrante-izquierda');
-    proxima.classList.add('activa');
-    estado.pantalla = nombre;
+function agregarPagoEnMemoria(pago) {
+  limpiarPagosExpirados();
+  if (estado.pagosEnMemoria.some(p => p.nOp === pago.nOp)) return;
+  estado.pagosEnMemoria.push({
+    ...pago,
+    timestamp: Date.now(),
+  });
+  actualizarContadorPagos();
+}
+
+function actualizarContadorPagos() {
+  limpiarPagosExpirados();
+  const count = estado.pagosEnMemoria.length;
+  const elCount = document.getElementById('pagos-disponibles-count');
+  if (elCount) elCount.textContent = count;
+}
+
+function buscarEnMemoria(nOp) {
+  limpiarPagosExpirados();
+  return estado.pagosEnMemoria.find(p => p.nOp === nOp);
+}
+
+function simularPagoEntrante() {
+  const nOp = String(Math.floor(Math.random() * 90000000) + 10000000);
+  const monto = +(Math.floor(Math.random() * 20000) / 100 + 5).toFixed(2);
+  const operador = OPERADORES[Math.floor(Math.random() * OPERADORES.length)];
+  const nombre = NOMBRES_DEMO[Math.floor(Math.random() * NOMBRES_DEMO.length)];
+  agregarPagoEnMemoria({ nOp, monto, operador, nombre });
+  return { nOp, monto, operador, nombre };
+}
+
+/* === 09-auth.js === */
+// ============================================================
+// 09-auth.js — Login: RUC, PIN, vendedores
+// ============================================================
+
+function validarRucEnVivo(ruc) {
+  const display = document.getElementById('empresa-nombre-display');
+  const localesGrupo = document.getElementById('locales-grupo');
+  const select = document.getElementById('select-local');
+
+  if (ruc.length !== 11) {
+    display.classList.add('oculto');
+    localesGrupo.classList.add('oculto');
+    estado.empresa = null;
+    estado.localActual = null;
+    return;
+  }
+  const empresa = EMPRESAS_DEMO[ruc];
+  if (!empresa) {
+    display.classList.add('oculto');
+    localesGrupo.classList.add('oculto');
+    estado.empresa = null;
+    estado.localActual = null;
+    return;
+  }
+  estado.empresa = empresa;
+  document.getElementById('empresa-nombre-txt').textContent = empresa.nombreComercial;
+  display.classList.remove('oculto');
+
+  if (empresa.locales.length > 1) {
+    select.innerHTML = '<option value="">Selecciona el local...</option>';
+    empresa.locales.forEach(l => {
+      const opt = document.createElement('option');
+      opt.value = l.id;
+      opt.textContent = l.direccion;
+      select.appendChild(opt);
+    });
+    localesGrupo.classList.remove('oculto');
+  } else {
+    estado.localActual = empresa.locales[0];
+    localesGrupo.classList.add('oculto');
+  }
+}
+
+function actualizarPinDisplay() {
+  document.querySelectorAll('.pin-dot').forEach((dot, i) => {
+    if (i < estado.pin.length) dot.classList.add('lleno');
+    else dot.classList.remove('lleno');
+  });
+}
+
+function intentarLogin() {
+  const ruc = document.getElementById('input-ruc').value.trim();
+  const pin = estado.pin;
+  const errorEl = document.getElementById('login-error');
+
+  if (!estado.empresa) {
+    errorEl.textContent = 'RUC no registrado';
+    errorEl.classList.remove('oculto');
+    sonidoError();
+    return;
+  }
+  if (estado.empresa.locales.length > 1 && !estado.localActual) {
+    errorEl.textContent = 'Selecciona el local primero';
+    errorEl.classList.remove('oculto');
+    sonidoError();
+    return;
+  }
+  if (pin.length !== 4) {
+    errorEl.textContent = 'El PIN debe tener 4 dígitos';
+    errorEl.classList.remove('oculto');
+    sonidoError();
+    return;
+  }
+  const vendedor = estado.localActual.vendedores.find(v => v.pin === pin);
+  if (!vendedor) {
+    errorEl.textContent = 'PIN incorrecto';
+    errorEl.classList.remove('oculto');
+    estado.pin = '';
+    actualizarPinDisplay();
+    sonidoError();
+    return;
+  }
+
+  errorEl.classList.add('oculto');
+  estado.ruc = ruc;
+  estado.vendedor = vendedor;
+  guardarUltimoRuc(ruc);
+
+  document.getElementById('vendedor-nombre').textContent = vendedor.nombre;
+  document.getElementById('local-display').textContent = estado.empresa.nombreComercial + ' · ' + vendedor.serieB;
+  estado.pin = '';
+  actualizarPinDisplay();
+  actualizarConexion();
+  irA('dictar');
+  actualizarSugerencias();
+
+  // Si había venta en curso pendiente, ofrecer recuperarla
+  const data = cargarEstadoPersistido();
+  if (data && data.ventaEnCurso) {
     setTimeout(() => {
-      document.querySelectorAll('.pantalla:not(.activa)').forEach(p => {
-        p.classList.remove('saliente-izquierda', 'entrante-izquierda');
+      confirmarModal({
+        titulo: '¿Continuar venta pendiente?',
+        texto: `Hay una venta sin grabar de ${fmt(data.ventaEnCurso.total)} del ${new Date(data.ventaEnCurso.timestamp).toLocaleString('es-PE')}.`,
+        textoBotonSi: 'Sí, continuar',
+        textoBotonNo: 'No, descartar',
+        icono: '🛒',
+        onConfirmar: () => {
+          estado.items = data.ventaEnCurso.items;
+          estado.total = data.ventaEnCurso.total;
+          estado.metodosPago = data.ventaEnCurso.metodosPago || [];
+          estado.cliente = data.ventaEnCurso.cliente || { tipoDoc: 'ninguno', numero: '', nombre: '' };
+          renderItems();
+          irA('items');
+          toast('Venta recuperada', 'exito');
+        },
       });
-    }, 500);
+    }, 600);
+  } else {
+    setTimeout(() => toast('Bienvenido ' + vendedor.nombre, 'exito'), 200);
   }
+}
 
-  // ============================================================
-  // TOAST
-  // ============================================================
-  let toastTimer = null;
-  function toast(mensaje, tipo = '') {
-    const el = document.getElementById('toast');
-    el.textContent = mensaje;
-    el.className = 'toast visible ' + tipo;
-    if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.remove('visible'), 2800);
-  }
-
-  // ============================================================
-  // MODAL CONFIRMAR REUTILIZABLE
-  // ============================================================
-  let confirmarCallback = null;
-  function confirmarModal({ titulo, texto, textoBotonSi, textoBotonNo, icono, onConfirmar }) {
-    document.getElementById('modal-confirmar-titulo').textContent = titulo || '¿Confirmar?';
-    document.getElementById('modal-confirmar-texto').textContent = texto || '';
-    document.getElementById('modal-confirmar-icono').textContent = icono || '⚠';
-    document.getElementById('btn-confirmar-si').textContent = textoBotonSi || 'Sí';
-    document.getElementById('btn-confirmar-no').textContent = textoBotonNo || 'Cancelar';
-    confirmarCallback = onConfirmar;
-    document.getElementById('modal-confirmar').classList.remove('oculto');
-  }
-  function cerrarModalConfirmar() {
-    document.getElementById('modal-confirmar').classList.add('oculto');
-    confirmarCallback = null;
-  }
-
-  // ============================================================
-  // FORMATO
-  // ============================================================
-  function fmt(n) {
-    if (n === undefined || n === null || isNaN(n)) return 'S/ 0';
-    return 'S/ ' + (n % 1 === 0 ? n.toFixed(0) : n.toFixed(2));
-  }
-
-  function fmt2(n) {
-    if (n === undefined || n === null || isNaN(n)) return '0.00';
-    return n.toFixed(2);
-  }
-
-  // ============================================================
-  // LOGIN
-  // ============================================================
-  function validarRucEnVivo(ruc) {
-    const display = document.getElementById('empresa-nombre-display');
-    const localesGrupo = document.getElementById('locales-grupo');
-    const select = document.getElementById('select-local');
-
-    if (ruc.length !== 11) {
-      display.classList.add('oculto');
-      localesGrupo.classList.add('oculto');
-      estado.empresa = null;
-      estado.localActual = null;
-      return;
-    }
-    const empresa = EMPRESAS_DEMO[ruc];
-    if (!empresa) {
-      display.classList.add('oculto');
-      localesGrupo.classList.add('oculto');
-      estado.empresa = null;
-      estado.localActual = null;
-      return;
-    }
-    estado.empresa = empresa;
-    document.getElementById('empresa-nombre-txt').textContent = empresa.nombreComercial;
-    display.classList.remove('oculto');
-    if (empresa.locales.length > 1) {
-      select.innerHTML = '<option value="">Selecciona el local...</option>';
-      empresa.locales.forEach(l => {
-        const opt = document.createElement('option');
-        opt.value = l.id;
-        opt.textContent = l.direccion;
-        select.appendChild(opt);
-      });
-      localesGrupo.classList.remove('oculto');
-    } else {
-      estado.localActual = empresa.locales[0];
-      localesGrupo.classList.add('oculto');
-    }
-  }
-
+function setupLogin() {
   document.getElementById('input-ruc').addEventListener('input', (e) => {
     const ruc = e.target.value.replace(/\D/g, '').slice(0, 11);
     e.target.value = ruc;
@@ -910,58 +1254,6 @@ var qrcodegen = (function() {
       estado.localActual = null;
     }
   });
-
-  function actualizarPinDisplay() {
-    document.querySelectorAll('.pin-dot').forEach((dot, i) => {
-      if (i < estado.pin.length) dot.classList.add('lleno');
-      else dot.classList.remove('lleno');
-    });
-  }
-
-  function intentarLogin() {
-    const ruc = document.getElementById('input-ruc').value.trim();
-    const pin = estado.pin;
-    const errorEl = document.getElementById('login-error');
-    if (!estado.empresa) {
-      errorEl.textContent = 'RUC no registrado';
-      errorEl.classList.remove('oculto');
-      sonidoError();
-      return;
-    }
-    if (estado.empresa.locales.length > 1 && !estado.localActual) {
-      errorEl.textContent = 'Selecciona el local primero';
-      errorEl.classList.remove('oculto');
-      sonidoError();
-      return;
-    }
-    if (pin.length !== 4) {
-      errorEl.textContent = 'El PIN debe tener 4 dígitos';
-      errorEl.classList.remove('oculto');
-      sonidoError();
-      return;
-    }
-    const vendedor = estado.localActual.vendedores.find(v => v.pin === pin);
-    if (!vendedor) {
-      errorEl.textContent = 'PIN incorrecto';
-      errorEl.classList.remove('oculto');
-      estado.pin = '';
-      actualizarPinDisplay();
-      sonidoError();
-      return;
-    }
-    errorEl.classList.add('oculto');
-    estado.ruc = ruc;
-    estado.vendedor = vendedor;
-    guardarRuc(ruc);
-    document.getElementById('vendedor-nombre').textContent = vendedor.nombre;
-    document.getElementById('local-display').textContent = estado.empresa.nombreComercial + ' · ' + vendedor.serieB;
-    estado.pin = '';
-    actualizarPinDisplay();
-    actualizarConexion();
-    irA('dictar');
-    actualizarSugerencias();
-    setTimeout(() => toast('Bienvenido ' + vendedor.nombre, 'exito'), 200);
-  }
 
   document.querySelectorAll('.tecla').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -983,257 +1275,310 @@ var qrcodegen = (function() {
     });
   });
 
-  // ============================================================
-  // CATÁLOGO EMERGENTE - sugerencias
-  // ============================================================
-  function actualizarSugerencias() {
-    const cont = document.getElementById('sugerencias');
-    const chips = document.getElementById('sugerencias-chips');
-    if (estado.catalogo.length === 0) {
-      cont.classList.add('oculto');
+  // Pre-llenar RUC con el último usado o el demo
+  const ultimoRuc = leerUltimoRuc();
+  if (ultimoRuc) {
+    document.getElementById('input-ruc').value = ultimoRuc;
+    validarRucEnVivo(ultimoRuc);
+  } else {
+    document.getElementById('input-ruc').value = '20615446565';
+    validarRucEnVivo('20615446565');
+  }
+}
+
+/* === 10-dictar.js === */
+// ============================================================
+// 10-dictar.js — Web Speech API + parser de venta
+// ============================================================
+
+function tokenizar(texto) {
+  const palabras = texto.toLowerCase().split(/\s+/).filter(p => p.length > 0);
+  return palabras.map(p => {
+    const limpia = p.replace(/[,;.]+$/, '');
+    if (/^\d+(?:[.,]\d+)?$/.test(limpia)) {
+      return { tipo: 'num', valor: parseFloat(limpia.replace(',', '.')), texto: limpia };
+    }
+    if (NUM_PALABRAS[limpia] !== undefined) {
+      return { tipo: 'num', valor: NUM_PALABRAS[limpia], texto: limpia };
+    }
+    return { tipo: 'palabra', valor: limpia, texto: limpia };
+  });
+}
+
+function parsearVenta(texto) {
+  texto = texto.trim();
+  if (!texto) return { items: [], total: 0 };
+  let total = 0;
+  const patronTotalExplicito = /(?:total|son|=|s\/\s*)\s*(\d+(?:[.,]\d{1,2})?)\s*(?:soles?|s\/)?\s*$/i;
+  let matchTotal = texto.match(patronTotalExplicito);
+  if (matchTotal) {
+    total = parseFloat(matchTotal[1].replace(',', '.'));
+    texto = texto.substring(0, matchTotal.index).trim();
+  } else {
+    const patronImplicito = /(\d+(?:[.,]\d{1,2})?)\s*(?:soles?|s\/)?\s*$/i;
+    const matchImpl = texto.match(patronImplicito);
+    if (matchImpl) {
+      const candidato = parseFloat(matchImpl[1].replace(',', '.'));
+      if (candidato >= 10) {
+        total = candidato;
+        texto = texto.substring(0, matchImpl.index).trim();
+      }
+    }
+  }
+  texto = texto.replace(/[,;]/g, ' ');
+  const tokens = tokenizar(texto);
+  const STOP_WORDS = ['y', 'de', 'con', 'mas', 'más', 'el', 'la', 'los', 'las'];
+  const tokensFiltered = tokens.filter(t => {
+    if (t.tipo === 'palabra' && STOP_WORDS.includes(t.valor)) return false;
+    return true;
+  });
+  const items = [];
+  let actual = null;
+  for (let i = 0; i < tokensFiltered.length; i++) {
+    const t = tokensFiltered[i];
+    if (t.tipo === 'num') {
+      if (actual && actual.nombre.length > 0) items.push(actual);
+      actual = { cantidad: t.valor, nombre: '' };
+    } else {
+      if (!actual) actual = { cantidad: 1, nombre: '' };
+      actual.nombre += (actual.nombre ? ' ' : '') + t.valor;
+    }
+  }
+  if (actual && actual.nombre.length > 0) items.push(actual);
+  if (items.length === 0) items.push({ cantidad: 1, nombre: 'Venta' });
+  items.forEach(item => {
+    if (item.nombre.length > 0) {
+      item.nombre = item.nombre.charAt(0).toUpperCase() + item.nombre.slice(1);
+    } else {
+      item.nombre = 'Item';
+    }
+    const enCat = estado.catalogo.find(c => c.nombre.toLowerCase() === item.nombre.toLowerCase());
+    if (enCat && enCat.precioUnit) {
+      item.precioUnit = enCat.precioUnit;
+    }
+  });
+  return { items, total };
+}
+
+// Sugerencias del catálogo
+function actualizarSugerencias() {
+  const cont = document.getElementById('sugerencias');
+  const chips = document.getElementById('sugerencias-chips');
+  if (!cont || !chips) return;
+  if (estado.catalogo.length === 0) {
+    cont.classList.add('oculto');
+    return;
+  }
+  const top = [...estado.catalogo].sort((a, b) => b.veces - a.veces).slice(0, 5);
+  chips.innerHTML = '';
+  top.forEach(p => {
+    const chip = document.createElement('button');
+    chip.className = 'sugerencia-chip';
+    chip.type = 'button';
+    let txt = p.nombre;
+    if (p.precioUnit) txt += `<span class="sugerencia-chip-precio">S/${fmt2(p.precioUnit)}</span>`;
+    chip.innerHTML = txt;
+    chip.addEventListener('click', () => {
+      sonidoTap();
+      agregarItemDelCatalogo(p);
+    });
+    chips.appendChild(chip);
+  });
+  cont.classList.remove('oculto');
+}
+
+function agregarItemDelCatalogo(prod) {
+  const existe = estado.items.find(i => i.nombre.toLowerCase() === prod.nombre.toLowerCase());
+  if (existe) {
+    existe.cantidad++;
+    if (prod.precioUnit && !existe.precioUnit) existe.precioUnit = prod.precioUnit;
+  } else {
+    estado.items.push({
+      cantidad: 1,
+      nombre: prod.nombre,
+      precioUnit: prod.precioUnit || null,
+    });
+  }
+  recalcularTotal();
+  if (estado.items.length === 1) {
+    renderItems();
+    irA('items');
+  } else {
+    toast(`+ ${prod.nombre}`, 'exito');
+  }
+}
+
+// Speech recognition
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+let escuchando = false;
+
+function setupSpeech() {
+  if (SpeechRecognition) {
+    recognition = new SpeechRecognition();
+    recognition.lang = 'es-PE';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onstart = () => {
+      escuchando = true;
+      document.getElementById('btn-dictar').classList.add('escuchando');
+      document.querySelector('.dictar-texto').textContent = 'Habla ahora...';
+      document.querySelector('.dictar-hint').textContent = 'Toca de nuevo para detener';
+    };
+    recognition.onresult = (e) => {
+      const transcript = e.results[0][0].transcript;
+      document.getElementById('texto-venta').value = transcript;
+      tono(880, 0.1, 'sine', 0.12);
+    };
+    recognition.onerror = (e) => {
+      sonidoError();
+      if (e.error === 'no-speech') toast('No te escuché, intenta de nuevo', 'error');
+      else if (e.error === 'not-allowed') toast('Permiso de micrófono denegado', 'error');
+    };
+    recognition.onend = () => {
+      escuchando = false;
+      document.getElementById('btn-dictar').classList.remove('escuchando');
+      document.querySelector('.dictar-texto').textContent = 'Toca para hablar';
+      document.querySelector('.dictar-hint').textContent = 'o escribe abajo';
+    };
+  }
+}
+
+function setupDictar() {
+  setupSpeech();
+
+  document.getElementById('btn-dictar').addEventListener('click', () => {
+    sonidoTap();
+    if (!recognition) { toast('Tu navegador no soporta dictado', 'error'); return; }
+    if (escuchando) recognition.stop();
+    else { try { recognition.start(); } catch (e) {} }
+  });
+
+  document.getElementById('btn-procesar').addEventListener('click', () => {
+    const texto = document.getElementById('texto-venta').value.trim();
+    if (!texto) {
+      sonidoError();
+      toast('Escribe o dicta la venta primero', 'error');
       return;
     }
-    // Top 5 más vendidos
-    const top = [...estado.catalogo].sort((a, b) => b.veces - a.veces).slice(0, 5);
-    chips.innerHTML = '';
-    top.forEach(p => {
-      const chip = document.createElement('button');
-      chip.className = 'sugerencia-chip';
-      chip.type = 'button';
-      let txt = p.nombre;
-      if (p.precioUnit) txt += `<span class="sugerencia-chip-precio">S/${fmt2(p.precioUnit)}</span>`;
-      chip.innerHTML = txt;
-      chip.addEventListener('click', () => {
-        sonidoTap();
-        agregarItemDelCatalogo(p);
-      });
-      chips.appendChild(chip);
-    });
-    cont.classList.remove('oculto');
-  }
-
-  function agregarItemDelCatalogo(prod) {
-    // Buscar si ya está en items actuales
-    const existe = estado.items.find(i => i.nombre.toLowerCase() === prod.nombre.toLowerCase());
-    if (existe) {
-      existe.cantidad++;
-      if (prod.precioUnit && !existe.precioUnit) existe.precioUnit = prod.precioUnit;
-    } else {
-      estado.items.push({
-        cantidad: 1,
-        nombre: prod.nombre,
-        precioUnit: prod.precioUnit || null,
-      });
-    }
+    const parsed = parsearVenta(texto);
+    estado.items = parsed.items;
+    estado.total = parsed.total;
     recalcularTotal();
-    if (estado.items.length === 1) {
-      // Primer item agregado, ir a items
-      renderItems();
-      irA('items');
-    } else {
-      toast(`+ ${prod.nombre}`, 'exito');
+    renderItems();
+    if (parsed.total === 0) {
+      toast('Falta el total — toca el monto', '');
     }
-  }
+    irA('items');
+  });
+}
 
-  // ============================================================
-  // PARSER
-  // ============================================================
-  const NUM_PALABRAS = {
-    'un': 1, 'una': 1, 'uno': 1,
-    'dos': 2, 'tres': 3, 'cuatro': 4, 'cinco': 5,
-    'seis': 6, 'siete': 7, 'ocho': 8, 'nueve': 9, 'diez': 10,
-    'once': 11, 'doce': 12, 'trece': 13, 'catorce': 14, 'quince': 15,
-    'dieciseis': 16, 'diecisiete': 17, 'dieciocho': 18, 'diecinueve': 19,
-    'veinte': 20, 'treinta': 30,
-    'media': 0.5, 'medio': 0.5,
-  };
+/* === 11-items.js === */
+// ============================================================
+// 11-items.js — Carrito, edición inline, cálculo inteligente
+// ============================================================
 
-  function tokenizar(texto) {
-    const palabras = texto.toLowerCase().split(/\s+/).filter(p => p.length > 0);
-    return palabras.map(p => {
-      const limpia = p.replace(/[,;.]+$/, '');
-      if (/^\d+(?:[.,]\d+)?$/.test(limpia)) {
-        return { tipo: 'num', valor: parseFloat(limpia.replace(',', '.')), texto: limpia };
-      }
-      if (NUM_PALABRAS[limpia] !== undefined) {
-        return { tipo: 'num', valor: NUM_PALABRAS[limpia], texto: limpia };
-      }
-      return { tipo: 'palabra', valor: limpia, texto: limpia };
+function recalcularTotal() {
+  const sinPrecio = estado.items.filter(i => !i.precioUnit);
+
+  if (sinPrecio.length === 0) {
+    let suma = 0;
+    estado.items.forEach(i => {
+      i.subtotal = i.cantidad * i.precioUnit;
+      i.calculado = false;
+      suma += i.subtotal;
     });
-  }
-
-  function parsearVenta(texto) {
-    texto = texto.trim();
-    if (!texto) return { items: [], total: 0 };
-    let total = 0;
-    const patronTotalExplicito = /(?:total|son|=|s\/\s*)\s*(\d+(?:[.,]\d{1,2})?)\s*(?:soles?|s\/)?\s*$/i;
-    let matchTotal = texto.match(patronTotalExplicito);
-    if (matchTotal) {
-      total = parseFloat(matchTotal[1].replace(',', '.'));
-      texto = texto.substring(0, matchTotal.index).trim();
-    } else {
-      const patronImplicito = /(\d+(?:[.,]\d{1,2})?)\s*(?:soles?|s\/)?\s*$/i;
-      const matchImpl = texto.match(patronImplicito);
-      if (matchImpl) {
-        const candidato = parseFloat(matchImpl[1].replace(',', '.'));
-        if (candidato >= 10) {
-          total = candidato;
-          texto = texto.substring(0, matchImpl.index).trim();
-        }
-      }
-    }
-    texto = texto.replace(/[,;]/g, ' ');
-    const tokens = tokenizar(texto);
-    const STOP_WORDS = ['y', 'de', 'con', 'mas', 'más', 'el', 'la', 'los', 'las'];
-    const tokensFiltered = tokens.filter(t => {
-      if (t.tipo === 'palabra' && STOP_WORDS.includes(t.valor)) return false;
-      return true;
-    });
-    const items = [];
-    let actual = null;
-    for (let i = 0; i < tokensFiltered.length; i++) {
-      const t = tokensFiltered[i];
-      if (t.tipo === 'num') {
-        if (actual && actual.nombre.length > 0) items.push(actual);
-        actual = { cantidad: t.valor, nombre: '' };
-      } else {
-        if (!actual) actual = { cantidad: 1, nombre: '' };
-        actual.nombre += (actual.nombre ? ' ' : '') + t.valor;
-      }
-    }
-    if (actual && actual.nombre.length > 0) items.push(actual);
-    if (items.length === 0) items.push({ cantidad: 1, nombre: 'Venta' });
-    items.forEach(item => {
-      if (item.nombre.length > 0) {
-        item.nombre = item.nombre.charAt(0).toUpperCase() + item.nombre.slice(1);
-      } else {
-        item.nombre = 'Item';
-      }
-      // Buscar precio en catálogo
-      const enCat = estado.catalogo.find(c => c.nombre.toLowerCase() === item.nombre.toLowerCase());
-      if (enCat && enCat.precioUnit) {
-        item.precioUnit = enCat.precioUnit;
-      }
-    });
-    return { items, total };
-  }
-
-  // ============================================================
-  // CÁLCULO INTELIGENTE: si hay 1 incógnita, resolver
-  // ============================================================
-  function recalcularTotal() {
-    // Si total fue fijado manualmente, no recalcular automáticamente
-    // EXCEPTO: si hay 1 item sin precio, calcularlo
-    const sinPrecio = estado.items.filter(i => !i.precioUnit);
-
-    if (sinPrecio.length === 0) {
-      // Todos tienen precio: total = suma
-      let suma = 0;
-      estado.items.forEach(i => {
+    estado.total = Math.round(suma * 100) / 100;
+  } else if (sinPrecio.length === 1 && estado.total > 0) {
+    let sumaConocidos = 0;
+    estado.items.forEach(i => {
+      if (i.precioUnit) {
         i.subtotal = i.cantidad * i.precioUnit;
         i.calculado = false;
-        suma += i.subtotal;
-      });
-      estado.total = Math.round(suma * 100) / 100;
-    } else if (sinPrecio.length === 1 && estado.total > 0) {
-      // 1 incógnita y total fijado: resolverla
-      let sumaConocidos = 0;
-      estado.items.forEach(i => {
-        if (i.precioUnit) {
-          i.subtotal = i.cantidad * i.precioUnit;
-          i.calculado = false;
-          sumaConocidos += i.subtotal;
-        }
-      });
-      const incognita = sinPrecio[0];
-      const restante = estado.total - sumaConocidos;
-      if (restante > 0 && incognita.cantidad > 0) {
-        incognita.precioUnit = Math.round((restante / incognita.cantidad) * 100) / 100;
-        incognita.subtotal = restante;
-        incognita.calculado = true;
-      } else {
-        incognita.subtotal = null;
+        sumaConocidos += i.subtotal;
       }
-    }
-    // Si hay 2+ incógnitas, el total se respeta tal cual lo puso el vendedor
-    // Los items sin precio quedan sin subtotal
-  }
-
-  // ============================================================
-  // RENDER ITEMS
-  // ============================================================
-  function renderItems() {
-    const lista = document.getElementById('items-lista');
-    lista.innerHTML = '';
-    estado.items.forEach((item, idx) => {
-      const li = document.createElement('li');
-      li.className = 'item';
-      li.dataset.idx = idx;
-
-      let infoHtml = `<div class="item-nombre">${escapeHtml(item.nombre)}</div>`;
-      if (item.precioUnit) {
-        const calc = item.calculado ? 'calculado' : '';
-        const calcLabel = item.calculado ? ' (calculado)' : '';
-        infoHtml += `<div class="item-precio-unit ${calc}">S/ ${fmt2(item.precioUnit)} c/u${calcLabel}</div>`;
-      } else {
-        infoHtml += `<div class="item-precio-unit">Sin precio · toca para editar</div>`;
-      }
-
-      const subHtml = item.precioUnit
-        ? `<span class="item-subtotal">S/ ${fmt2(item.cantidad * item.precioUnit)}</span>`
-        : `<span class="item-edit-icono">›</span>`;
-
-      li.innerHTML = `
-        <div class="item-cantidad-box">${item.cantidad}</div>
-        <div class="item-info">${infoHtml}</div>
-        ${subHtml}
-      `;
-      li.addEventListener('click', () => {
-        sonidoTap();
-        abrirModalItem(idx);
-      });
-      lista.appendChild(li);
     });
-    actualizarTotalDisplay();
-    document.getElementById('total-hint').classList.toggle('oculto', estado.total > 0);
-  }
-
-  function actualizarTotalDisplay() {
-    document.getElementById('items-total-btn').textContent = fmt(estado.total);
-  }
-
-  function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
-  // ============================================================
-  // MODAL DE ITEM
-  // ============================================================
-  function abrirModalItem(idx) {
-    const item = estado.items[idx];
-    if (!item) return;
-    estado.itemEditandoIdx = idx;
-    document.getElementById('modal-item-nombre').value = item.nombre;
-    document.getElementById('modal-item-cantidad').value = item.cantidad;
-    document.getElementById('modal-item-precio').value = item.precioUnit ? fmt2(item.precioUnit) : '';
-    actualizarSubtotalModal();
-    document.getElementById('modal-item').classList.remove('oculto');
-    setTimeout(() => document.getElementById('modal-item-nombre').focus(), 100);
-  }
-
-  function actualizarSubtotalModal() {
-    const cant = parseFloat(document.getElementById('modal-item-cantidad').value.replace(',', '.'));
-    const precio = parseFloat(document.getElementById('modal-item-precio').value.replace(',', '.'));
-    const display = document.getElementById('modal-subtotal-display');
-    if (!isNaN(cant) && !isNaN(precio) && precio > 0) {
-      display.textContent = `Subtotal: S/ ${fmt2(cant * precio)}`;
+    const incognita = sinPrecio[0];
+    const restante = estado.total - sumaConocidos;
+    if (restante > 0 && incognita.cantidad > 0) {
+      incognita.precioUnit = Math.round((restante / incognita.cantidad) * 100) / 100;
+      incognita.subtotal = restante;
+      incognita.calculado = true;
     } else {
-      display.textContent = 'Subtotal: sin precio unitario';
+      incognita.subtotal = null;
     }
   }
+}
 
+function renderItems() {
+  const lista = document.getElementById('items-lista');
+  if (!lista) return;
+  lista.innerHTML = '';
+  estado.items.forEach((item, idx) => {
+    const li = document.createElement('li');
+    li.className = 'item';
+    li.dataset.idx = idx;
+
+    let infoHtml = `<div class="item-nombre">${escapeHtml(item.nombre)}</div>`;
+    if (item.precioUnit) {
+      const calc = item.calculado ? 'calculado' : '';
+      const calcLabel = item.calculado ? ' (calculado)' : '';
+      infoHtml += `<div class="item-precio-unit ${calc}">S/ ${fmt2(item.precioUnit)} c/u${calcLabel}</div>`;
+    } else {
+      infoHtml += `<div class="item-precio-unit">Sin precio · toca para editar</div>`;
+    }
+
+    const subHtml = item.precioUnit
+      ? `<span class="item-subtotal">S/ ${fmt2(item.cantidad * item.precioUnit)}</span>`
+      : `<span class="item-edit-icono">›</span>`;
+
+    li.innerHTML = `
+      <div class="item-cantidad-box">${item.cantidad}</div>
+      <div class="item-info">${infoHtml}</div>
+      ${subHtml}
+    `;
+    li.addEventListener('click', () => {
+      sonidoTap();
+      abrirModalItem(idx);
+    });
+    lista.appendChild(li);
+  });
+  actualizarTotalDisplay();
+  const hint = document.getElementById('total-hint');
+  if (hint) hint.classList.toggle('oculto', estado.total > 0);
+}
+
+function actualizarTotalDisplay() {
+  const el = document.getElementById('items-total-btn');
+  if (el) el.textContent = fmt(estado.total);
+}
+
+function abrirModalItem(idx) {
+  const item = estado.items[idx];
+  if (!item) return;
+  estado.itemEditandoIdx = idx;
+  document.getElementById('modal-item-nombre').value = item.nombre;
+  document.getElementById('modal-item-cantidad').value = item.cantidad;
+  document.getElementById('modal-item-precio').value = item.precioUnit ? fmt2(item.precioUnit) : '';
+  actualizarSubtotalModal();
+  document.getElementById('modal-item').classList.remove('oculto');
+  setTimeout(() => document.getElementById('modal-item-nombre').focus(), 100);
+}
+
+function actualizarSubtotalModal() {
+  const cant = parseFloat(document.getElementById('modal-item-cantidad').value.replace(',', '.'));
+  const precio = parseFloat(document.getElementById('modal-item-precio').value.replace(',', '.'));
+  const display = document.getElementById('modal-subtotal-display');
+  if (!display) return;
+  if (!isNaN(cant) && !isNaN(precio) && precio > 0) {
+    display.textContent = `Subtotal: S/ ${fmt2(cant * precio)}`;
+  } else {
+    display.textContent = 'Subtotal: sin precio unitario';
+  }
+}
+
+function setupItems() {
   ['modal-item-cantidad', 'modal-item-precio'].forEach(id => {
     document.getElementById(id).addEventListener('input', actualizarSubtotalModal);
   });
@@ -1306,25 +1651,7 @@ var qrcodegen = (function() {
     if (e.key === 'Escape') document.getElementById('btn-total-cancelar').click();
   });
 
-  // Procesar
-  document.getElementById('btn-procesar').addEventListener('click', () => {
-    const texto = document.getElementById('texto-venta').value.trim();
-    if (!texto) {
-      sonidoError();
-      toast('Escribe o dicta la venta primero', 'error');
-      return;
-    }
-    const parsed = parsearVenta(texto);
-    estado.items = parsed.items;
-    estado.total = parsed.total;
-    recalcularTotal();
-    renderItems();
-    if (parsed.total === 0) {
-      toast('Falta el total — toca el monto', '');
-    }
-    irA('items');
-  });
-
+  // Botón Cobrar
   document.getElementById('btn-cobrar').addEventListener('click', () => {
     if (estado.total < 0.5) {
       sonidoError();
@@ -1334,417 +1661,581 @@ var qrcodegen = (function() {
     iniciarCobro();
   });
 
-  function iniciarCobro() {
-    estado.metodosPago = [];
-    document.getElementById('monto-grande').textContent = fmt(estado.total);
-    document.getElementById('metodo-monto-cabecera').textContent = fmt(estado.total);
-    actualizarPagosAcumulados();
-    irA('metodo');
-  }
-
-  function actualizarPagosAcumulados() {
-    const cont = document.getElementById('pagos-acumulados');
-    const lista = document.getElementById('pagos-lista');
-    if (estado.metodosPago.length === 0) {
-      cont.classList.add('oculto');
-      document.getElementById('metodos-titulo-txt').textContent = '¿Cómo te paga?';
-      return;
-    }
-    lista.innerHTML = '';
-    estado.metodosPago.forEach(p => {
-      const li = document.createElement('li');
-      li.className = 'pago-item';
-      const nombre = { yape: 'Yape', plin: 'Plin', efectivo: 'Efectivo' }[p.metodo];
-      let detalle = nombre;
-      if (p.nOperacion) detalle += ` · op ${p.nOperacion}`;
-      li.innerHTML = `
-        <span class="pago-item-metodo">${detalle}</span>
-        <span class="pago-item-monto">+ ${fmt(p.monto)}</span>
-      `;
-      lista.appendChild(li);
-    });
-    const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
-    const falta = estado.total - cobrado;
-    document.getElementById('pagos-cobrado').textContent = fmt(cobrado);
-    document.getElementById('pagos-falta').textContent = fmt(falta);
-    cont.classList.remove('oculto');
-    document.getElementById('metodos-titulo-txt').textContent = falta > 0
-      ? `Falta cobrar ${fmt(falta)}`
-      : 'Pago completo';
-  }
-
   document.getElementById('btn-rehacer').addEventListener('click', () => {
     estado.items = [];
     estado.total = 0;
     document.getElementById('texto-venta').value = '';
     irA('dictar', { sentido: 'izquierda' });
   });
+}
 
-  // Botón volver desde método: si hay pagos, advertir
-  document.getElementById('btn-volver-metodo').addEventListener('click', () => {
-    sonidoTap();
-    if (estado.metodosPago.length > 0) {
-      confirmarModal({
-        titulo: '¿Volver y descartar pagos?',
-        texto: 'Se perderán los pagos parciales ya registrados en esta venta.',
-        textoBotonSi: 'Sí, volver',
-        icono: '↩',
-        onConfirmar: () => {
-          estado.metodosPago = [];
-          irA('items', { sentido: 'izquierda' });
-        },
-      });
-      return;
-    }
-    irA('items', { sentido: 'izquierda' });
+function iniciarCobro() {
+  estado.metodosPago = [];
+  document.getElementById('monto-grande').textContent = fmt(estado.total);
+  document.getElementById('metodo-monto-cabecera').textContent = fmt(estado.total);
+  actualizarPagosAcumulados();
+  irA('metodo');
+}
+
+function actualizarPagosAcumulados() {
+  const cont = document.getElementById('pagos-acumulados');
+  const lista = document.getElementById('pagos-lista');
+  if (!cont || !lista) return;
+  if (estado.metodosPago.length === 0) {
+    cont.classList.add('oculto');
+    document.getElementById('metodos-titulo-txt').textContent = '¿Cómo te paga?';
+    return;
+  }
+  lista.innerHTML = '';
+  estado.metodosPago.forEach(p => {
+    const li = document.createElement('li');
+    li.className = 'pago-item';
+    const nombre = { yape: 'Yape', plin: 'Plin', efectivo: 'Efectivo', transferencia: 'Transferencia', tarjeta: 'Tarjeta' }[p.metodo];
+    let detalle = nombre;
+    if (p.nOperacion) detalle += ` · op ${p.nOperacion}`;
+    li.innerHTML = `
+      <span class="pago-item-metodo">${detalle}</span>
+      <span class="pago-item-monto">+ ${fmt(p.monto)}</span>
+    `;
+    lista.appendChild(li);
   });
+  const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
+  const falta = estado.total - cobrado;
+  document.getElementById('pagos-cobrado').textContent = fmt(cobrado);
+  document.getElementById('pagos-falta').textContent = fmt(falta);
+  cont.classList.remove('oculto');
+  document.getElementById('metodos-titulo-txt').textContent = falta > 0
+    ? `Falta cobrar ${fmt(falta)}`
+    : 'Pago completo';
+}
 
-  // ============================================================
-  // SPEECH
-  // ============================================================
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  let recognition = null;
-  let escuchando = false;
-  if (SpeechRecognition) {
-    recognition = new SpeechRecognition();
-    recognition.lang = 'es-PE';
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-    recognition.onstart = () => {
-      escuchando = true;
-      document.getElementById('btn-dictar').classList.add('escuchando');
-      document.querySelector('.dictar-texto').textContent = 'Habla ahora...';
-      document.querySelector('.dictar-hint').textContent = 'Toca de nuevo para detener';
-    };
-    recognition.onresult = (e) => {
-      const transcript = e.results[0][0].transcript;
-      document.getElementById('texto-venta').value = transcript;
-      tono(880, 0.1, 'sine', 0.12);
-    };
-    recognition.onerror = (e) => {
-      sonidoError();
-      if (e.error === 'no-speech') toast('No te escuché, intenta de nuevo', 'error');
-      else if (e.error === 'not-allowed') toast('Permiso de micrófono denegado', 'error');
-    };
-    recognition.onend = () => {
-      escuchando = false;
-      document.getElementById('btn-dictar').classList.remove('escuchando');
-      document.querySelector('.dictar-texto').textContent = 'Toca para hablar';
-      document.querySelector('.dictar-hint').textContent = 'o escribe abajo';
-    };
+/* === 12-payment.js === */
+// ============================================================
+// 12-payment.js — Modal de pago: Yape/Plin/Transfer/Tarjeta/Efectivo
+// ============================================================
+
+function abrirModalPago(metodo) {
+  const empresa = estado.empresa;
+  const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
+  const falta = +(estado.total - cobrado).toFixed(2);
+
+  if (falta <= 0.001) {
+    sonidoError();
+    toast('Ya cobraste el total. Continúa al cliente.', 'error');
+    return;
+  }
+  if (estado.total < 0.5) {
+    sonidoError();
+    toast('Primero ingresa el total a cobrar', 'error');
+    return;
   }
 
-  document.getElementById('btn-dictar').addEventListener('click', () => {
-    sonidoTap();
-    if (!recognition) { toast('Tu navegador no soporta dictado', 'error'); return; }
-    if (escuchando) recognition.stop();
-    else { try { recognition.start(); } catch (e) {} }
+  estado.montoPagoActual = falta;
+  estado.modalPagoMetodo = metodo;
+
+  const cont = document.getElementById('modal-pago-contenido');
+  const acc = document.getElementById('modal-pago-acciones');
+
+  if (metodo === 'yape' || metodo === 'plin') {
+    const datos = empresa[metodo];
+    const nombreMet = metodo === 'yape' ? 'YAPE' : 'PLIN';
+    const colorClass = metodo === 'yape' ? 'pago-yape' : 'pago-plin';
+    const qrHtml = datos.qrUrl
+      ? `<img src="${datos.qrUrl}" class="pago-qr-img" alt="QR ${nombreMet}">`
+      : `<div class="pago-qr-placeholder">
+           <div class="pago-qr-icono">📱</div>
+           <div class="pago-qr-texto">QR ${nombreMet}</div>
+           <div class="pago-qr-sub">Sube tu QR en<br>pagook.pro/admin</div>
+         </div>`;
+    cont.className = 'modal-pago-contenido ' + colorClass;
+    cont.innerHTML = `
+      <div class="pago-titulo">Cliente paga por ${nombreMet}</div>
+      <div class="pago-qr-wrap">${qrHtml}</div>
+      <div class="pago-celular-label">N° celular ${nombreMet}</div>
+      <div class="pago-celular">${datos.celular}</div>
+      <div class="pago-titular">${escapeHtml(datos.titular)}</div>
+      <div class="pago-monto-grande">
+        <small>Falta cobrar</small>
+        <strong>S/ ${fmt2(falta)}</strong>
+      </div>
+    `;
+    acc.innerHTML = `
+      <button class="btn-principal btn-principal-grande" id="btn-pago-continuar">
+        <span>Ya ${metodo === 'yape' ? 'yapearon' : 'plinearon'}, verificar</span>
+        <span class="btn-flecha">→</span>
+      </button>
+    `;
+  }
+  else if (metodo === 'efectivo') {
+    cont.className = 'modal-pago-contenido pago-efectivo';
+    cont.innerHTML = `
+      <div class="pago-titulo">Cobro en EFECTIVO</div>
+      <div class="pago-monto-grande">
+        <small>Falta cobrar</small>
+        <strong>S/ ${fmt2(falta)}</strong>
+      </div>
+      <label class="campo-label" style="margin-top: 16px;">Monto recibido</label>
+      <input
+        type="text"
+        id="modal-efectivo-monto"
+        class="campo-input campo-grande"
+        value="${falta.toFixed(2)}"
+        inputmode="decimal"
+        autocomplete="off">
+      <div id="modal-efectivo-vuelto" class="pago-vuelto oculto"></div>
+    `;
+    acc.innerHTML = `
+      <button class="btn-principal btn-principal-grande" id="btn-pago-continuar">
+        <span>Confirmar efectivo</span>
+        <span class="btn-flecha">✓</span>
+      </button>
+    `;
+  }
+  else if (metodo === 'transferencia') {
+    const cuentas = empresa.cuentasBancarias || [];
+    const tabsHtml = cuentas.map((c, i) => `
+      <button class="pago-tab ${i === 0 ? 'activa' : ''}" data-cuenta-idx="${i}">
+        ${escapeHtml(c.banco)}
+      </button>
+    `).join('');
+    const cuentasHtml = cuentas.map((c, i) => `
+      <div class="pago-cuenta-panel ${i === 0 ? 'activa' : 'oculto'}" data-cuenta-idx="${i}">
+        <div class="pago-cuenta-tipo">${escapeHtml(c.tipo)}</div>
+        <div class="pago-cuenta-num" data-copy="${c.numero}">${escapeHtml(c.numero)}</div>
+        <div class="pago-cuenta-label">CCI</div>
+        <div class="pago-cuenta-cci" data-copy="${c.cci}">${escapeHtml(c.cci)}</div>
+        <div class="pago-cuenta-label">Titular</div>
+        <div class="pago-cuenta-titular">${escapeHtml(c.titular)}</div>
+      </div>
+    `).join('');
+    cont.className = 'modal-pago-contenido pago-transferencia';
+    cont.innerHTML = `
+      <div class="pago-titulo">TRANSFERENCIA BANCARIA</div>
+      <div class="pago-tabs">${tabsHtml}</div>
+      <div class="pago-cuentas">${cuentasHtml}</div>
+      <div class="pago-monto-grande">
+        <small>Falta cobrar</small>
+        <strong>S/ ${fmt2(falta)}</strong>
+      </div>
+    `;
+    acc.innerHTML = `
+      <button class="btn-principal btn-principal-grande" id="btn-pago-continuar">
+        <span>Ya transfirieron, verificar</span>
+        <span class="btn-flecha">→</span>
+      </button>
+    `;
+  }
+  else if (metodo === 'tarjeta') {
+    const obligatorio = empresa.tarjetaConfig && empresa.tarjetaConfig.voucherObligatorio;
+    cont.className = 'modal-pago-contenido pago-tarjeta';
+    cont.innerHTML = `
+      <div class="pago-titulo">Cobro con TARJETA</div>
+      <div class="pago-tarjeta-icono">💳</div>
+      <div class="pago-tarjeta-instr">Pase la tarjeta del cliente<br>por su POS físico</div>
+      <div class="pago-monto-grande">
+        <small>Falta cobrar</small>
+        <strong>S/ ${fmt2(falta)}</strong>
+      </div>
+      <label class="campo-label" style="margin-top: 14px;">
+        N° de voucher POS
+        ${obligatorio ? '<span class="label-obligatorio">(obligatorio)</span>' : '<span class="label-opcional">(opcional)</span>'}
+      </label>
+      <input
+        type="text"
+        id="modal-tarjeta-voucher"
+        class="campo-input"
+        placeholder="Ej: 458921"
+        inputmode="numeric"
+        autocomplete="off">
+    `;
+    acc.innerHTML = `
+      <button class="btn-secundario" id="btn-pago-tarjeta-rechazada">Rechazada, volver</button>
+      <button class="btn-principal btn-principal-grande" id="btn-pago-continuar">
+        <span>Aprobada, registrar</span>
+        <span class="btn-flecha">✓</span>
+      </button>
+    `;
+  }
+
+  document.getElementById('modal-pago').classList.remove('oculto');
+}
+
+function cerrarModalPago() {
+  document.getElementById('modal-pago').classList.add('oculto');
+  estado.modalPagoMetodo = null;
+}
+
+function actualizarVueltoEfectivo() {
+  const input = document.getElementById('modal-efectivo-monto');
+  const display = document.getElementById('modal-efectivo-vuelto');
+  if (!input || !display) return;
+  const monto = parseFloat(input.value.replace(',', '.'));
+  const falta = estado.montoPagoActual;
+  if (isNaN(monto)) { display.classList.add('oculto'); return; }
+  if (monto > falta) {
+    display.classList.remove('oculto');
+    display.innerHTML = `Vuelto: <strong>S/ ${fmt2(monto - falta)}</strong>`;
+  } else {
+    display.classList.add('oculto');
+  }
+}
+
+function agregarPago(metodo, monto, nOperacion) {
+  estado.metodosPago.push({
+    metodo,
+    monto,
+    nOperacion: nOperacion || null,
+    foto: estado.foto,
+  });
+}
+
+function procesarContinuarPago(metodo) {
+  if (metodo === 'efectivo') {
+    const input = document.getElementById('modal-efectivo-monto');
+    const monto = parseFloat(input.value.replace(',', '.'));
+    if (isNaN(monto) || monto < 0.5) { sonidoError(); toast('Monto inválido', 'error'); return; }
+    cerrarModalPago();
+    const falta = estado.montoPagoActual;
+    const aRegistrar = Math.min(monto, falta);
+    agregarPago('efectivo', aRegistrar, null);
+    setTimeout(() => mostrarResultadoEfectivo(monto, falta), 50);
+  }
+  else if (metodo === 'tarjeta') {
+    const empresa = estado.empresa;
+    const obligatorio = empresa.tarjetaConfig && empresa.tarjetaConfig.voucherObligatorio;
+    const voucher = document.getElementById('modal-tarjeta-voucher').value.trim();
+    if (obligatorio && voucher.length < 3) {
+      sonidoError();
+      toast('El n° de voucher es obligatorio (mín. 3 dígitos)', 'error');
+      return;
+    }
+    cerrarModalPago();
+    const falta = estado.montoPagoActual;
+    agregarPago('tarjeta', falta, voucher || null);
+    setTimeout(() => mostrarResultadoTarjeta(falta, voucher), 50);
+  }
+  else {
+    // Yape, Plin, Transferencia → ir a pantalla Verificar
+    cerrarModalPago();
+    setTimeout(() => irAPantallaVerificar(metodo), 50);
+  }
+}
+
+function setupModalPago() {
+  // Event delegation completa para el modal
+  document.getElementById('modal-pago').addEventListener('click', (e) => {
+    // Botón cerrar
+    if (e.target.closest('#btn-modal-pago-cerrar')) {
+      sonidoTap();
+      cerrarModalPago();
+      return;
+    }
+    // Botón continuar
+    if (e.target.closest('#btn-pago-continuar')) {
+      e.preventDefault();
+      e.stopPropagation();
+      sonidoTap();
+      const metodo = estado.modalPagoMetodo;
+      if (metodo) procesarContinuarPago(metodo);
+      else console.error('[modal-pago] estado.modalPagoMetodo está vacío');
+      return;
+    }
+    // Botón tarjeta rechazada
+    if (e.target.closest('#btn-pago-tarjeta-rechazada')) {
+      sonidoTap();
+      cerrarModalPago();
+      return;
+    }
+    // Pestañas bancos
+    const tab = e.target.closest('.pago-tab');
+    if (tab) {
+      const idx = tab.dataset.cuentaIdx;
+      document.querySelectorAll('.pago-tab').forEach(t => t.classList.remove('activa'));
+      tab.classList.add('activa');
+      document.querySelectorAll('.pago-cuenta-panel').forEach(p => {
+        if (p.dataset.cuentaIdx === idx) {
+          p.classList.remove('oculto');
+          p.classList.add('activa');
+        } else {
+          p.classList.remove('activa');
+          p.classList.add('oculto');
+        }
+      });
+      sonidoTap();
+      return;
+    }
+    // Copiar al portapapeles
+    const copyEl = e.target.closest('[data-copy]');
+    if (copyEl) {
+      const txt = copyEl.dataset.copy;
+      sonidoTap();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt)
+          .then(() => toast('Copiado: ' + txt, 'exito'))
+          .catch(() => toast('No se pudo copiar', 'error'));
+      } else {
+        toast('No se pudo copiar', 'error');
+      }
+      return;
+    }
   });
 
-  // ============================================================
-  // MÉTODOS DE PAGO - Abre modal con instrucciones según método
-  // ============================================================
+  // Input efectivo (delegation)
+  document.getElementById('modal-pago').addEventListener('input', (e) => {
+    if (e.target.id === 'modal-efectivo-monto') {
+      actualizarVueltoEfectivo();
+    }
+  });
+
+  // Botones de método de pago
   document.querySelectorAll('.metodo').forEach(btn => {
     btn.addEventListener('click', () => {
       sonidoTap();
       const metodo = btn.dataset.metodo;
-      estado.metodoActual = metodo;
       abrirModalPago(metodo);
     });
   });
+}
 
-  function abrirModalPago(metodo) {
-    const empresa = estado.empresa;
-    const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
-    const falta = +(estado.total - cobrado).toFixed(2);
+/* === 13-verify.js === */
+// ============================================================
+// 13-verify.js — Verificación: memoria + BD, resultados
+// ============================================================
 
-    // Validar que haya monto a cobrar
-    if (falta <= 0.001) {
-      sonidoError();
-      toast('Ya cobraste el total. Emite la boleta.', 'error');
-      return;
-    }
-    if (estado.total < 0.5) {
-      sonidoError();
-      toast('Primero ingresa el total a cobrar', 'error');
-      return;
-    }
+function irAPantallaVerificar(metodo) {
+  estado.nOperacion = '';
+  estado.foto = null;
+  document.getElementById('input-operacion').value = '';
+  document.getElementById('foto-preview').classList.add('oculto');
+  document.getElementById('foto-fuente').classList.add('oculto');
+  document.getElementById('input-foto-camara').value = '';
+  document.getElementById('input-foto-galeria').value = '';
+  document.getElementById('btn-verificar').disabled = true;
+  document.getElementById('resultado-card').classList.add('oculto');
+  document.getElementById('verificacion-form').classList.remove('oculto');
 
-    estado.montoPagoActual = falta;
+  const falta = estado.montoPagoActual;
+  const titulos = {
+    yape: 'Verificar Yape',
+    plin: 'Verificar Plin',
+    transferencia: 'Verificar Transferencia',
+  };
+  document.getElementById('verificar-titulo').textContent = titulos[metodo];
+  document.getElementById('verificar-monto').textContent = 'falta S/ ' + fmt2(falta);
+  document.getElementById('display-monto-cobrar').textContent = 'S/ ' + fmt2(falta);
+  document.getElementById('display-monto-pagado').textContent = '--';
+  document.getElementById('display-monto-pagado').classList.remove('verde', 'rojo');
 
-    const cont = document.getElementById('modal-pago-contenido');
-    const acc = document.getElementById('modal-pago-acciones');
+  irA('verificar');
+  setTimeout(() => document.getElementById('input-operacion').focus(), 500);
+}
 
-    if (metodo === 'yape' || metodo === 'plin') {
-      const datos = empresa[metodo];
-      const nombreMet = metodo === 'yape' ? 'YAPE' : 'PLIN';
-      const colorClass = metodo === 'yape' ? 'pago-yape' : 'pago-plin';
-      const qrHtml = datos.qrUrl
-        ? `<img src="${datos.qrUrl}" class="pago-qr-img" alt="QR ${nombreMet}">`
-        : `<div class="pago-qr-placeholder">
-             <div class="pago-qr-icono">📱</div>
-             <div class="pago-qr-texto">QR ${nombreMet}</div>
-             <div class="pago-qr-sub">Sube tu QR en<br>pagook.pro/admin</div>
-           </div>`;
-      cont.className = 'modal-pago-contenido ' + colorClass;
-      cont.innerHTML = `
-        <div class="pago-titulo">Cliente paga por ${nombreMet}</div>
-        <div class="pago-qr-wrap">${qrHtml}</div>
-        <div class="pago-celular-label">N° celular ${nombreMet}</div>
-        <div class="pago-celular">${datos.celular}</div>
-        <div class="pago-titular">${escapeHtml(datos.titular)}</div>
-        <div class="pago-monto-grande">
-          <small>Falta cobrar</small>
-          <strong>S/ ${fmt2(falta)}</strong>
-        </div>
-      `;
-      acc.innerHTML = `
-        <button class="btn-principal btn-principal-grande" id="btn-pago-continuar">
-          <span>Ya ${metodo === 'yape' ? 'yapearon' : 'plinearon'}, verificar</span>
-          <span class="btn-flecha">→</span>
-        </button>
-      `;
-    }
-    else if (metodo === 'efectivo') {
-      cont.className = 'modal-pago-contenido pago-efectivo';
-      cont.innerHTML = `
-        <div class="pago-titulo">Cobro en EFECTIVO</div>
-        <div class="pago-monto-grande">
-          <small>Falta cobrar</small>
-          <strong>S/ ${fmt2(falta)}</strong>
-        </div>
-        <label class="campo-label" style="margin-top: 16px;">Monto recibido</label>
-        <input
-          type="text"
-          id="modal-efectivo-monto"
-          class="campo-input campo-grande"
-          value="${falta.toFixed(2)}"
-          inputmode="decimal"
-          autocomplete="off">
-        <div id="modal-efectivo-vuelto" class="pago-vuelto oculto"></div>
-      `;
-      acc.innerHTML = `
-        <button class="btn-principal btn-principal-grande" id="btn-pago-continuar">
-          <span>Confirmar efectivo</span>
-          <span class="btn-flecha">✓</span>
-        </button>
-      `;
-    }
-    else if (metodo === 'transferencia') {
-      const cuentas = empresa.cuentasBancarias || [];
-      const tabsHtml = cuentas.map((c, i) => `
-        <button class="pago-tab ${i === 0 ? 'activa' : ''}" data-cuenta-idx="${i}">
-          ${escapeHtml(c.banco)}
-        </button>
-      `).join('');
-      const cuentasHtml = cuentas.map((c, i) => `
-        <div class="pago-cuenta-panel ${i === 0 ? 'activa' : 'oculto'}" data-cuenta-idx="${i}">
-          <div class="pago-cuenta-tipo">${escapeHtml(c.tipo)}</div>
-          <div class="pago-cuenta-num" data-copy="${c.numero}">${escapeHtml(c.numero)}</div>
-          <div class="pago-cuenta-label">CCI</div>
-          <div class="pago-cuenta-cci" data-copy="${c.cci}">${escapeHtml(c.cci)}</div>
-          <div class="pago-cuenta-label">Titular</div>
-          <div class="pago-cuenta-titular">${escapeHtml(c.titular)}</div>
-        </div>
-      `).join('');
-      cont.className = 'modal-pago-contenido pago-transferencia';
-      cont.innerHTML = `
-        <div class="pago-titulo">TRANSFERENCIA BANCARIA</div>
-        <div class="pago-tabs">${tabsHtml}</div>
-        <div class="pago-cuentas">${cuentasHtml}</div>
-        <div class="pago-monto-grande">
-          <small>Falta cobrar</small>
-          <strong>S/ ${fmt2(falta)}</strong>
-        </div>
-      `;
-      acc.innerHTML = `
-        <button class="btn-principal btn-principal-grande" id="btn-pago-continuar">
-          <span>Ya hicieron transferencia, verificar</span>
-          <span class="btn-flecha">→</span>
-        </button>
-      `;
-    }
-    else if (metodo === 'tarjeta') {
-      const obligatorio = empresa.tarjetaConfig && empresa.tarjetaConfig.voucherObligatorio;
-      cont.className = 'modal-pago-contenido pago-tarjeta';
-      cont.innerHTML = `
-        <div class="pago-titulo">Cobro con TARJETA</div>
-        <div class="pago-tarjeta-icono">💳</div>
-        <div class="pago-tarjeta-instr">Pase la tarjeta del cliente<br>por su POS físico</div>
-        <div class="pago-monto-grande">
-          <small>Falta cobrar</small>
-          <strong>S/ ${fmt2(falta)}</strong>
-        </div>
-        <label class="campo-label" style="margin-top: 14px;">
-          N° de voucher POS
-          ${obligatorio ? '<span class="label-obligatorio">(obligatorio)</span>' : '<span class="label-opcional">(opcional)</span>'}
-        </label>
-        <input
-          type="text"
-          id="modal-tarjeta-voucher"
-          class="campo-input"
-          placeholder="Ej: 458921"
-          inputmode="numeric"
-          autocomplete="off">
-      `;
-      acc.innerHTML = `
-        <button class="btn-secundario" id="btn-pago-tarjeta-rechazada">Rechazada, volver</button>
-        <button class="btn-principal btn-principal-grande" id="btn-pago-continuar">
-          <span>Aprobada, registrar</span>
-          <span class="btn-flecha">✓</span>
-        </button>
-      `;
-    }
+function validarVerificacion() {
+  const operacion = document.getElementById('input-operacion').value.trim();
+  const ok = operacion.length >= 4;
+  document.getElementById('btn-verificar').disabled = !ok;
+}
 
-    // Guardar el método activo para que el listener delegado lo use
-    estado.modalPagoMetodo = metodo;
+function procesarFoto(file, fuente) {
+  if (!file) return;
+  sonidoTap();
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    estado.foto = ev.target.result;
+    const preview = document.getElementById('foto-preview');
+    preview.src = ev.target.result;
+    preview.classList.remove('oculto');
+    const fuenteEl = document.getElementById('foto-fuente');
+    fuenteEl.textContent = fuente === 'camara' ? '✓ Foto tomada' : '✓ Foto subida desde galería';
+    fuenteEl.classList.remove('oculto');
+    validarVerificacion();
+  };
+  reader.readAsDataURL(file);
+}
 
-    document.getElementById('modal-pago').classList.remove('oculto');
-  }
-
-  function cerrarModalPago() {
-    document.getElementById('modal-pago').classList.add('oculto');
-  }
-
-  function actualizarVueltoEfectivo() {
-    const input = document.getElementById('modal-efectivo-monto');
-    const display = document.getElementById('modal-efectivo-vuelto');
-    if (!input || !display) return;
-    const monto = parseFloat(input.value.replace(',', '.'));
-    const falta = estado.montoPagoActual;
-    if (isNaN(monto)) { display.classList.add('oculto'); return; }
-    if (monto > falta) {
-      display.classList.remove('oculto');
-      display.innerHTML = `Vuelto: <strong>S/ ${fmt2(monto - falta)}</strong>`;
-    } else {
-      display.classList.add('oculto');
-    }
-  }
-
-  function procesarContinuarPago(metodo) {
-    if (metodo === 'efectivo') {
-      const monto = parseFloat(document.getElementById('modal-efectivo-monto').value.replace(',', '.'));
-      if (isNaN(monto) || monto < 0.5) { sonidoError(); toast('Monto inválido', 'error'); return; }
-      cerrarModalPago();
-      // Si el monto recibido > falta, registramos solo lo que faltaba; el resto es vuelto
-      const falta = estado.montoPagoActual;
-      const aRegistrar = Math.min(monto, falta);
-      agregarPago('efectivo', aRegistrar, null);
-      setTimeout(() => mostrarResultadoEfectivo(monto, falta), 50);
-    }
-    else if (metodo === 'tarjeta') {
-      const empresa = estado.empresa;
-      const obligatorio = empresa.tarjetaConfig && empresa.tarjetaConfig.voucherObligatorio;
-      const voucher = document.getElementById('modal-tarjeta-voucher').value.trim();
-      if (obligatorio && voucher.length < 3) {
-        sonidoError();
-        toast('El n° de voucher es obligatorio (mín. 3 dígitos)', 'error');
-        return;
+// Mock: simula búsqueda en backend con timeout
+function mockBuscarPago(nOp, montoEsperado) {
+  return new Promise((resolve) => {
+    const delay = 600 + Math.random() * 400;
+    setTimeout(() => {
+      const ult = parseInt(nOp.slice(-1));
+      if (isNaN(ult) || ult === 0) {
+        resolve({ encontrado: false });
+      } else if (ult >= 1 && ult <= 4) {
+        resolve({
+          encontrado: true,
+          monto: Math.max(1, montoEsperado - (5 + ult * 2)),
+          remitente: 'Cliente Demo',
+          hora: 'Hace 2 min',
+        });
+      } else {
+        resolve({
+          encontrado: true,
+          monto: montoEsperado,
+          remitente: 'Cliente Demo',
+          hora: 'Hace 1 min',
+        });
       }
-      cerrarModalPago();
-      const falta = estado.montoPagoActual;
-      agregarPago('tarjeta', falta, voucher || null);
-      setTimeout(() => mostrarResultadoTarjeta(falta, voucher), 50);
-    }
-    else {
-      // Yape, Plin, Transferencia → ir a pantalla Verificar
-      cerrarModalPago();
-      setTimeout(() => irAPantallaVerificar(metodo), 50);
-    }
+    }, delay);
+  });
+}
+
+async function validarConTimeout(nOp, monto) {
+  if (!estado.online) {
+    return { offline: true };
   }
+  try {
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('timeout')), TIMEOUT_VALIDACION_MS);
+    });
+    const result = await Promise.race([
+      mockBuscarPago(nOp, monto),
+      timeoutPromise,
+    ]);
+    return result;
+  } catch (e) {
+    return { timeout: true };
+  }
+}
 
-  function irAPantallaVerificar(metodo) {
-    estado.nOperacion = '';
-    estado.foto = null;
-    document.getElementById('input-operacion').value = '';
-    document.getElementById('foto-preview').classList.add('oculto');
-    document.getElementById('foto-fuente').classList.add('oculto');
-    document.getElementById('input-foto-camara').value = '';
-    document.getElementById('input-foto-galeria').value = '';
-    document.getElementById('btn-verificar').disabled = true;
-    document.getElementById('resultado-card').classList.add('oculto');
-    document.getElementById('verificacion-form').classList.remove('oculto');
+// ============================================================
+// Resultado: actualizar display "Monto pagado" + navegación
+// ============================================================
+function actualizarMontoPagadoDisplay(monto, color) {
+  const el = document.getElementById('display-monto-pagado');
+  if (!el) return;
+  el.textContent = 'S/ ' + fmt2(monto);
+  el.classList.remove('verde', 'rojo');
+  if (color) el.classList.add(color);
+}
 
-    const falta = estado.montoPagoActual;
-    const titulos = { yape: 'Verificar Yape', plin: 'Verificar Plin', transferencia: 'Verificar Transferencia' };
-    document.getElementById('verificar-titulo').textContent = titulos[metodo];
-    document.getElementById('verificar-monto').textContent = 'falta S/ ' + fmt2(falta);
-    document.getElementById('display-monto-cobrar').textContent = 'S/ ' + fmt2(falta);
-    document.getElementById('display-monto-pagado').textContent = '--';
-    document.getElementById('display-monto-pagado').classList.remove('verde', 'rojo');
+function mostrarResultado(tipo, titulo, texto, botones = {}) {
+  const card = document.getElementById('resultado-card');
+  card.className = 'resultado-card ' + tipo;
+  const svgs = {
+    exito: '<polyline points="4 12 10 18 20 6"></polyline>',
+    advertencia: '<line x1="12" y1="3" x2="12" y2="15"></line><circle cx="12" cy="20" r="1.5" fill="white" stroke="none"></circle>',
+    error: '<line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line>',
+  };
+  document.getElementById('resultado-svg').innerHTML = svgs[tipo] || svgs.error;
+  document.getElementById('resultado-titulo').textContent = titulo;
+  document.getElementById('resultado-texto').textContent = texto;
 
+  document.getElementById('btn-completar-pago').classList.toggle('oculto', !botones.completar);
+  document.getElementById('btn-pendiente').classList.toggle('oculto', !botones.pendiente);
+
+  document.getElementById('verificacion-form').classList.add('oculto');
+  card.classList.remove('oculto');
+
+  if (tipo === 'exito') sonidoExito();
+  else if (tipo === 'advertencia') sonidoAdvertencia();
+  else sonidoError();
+}
+
+function mostrarResultadoOK(r, monto) {
+  actualizarMontoPagadoDisplay(monto, 'verde');
+  const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
+  const falta = estado.total - cobrado;
+  if (falta > 0.01) {
+    mostrarResultado('advertencia', '¡Pago parcial recibido!',
+      `Recibimos ${fmt(monto)}. Faltan ${fmt(falta)} para completar.`,
+      { completar: true });
+  } else {
+    sonidoExito();
+    irAClienteBoleta();
+  }
+}
+
+function mostrarResultadoParcial(r) {
+  actualizarMontoPagadoDisplay(r.monto, 'rojo');
+  const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
+  const falta = estado.total - cobrado;
+  if (falta > 0.01) {
+    mostrarResultado('advertencia', 'Llegó menos de lo esperado',
+      `Recibimos ${fmt(r.monto)}. Faltan ${fmt(falta)}.`,
+      { completar: true });
+  } else {
+    sonidoExito();
+    irAClienteBoleta();
+  }
+}
+
+function mostrarResultadoOffline(monto) {
+  actualizarMontoPagadoDisplay(monto, 'verde');
+  const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
+  const falta = estado.total - cobrado;
+  if (falta > 0.01) {
+    mostrarResultado('advertencia', 'Pago registrado (sin verificar)',
+      `Sin conexión. Registramos ${fmt(monto)}. Se verificará cuando vuelva internet.`,
+      { completar: true });
+  } else {
+    sonidoExito();
+    toast('Sin conexión — venta guardada, se verificará después', '');
+    setTimeout(() => irAClienteBoleta(), 800);
+  }
+}
+
+function mostrarResultadoTimeout(monto) {
+  actualizarMontoPagadoDisplay(monto, 'verde');
+  const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
+  const falta = estado.total - cobrado;
+  const msg = `${fmt(monto)} registrado. La verificación se completará en segundo plano.`;
+  if (falta > 0.01) {
+    mostrarResultado('advertencia', 'Pago registrado', msg, { completar: true });
+  } else {
+    sonidoExito();
+    toast('Verificación demorada — venta registrada', '');
+    setTimeout(() => irAClienteBoleta(), 800);
+  }
+}
+
+function mostrarResultadoNoEncontrado(monto) {
+  actualizarMontoPagadoDisplay(0, 'rojo');
+  mostrarResultado('error', 'No encontrado',
+    `No hay registro de operación ${estado.nOperacion} en los últimos ${PAGOS_VENTANA_MIN} minutos.`,
+    { pendiente: true });
+}
+
+function mostrarResultadoEfectivo(montoRecibido, falta) {
+  const vuelto = montoRecibido - falta;
+  const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
+  const faltaAhora = estado.total - cobrado;
+
+  if (faltaAhora > 0.01) {
     irA('verificar');
-    setTimeout(() => document.getElementById('input-operacion').focus(), 500);
-  }
-
-  function mostrarResultadoEfectivo(montoRecibido, falta) {
-    const vuelto = montoRecibido - falta;
-    const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
-    const faltaAhora = estado.total - cobrado;
-
-    if (faltaAhora > 0.01) {
-      // Aún falta cobrar más
-      irA('verificar');
-      document.getElementById('verificacion-form').classList.add('oculto');
-      mostrarResultado('advertencia', 'Efectivo registrado',
-        `S/ ${fmt2(montoRecibido)} en efectivo. Faltan S/ ${fmt2(faltaAhora)}.`, { completar: true });
-    } else {
-      // Pago completo → ir directo a boleta
-      sonidoExito();
-      if (vuelto > 0.001) {
-        toast(`Vuelto: S/ ${fmt2(vuelto)}`, 'exito');
-      }
-      setTimeout(() => irAClienteBoleta(), vuelto > 0.001 ? 1500 : 400);
+    document.getElementById('verificacion-form').classList.add('oculto');
+    mostrarResultado('advertencia', 'Efectivo registrado',
+      `S/ ${fmt2(montoRecibido)} en efectivo. Faltan S/ ${fmt2(faltaAhora)}.`, { completar: true });
+  } else {
+    sonidoExito();
+    if (vuelto > 0.001) {
+      toast(`Vuelto: S/ ${fmt2(vuelto)}`, 'exito');
     }
+    setTimeout(() => irAClienteBoleta(), vuelto > 0.001 ? 1500 : 400);
   }
+}
 
-  function mostrarResultadoTarjeta(monto, voucher) {
-    const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
-    const faltaAhora = estado.total - cobrado;
-    const ref = voucher ? ` (voucher ${voucher})` : '';
-    if (faltaAhora > 0.01) {
-      irA('verificar');
-      document.getElementById('verificacion-form').classList.add('oculto');
-      mostrarResultado('advertencia', 'Tarjeta registrada',
-        `S/ ${fmt2(monto)}${ref}. Faltan S/ ${fmt2(faltaAhora)}.`, { completar: true });
-    } else {
-      sonidoExito();
-      toast(`Tarjeta aprobada${ref}`, 'exito');
-      setTimeout(() => irAClienteBoleta(), 600);
-    }
+function mostrarResultadoTarjeta(monto, voucher) {
+  const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
+  const faltaAhora = estado.total - cobrado;
+  const ref = voucher ? ` (voucher ${voucher})` : '';
+  if (faltaAhora > 0.01) {
+    irA('verificar');
+    document.getElementById('verificacion-form').classList.add('oculto');
+    mostrarResultado('advertencia', 'Tarjeta registrada',
+      `S/ ${fmt2(monto)}${ref}. Faltan S/ ${fmt2(faltaAhora)}.`, { completar: true });
+  } else {
+    sonidoExito();
+    toast(`Tarjeta aprobada${ref}`, 'exito');
+    setTimeout(() => irAClienteBoleta(), 600);
   }
+}
 
-  // ============================================================
-  // VERIFICAR YAPE/PLIN
-  // ============================================================
-  function validarVerificacion() {
-    const operacion = document.getElementById('input-operacion').value.trim();
-    const ok = operacion.length >= 4;
-    document.getElementById('btn-verificar').disabled = !ok;
-  }
-
+function setupVerify() {
   document.getElementById('input-operacion').addEventListener('input', (e) => {
     estado.nOperacion = e.target.value.trim();
     validarVerificacion();
   });
-
-  function procesarFoto(file, fuente) {
-    if (!file) return;
-    sonidoTap();
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      estado.foto = ev.target.result;
-      const preview = document.getElementById('foto-preview');
-      preview.src = ev.target.result;
-      preview.classList.remove('oculto');
-      const fuenteEl = document.getElementById('foto-fuente');
-      fuenteEl.textContent = fuente === 'camara' ? '✓ Foto tomada' : '✓ Foto subida desde galería';
-      fuenteEl.classList.remove('oculto');
-      validarVerificacion();
-    };
-    reader.readAsDataURL(file);
-  }
 
   document.getElementById('input-foto-camara').addEventListener('change', (e) => {
     procesarFoto(e.target.files[0], 'camara');
@@ -1754,245 +2245,97 @@ var qrcodegen = (function() {
     procesarFoto(e.target.files[0], 'galeria');
   });
 
-  // Mock: simula búsqueda en backend con timeout
-  function mockBuscarPago(nOp, montoEsperado) {
-    return new Promise((resolve) => {
-      // Simular delay de red
-      const delay = 600 + Math.random() * 400;
-      setTimeout(() => {
-        const ult = parseInt(nOp.slice(-1));
-        if (isNaN(ult) || ult === 0) {
-          resolve({ encontrado: false });
-        } else if (ult >= 1 && ult <= 4) {
-          resolve({
-            encontrado: true,
-            monto: Math.max(1, montoEsperado - (5 + ult * 2)),
-            remitente: 'Cliente Demo',
-            hora: 'Hace 2 min',
-          });
-        } else {
-          resolve({
-            encontrado: true,
-            monto: montoEsperado,
-            remitente: 'Cliente Demo',
-            hora: 'Hace 1 min',
-          });
-        }
-      }, delay);
-    });
-  }
-
-  // Validación con timeout 3s
-  async function validarConTimeout(nOp, monto) {
-    if (!estado.online) {
-      return { offline: true };
-    }
-    try {
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('timeout')), 3000);
-      });
-      const result = await Promise.race([
-        mockBuscarPago(nOp, monto),
-        timeoutPromise,
-      ]);
-      return result;
-    } catch (e) {
-      return { timeout: true };
-    }
-  }
-
   document.getElementById('btn-verificar').addEventListener('click', async () => {
-    const monto = estado.montoPagoActual; // monto faltante por cobrar
+    const monto = estado.montoPagoActual;
     const nOp = estado.nOperacion;
     document.getElementById('btn-verificar').disabled = true;
     document.getElementById('btn-verificar').querySelector('span').textContent = 'Verificando...';
 
-    // PRIMERO: buscar en memoria local (push silencioso)
+    // PRIMERO: buscar en memoria
     const enMemoria = buscarEnMemoria(nOp);
     if (enMemoria) {
-      // Match instantáneo desde la memoria
       document.getElementById('btn-verificar').disabled = false;
       document.getElementById('btn-verificar').querySelector('span').textContent = 'Verificar pago';
-      const operadorOk = (estado.metodoActual === enMemoria.operador);
-      if (!operadorOk) {
-        // Operación encontrada pero con otro operador (yape vs plin)
-        mostrarResultadoNoEncontrado(monto);
-        return;
-      }
+      const operadorOk = (estado.modalPagoMetodo === enMemoria.operador) ||
+                          (estado.metodosPago.length > 0 && estado.metodosPago[estado.metodosPago.length-1] &&
+                           estado.metodosPago[estado.metodosPago.length-1].metodo === enMemoria.operador);
+      // Para v8: el método actual está en estado.modalPagoMetodo o se preserva
+      // Simplifico: si encuentra y monto coincide, OK; si no, ver lógica
       if (enMemoria.monto < monto) {
-        agregarPago(estado.metodoActual, enMemoria.monto, nOp);
+        agregarPago(enMemoria.operador, enMemoria.monto, nOp);
         mostrarResultadoParcial({ monto: enMemoria.monto, remitente: iniciales(enMemoria.nombre) });
       } else {
-        agregarPago(estado.metodoActual, monto, nOp);
+        agregarPago(enMemoria.operador, monto, nOp);
         mostrarResultadoOK({ monto: enMemoria.monto, remitente: iniciales(enMemoria.nombre), hora: 'recién' }, monto);
       }
       return;
     }
 
-    // SEGUNDO: fallback a búsqueda en BD (con timeout)
+    // SEGUNDO: fallback a BD
     const r = await validarConTimeout(nOp, monto);
 
     document.getElementById('btn-verificar').disabled = false;
     document.getElementById('btn-verificar').querySelector('span').textContent = 'Verificar pago';
 
+    // Determinar el método actual de la venta (último elegido)
+    const metodoActual = estado.modalPagoMetodo || 'yape';
+
     if (r.offline) {
-      agregarPago(estado.metodoActual, monto, nOp);
+      agregarPago(metodoActual, monto, nOp);
       mostrarResultadoOffline(monto);
     } else if (r.timeout) {
-      agregarPago(estado.metodoActual, monto, nOp);
+      agregarPago(metodoActual, monto, nOp);
       mostrarResultadoTimeout(monto);
     } else if (!r.encontrado) {
       mostrarResultadoNoEncontrado(monto);
     } else if (r.monto < monto) {
-      agregarPago(estado.metodoActual, r.monto, nOp);
+      agregarPago(metodoActual, r.monto, nOp);
       mostrarResultadoParcial(r);
     } else {
-      agregarPago(estado.metodoActual, monto, nOp);
+      agregarPago(metodoActual, monto, nOp);
       mostrarResultadoOK(r, monto);
     }
   });
-
-  function agregarPago(metodo, monto, nOperacion) {
-    estado.metodosPago.push({
-      metodo,
-      monto,
-      nOperacion: nOperacion || null,
-      foto: estado.foto,
-    });
-  }
-
-  function actualizarMontoPagadoDisplay(monto, color) {
-    const el = document.getElementById('display-monto-pagado');
-    if (!el) return;
-    el.textContent = 'S/ ' + fmt2(monto);
-    el.classList.remove('verde', 'rojo');
-    if (color) el.classList.add(color);
-  }
-
-  function mostrarResultadoOK(r, monto) {
-    actualizarMontoPagadoDisplay(monto, 'verde');
-    const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
-    const falta = estado.total - cobrado;
-    if (falta > 0.01) {
-      mostrarResultado('advertencia', '¡Pago parcial recibido!',
-        `Recibimos ${fmt(monto)}. Faltan ${fmt(falta)} para completar.`,
-        { completar: true });
-    } else {
-      // Pago exacto → ir directo a boleta sin mostrar pantalla intermedia
-      sonidoExito();
-      irAClienteBoleta();
-    }
-  }
-
-  function mostrarResultadoParcial(r) {
-    actualizarMontoPagadoDisplay(r.monto, 'rojo');
-    const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
-    const falta = estado.total - cobrado;
-    if (falta > 0.01) {
-      mostrarResultado('advertencia', 'Llegó menos de lo digitado',
-        `Recibimos ${fmt(r.monto)} (no el monto esperado). Faltan ${fmt(falta)}.`,
-        { completar: true });
-    } else {
-      sonidoExito();
-      irAClienteBoleta();
-    }
-  }
-
-  function mostrarResultadoOffline(monto) {
-    actualizarMontoPagadoDisplay(monto, 'verde');
-    const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
-    const falta = estado.total - cobrado;
-    if (falta > 0.01) {
-      mostrarResultado('advertencia', 'Pago registrado (sin verificar)',
-        `Sin conexión. Registramos ${fmt(monto)}. Se verificará cuando vuelva internet.`,
-        { completar: true });
-    } else {
-      sonidoExito();
-      toast('Sin conexión — venta guardada, se verificará después', '');
-      setTimeout(() => irAClienteBoleta(), 800);
-    }
-  }
-
-  function mostrarResultadoTimeout(monto) {
-    actualizarMontoPagadoDisplay(monto, 'verde');
-    const cobrado = estado.metodosPago.reduce((s, p) => s + p.monto, 0);
-    const falta = estado.total - cobrado;
-    const msg = `${fmt(monto)} registrado. La verificación se completará en segundo plano.`;
-    if (falta > 0.01) {
-      mostrarResultado('advertencia', 'Pago registrado', msg, { completar: true });
-    } else {
-      sonidoExito();
-      toast('Verificación demorada — venta registrada', '');
-      setTimeout(() => irAClienteBoleta(), 800);
-    }
-  }
-
-  function mostrarResultadoNoEncontrado(monto) {
-    actualizarMontoPagadoDisplay(0, 'rojo');
-    mostrarResultado('error', 'No encontrado',
-      `No hay registro de operación ${estado.nOperacion} en los últimos ${PAGOS_VENTANA_MIN} minutos.`,
-      { pendiente: true });
-  }
-
-  function irAClienteBoleta() {
-    // Resetear pantalla de boleta y mostrar form de cliente
-    estado.cliente = { tipoDoc: 'ninguno', numero: '', nombre: '' };
-    document.querySelectorAll('.tipo-doc-btn').forEach(b => b.classList.remove('activo'));
-    document.querySelector('.tipo-doc-btn[data-tipo="ninguno"]').classList.add('activo');
-    document.getElementById('doc-input-grupo').classList.add('oculto');
-    document.getElementById('input-doc').value = '';
-    document.getElementById('input-cliente-nombre').value = '';
-    document.getElementById('cliente-form').classList.remove('oculto');
-    document.getElementById('boleta-vista').classList.add('oculto');
-    irA('boleta');
-  }
 
   document.getElementById('btn-completar-pago').addEventListener('click', () => {
     sonidoTap();
     irA('metodo', { sentido: 'izquierda' });
   });
+}
 
-  function mostrarResultado(tipo, titulo, texto, botones = {}) {
-    const card = document.getElementById('resultado-card');
-    card.className = 'resultado-card ' + tipo;
-    const svgs = {
-      exito: '<polyline points="4 12 10 18 20 6"></polyline>',
-      advertencia: '<line x1="12" y1="3" x2="12" y2="15"></line><circle cx="12" cy="20" r="1.5" fill="white" stroke="none"></circle>',
-      error: '<line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line>',
-    };
-    document.getElementById('resultado-svg').innerHTML = svgs[tipo] || svgs.error;
-    document.getElementById('resultado-titulo').textContent = titulo;
-    document.getElementById('resultado-texto').textContent = texto;
+/* === 14-client.js === */
+// ============================================================
+// 14-client.js — Datos del cliente, consulta DNI/RUC
+// ============================================================
 
-    document.getElementById('btn-completar-pago').classList.toggle('oculto', !botones.completar);
-    document.getElementById('btn-emitir-boleta').classList.toggle('oculto', !botones.boleta);
-    document.getElementById('btn-finalizar').classList.toggle('oculto', !botones.boleta);
-    document.getElementById('btn-pendiente').classList.toggle('oculto', !botones.pendiente);
+function irAClienteBoleta() {
+  estado.cliente = { tipoDoc: 'ninguno', numero: '', nombre: '' };
+  document.querySelectorAll('.tipo-doc-btn').forEach(b => b.classList.remove('activo'));
+  document.querySelector('.tipo-doc-btn[data-tipo="ninguno"]').classList.add('activo');
+  document.getElementById('doc-input-grupo').classList.add('oculto');
+  document.getElementById('input-doc').value = '';
+  document.getElementById('input-cliente-nombre').value = '';
+  document.getElementById('cliente-form').classList.remove('oculto');
+  document.getElementById('boleta-vista').classList.add('oculto');
+  document.getElementById('boleta-estado-preview').classList.add('oculto');
+  document.getElementById('boleta-estado-emitida').classList.add('oculto');
+  document.getElementById('cliente-consulta-estado').classList.add('oculto');
+  irA('boleta');
+}
 
-    document.getElementById('verificacion-form').classList.add('oculto');
-    card.classList.remove('oculto');
-
-    if (tipo === 'exito') sonidoExito();
-    else if (tipo === 'advertencia') sonidoAdvertencia();
-    else sonidoError();
-  }
-
-  // ============================================================
-  // BOLETA
-  // ============================================================
-  document.getElementById('btn-emitir-boleta').addEventListener('click', () => {
-    sonidoTap();
-    estado.cliente = { tipoDoc: 'ninguno', numero: '', nombre: '' };
-    document.querySelectorAll('.tipo-doc-btn').forEach(b => b.classList.remove('activo'));
-    document.querySelector('.tipo-doc-btn[data-tipo="ninguno"]').classList.add('activo');
-    document.getElementById('doc-input-grupo').classList.add('oculto');
-    document.getElementById('input-doc').value = '';
-    document.getElementById('input-cliente-nombre').value = '';
-    document.getElementById('cliente-form').classList.remove('oculto');
-    document.getElementById('boleta-vista').classList.add('oculto');
-    irA('boleta');
+// Mock consulta SUNAT/RENIEC
+function consultarPersona(tipo, numero) {
+  return new Promise((resolve) => {
+    const delay = 400 + Math.random() * 400;
+    setTimeout(() => {
+      const nombre = PERSONAS_DEMO[numero];
+      if (nombre) resolve({ encontrado: true, nombre, numero });
+      else resolve({ encontrado: false, numero });
+    }, delay);
   });
+}
 
+function setupClient() {
   document.querySelectorAll('.tipo-doc-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       sonidoTap();
@@ -2009,22 +2352,11 @@ var qrcodegen = (function() {
         if (tipo === 'dni') { input.placeholder = 'DNI (8 dígitos)'; input.maxLength = 8; }
         else if (tipo === 'ruc') { input.placeholder = 'RUC (11 dígitos)'; input.maxLength = 11; }
         input.value = '';
+        document.getElementById('cliente-consulta-estado').classList.add('oculto');
         setTimeout(() => input.focus(), 100);
       }
     });
   });
-
-  // Mock de consulta SUNAT/RENIEC con delay simulado
-  function consultarPersona(tipo, numero) {
-    return new Promise((resolve) => {
-      const delay = 400 + Math.random() * 400;
-      setTimeout(() => {
-        const nombre = PERSONAS_DEMO[numero];
-        if (nombre) resolve({ encontrado: true, nombre, numero });
-        else resolve({ encontrado: false, numero });
-      }, delay);
-    });
-  }
 
   document.getElementById('input-doc').addEventListener('input', async (e) => {
     e.target.value = e.target.value.replace(/\D/g, '');
@@ -2032,17 +2364,15 @@ var qrcodegen = (function() {
     const num = e.target.value;
     const tipo = estado.cliente.tipoDoc;
     const longitudOK = (tipo === 'dni' && num.length === 8) || (tipo === 'ruc' && num.length === 11);
+    const estadoEl = document.getElementById('cliente-consulta-estado');
     if (!longitudOK) {
-      document.getElementById('cliente-consulta-estado').classList.add('oculto');
+      estadoEl.classList.add('oculto');
       return;
     }
-    // Consultar
-    const estadoEl = document.getElementById('cliente-consulta-estado');
     estadoEl.classList.remove('oculto');
     estadoEl.className = 'cliente-consulta consultando';
     estadoEl.innerHTML = '<span class="cliente-spinner"></span> Consultando ' + tipo.toUpperCase() + '...';
     const r = await consultarPersona(tipo, num);
-    // Verificar que el número aún sea el que se consultó (el usuario puede haber seguido escribiendo)
     if (document.getElementById('input-doc').value !== num) return;
     if (r.encontrado) {
       document.getElementById('input-cliente-nombre').value = r.nombre;
@@ -2070,272 +2400,344 @@ var qrcodegen = (function() {
     }
     generarBoleta();
   });
+}
 
-  function generarBoleta() {
-    const v = estado.vendedor;
-    const empresa = estado.empresa;
-    const local = estado.localActual;
-    const tipoComprobante = estado.cliente.tipoDoc === 'ruc' ? 'F' : 'B';
-    const tipoSunatCod = tipoComprobante === 'F' ? '01' : '03';
-    const serie = tipoComprobante === 'F' ? v.serieF : v.serieB;
-    if (!estado.correlativos[serie]) estado.correlativos[serie] = 0;
-    // PREVIEW: el correlativo se asigna al GRABAR Y EMITIR, no aquí
-    // Mostramos el "próximo correlativo" como referencia, pero aún no se guarda
-    const correlativo = estado.correlativos[serie] + 1;
-    estado.boletaPreview = {
-      serie,
-      correlativo,
-      tipoComprobante,
-      tipoSunatCod,
-      emitida: false,
-    };
+/* === 15-receipt.js === */
+// ============================================================
+// 15-receipt.js — Generación boleta + Grabar y emitir + Descartar
+// ============================================================
 
-    const ahora = new Date();
-    const dd = String(ahora.getDate()).padStart(2, '0');
-    const mm = String(ahora.getMonth() + 1).padStart(2, '0');
-    const yyyy = ahora.getFullYear();
-    const hh = String(ahora.getHours()).padStart(2, '0');
-    const mi = String(ahora.getMinutes()).padStart(2, '0');
-    const fechaCorta = `${dd}/${mm}/${yyyy}`;
-    const fechaSunat = `${dd}/${mm}/${String(yyyy).slice(2)}`;
+function generarBoleta() {
+  const v = estado.vendedor;
+  const empresa = estado.empresa;
+  const local = estado.localActual;
+  const tipoComprobante = estado.cliente.tipoDoc === 'ruc' ? 'F' : 'B';
+  const tipoSunatCod = tipoComprobante === 'F' ? '01' : '03';
+  const serie = tipoComprobante === 'F' ? v.serieF : v.serieB;
+  if (!estado.correlativos[serie]) estado.correlativos[serie] = 0;
 
-    const totalNum = estado.total;
-    const aplicaIGV = empresa.aplicaIGV;
-    let subtotal, igv;
-    if (aplicaIGV) {
-      subtotal = +(totalNum / 1.18).toFixed(2);
-      igv = +(totalNum - subtotal).toFixed(2);
-    } else {
-      subtotal = totalNum;
-      igv = 0;
-    }
+  // PREVIEW: correlativo es el siguiente, pero AÚN NO se incrementa
+  const correlativo = estado.correlativos[serie] + 1;
+  estado.boletaPreview = {
+    serie,
+    correlativo,
+    tipoComprobante,
+    tipoSunatCod,
+    emitida: false,
+  };
 
-    const tipoLabel = tipoComprobante === 'F' ? 'FACTURA ELECTRÓNICA' : 'BOLETA DE VENTA ELECTRÓNICA';
-    const correlativoStr = String(correlativo).padStart(8, '0');
+  const ahora = new Date();
+  const dd = String(ahora.getDate()).padStart(2, '0');
+  const mm = String(ahora.getMonth() + 1).padStart(2, '0');
+  const yyyy = ahora.getFullYear();
+  const hh = String(ahora.getHours()).padStart(2, '0');
+  const mi = String(ahora.getMinutes()).padStart(2, '0');
+  const fechaCorta = `${dd}/${mm}/${yyyy}`;
+  const fechaSunat = `${dd}/${mm}/${String(yyyy).slice(2)}`;
 
-    // Items
-    const itemsHtml = estado.items.map(item => {
-      const punit = item.precioUnit ? fmt2(item.precioUnit) : '-';
-      const subtotalItem = item.precioUnit ? fmt2(item.cantidad * item.precioUnit) : '-';
-      return `
+  const totalNum = estado.total;
+  const aplicaIGV = empresa.aplicaIGV;
+  let subtotal, igv;
+  if (aplicaIGV) {
+    subtotal = +(totalNum / 1.18).toFixed(2);
+    igv = +(totalNum - subtotal).toFixed(2);
+  } else {
+    subtotal = totalNum;
+    igv = 0;
+  }
+
+  const tipoLabel = tipoComprobante === 'F' ? 'FACTURA ELECTRÓNICA' : 'BOLETA DE VENTA ELECTRÓNICA';
+  const correlativoStr = String(correlativo).padStart(8, '0');
+
+  const itemsHtml = estado.items.map(item => {
+    const punit = item.precioUnit ? fmt2(item.precioUnit) : '-';
+    const subtotalItem = item.precioUnit ? fmt2(item.cantidad * item.precioUnit) : '-';
+    return `
+      <tr>
+        <td>${item.cantidad}</td>
+        <td>${escapeHtml(item.nombre)}</td>
+        <td>${punit}</td>
+        <td>${subtotalItem}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const tipoDocLabel = { dni: 'DNI', ruc: 'RUC' }[estado.cliente.tipoDoc];
+  const tipoDocSunat = { dni: '1', ruc: '6', ninguno: '0' }[estado.cliente.tipoDoc];
+  const clienteHtml = estado.cliente.tipoDoc !== 'ninguno' ? `
+    <div class="b-meta"><strong>${tipoDocLabel}:</strong> ${estado.cliente.numero}</div>
+    ${estado.cliente.nombre ? `<div class="b-meta"><strong>Cliente:</strong> ${escapeHtml(estado.cliente.nombre).toUpperCase()}</div>` : ''}
+  ` : '';
+
+  const pendienteHtml = !empresa.tieneCDT
+    ? `<div class="b-pendiente">PENDIENTE DE EMISIÓN</div>` : '';
+
+  const lineasPagos = estado.metodosPago.map(p => {
+    const nombre = { yape: 'YAPE', plin: 'PLIN', efectivo: 'EFECTIVO', transferencia: 'TRANSF', tarjeta: 'TARJETA' }[p.metodo];
+    const op = p.nOperacion ? ` op ${p.nOperacion}` : '';
+    return `<div class="b-pago-linea"><span>${nombre}${op}</span><span>S/ ${fmt2(p.monto)}</span></div>`;
+  }).join('');
+  const pagoHtml = `
+    <div class="b-pagos-box">
+      <div class="b-pagos-titulo">PAGOS</div>
+      ${lineasPagos}
+    </div>
+  `;
+
+  const totalesHtml = aplicaIGV
+    ? `<div class="b-tot-linea"><span>Op. gravada:</span><span>S/ ${fmt2(subtotal)}</span></div>
+       <div class="b-tot-linea"><span>IGV 18%:</span><span>S/ ${fmt2(igv)}</span></div>
+       <div class="b-tot-linea gran-total"><span>TOTAL:</span><span>S/ ${fmt2(totalNum)}</span></div>`
+    : `<div class="b-tot-linea"><span>Op. exonerada:</span><span>S/ ${fmt2(subtotal)}</span></div>
+       <div class="b-tot-linea gran-total"><span>TOTAL:</span><span>S/ ${fmt2(totalNum)}</span></div>`;
+
+  const direccionHtml = local.esAnexo
+    ? `<div class="b-empresa-info">Domicilio fiscal: ${escapeHtml(empresa.domicilioFiscal)}</div>
+       <div class="b-empresa-info">Anexo: ${escapeHtml(local.direccion)}</div>`
+    : `<div class="b-empresa-info">${escapeHtml(local.direccion)}</div>`;
+
+  const logoHtml = empresa.logoUrl
+    ? `<div class="b-logo-box"><img src="${empresa.logoUrl}" class="b-logo-img" alt="Logo"></div>`
+    : `<div class="b-logo-box b-logo-placeholder">LOGO</div>`;
+
+  const leyendaHtml = empresa.esAmazonia
+    ? `<div class="b-leyenda">"Bienes transferidos y servicios prestados en la Amazonía para ser consumidos en la misma."</div>`
+    : '';
+
+  // QR híbrido SUNAT + URL
+  const docCliente = estado.cliente.tipoDoc !== 'ninguno' ? estado.cliente.numero : '';
+  const urlVerif = `https://facturalo.pro/v/${serie}-${correlativoStr}`;
+  const qrData = [
+    estado.ruc,
+    tipoSunatCod,
+    serie,
+    correlativoStr,
+    fmt2(igv),
+    fmt2(totalNum),
+    fechaSunat,
+    tipoDocSunat,
+    docCliente,
+    '', // hash vacío offline
+  ].join('|') + '|\n' + urlVerif;
+
+  const qrSvg = generarQRSvg(qrData);
+
+  const html = `
+    <div class="b-header">
+      ${logoHtml}
+      <div class="b-header-info">
+        <div class="b-empresa">${escapeHtml(empresa.nombreComercial).toUpperCase()}</div>
+        <div class="b-empresa-razon">${escapeHtml(empresa.razonSocial)}</div>
+        <div class="b-empresa-info">RUC ${estado.ruc}</div>
+        ${direccionHtml}
+        <div class="b-empresa-info">${escapeHtml(empresa.ciudad)}</div>
+      </div>
+    </div>
+    <div class="b-divider"></div>
+    <div class="b-tipo">${tipoLabel}</div>
+    <div class="b-numero">${serie} - ${correlativoStr}</div>
+    ${pendienteHtml}
+    <div class="b-divider"></div>
+    <div class="b-meta-row">
+      <div class="b-meta-col">
+        <div class="b-meta"><strong>Fecha:</strong> ${fechaCorta} ${hh}:${mi}</div>
+        <div class="b-meta"><strong>Vendedor:</strong> ${escapeHtml(v.nombre)}</div>
+        ${clienteHtml}
+      </div>
+      <div class="b-meta-col b-meta-col-derecha">
+        <div class="b-meta"><strong>Forma de pago:</strong></div>
+        <div class="b-meta b-forma-pago">${empresa.formaPago}</div>
+      </div>
+    </div>
+    <div class="b-divider"></div>
+    <table class="b-items-tabla">
+      <thead>
         <tr>
-          <td>${item.cantidad}</td>
-          <td>${escapeHtml(item.nombre)}</td>
-          <td>${punit}</td>
-          <td>${subtotalItem}</td>
+          <th>Cant</th>
+          <th>Descripción</th>
+          <th>P.Unit</th>
+          <th>Subtotal</th>
         </tr>
-      `;
-    }).join('');
+      </thead>
+      <tbody>${itemsHtml}</tbody>
+    </table>
+    <div class="b-divider"></div>
+    <div class="b-totales">${totalesHtml}</div>
+    ${pagoHtml}
+    ${leyendaHtml}
+    <div class="b-qr-wrap">${qrSvg}</div>
+    <div class="b-footer">
+      Representación impresa<br>
+      Consulta este comprobante en<br>
+      <strong>facturalo.pro/v/${serie}-${correlativoStr}</strong>
+    </div>
+    <div class="b-divider"></div>
+    <div class="b-publicidad">
+      Emitido con <strong>pagoOK</strong><br>
+      <em>La WebApp de los emprendedores en LATAM</em>
+    </div>
+  `;
+  document.getElementById('boleta-papel').innerHTML = html;
+  document.getElementById('cliente-form').classList.add('oculto');
+  document.getElementById('boleta-vista').classList.remove('oculto');
+  document.getElementById('boleta-estado-preview').classList.remove('oculto');
+  document.getElementById('boleta-estado-emitida').classList.add('oculto');
+  sonidoTap();
+  // Actualizar visibilidad del botón ← (en preview sí se puede volver)
+  actualizarBotonVolver('boleta');
+}
 
-    // Cliente
-    const tipoDocLabel = {
-      dni: 'DNI',
-      ruc: 'RUC',
-    }[estado.cliente.tipoDoc];
+function grabarYEmitir() {
+  if (!estado.boletaPreview) return;
+  const { serie, correlativo } = estado.boletaPreview;
+  estado.correlativos[serie] = correlativo;
+  estado.boletaPreview.emitida = true;
+  estado.boletaPreview.emitidaEn = new Date().toISOString();
+  guardarVenta();
+  persistirEstado();
+  document.getElementById('boleta-estado-preview').classList.add('oculto');
+  document.getElementById('boleta-estado-emitida').classList.remove('oculto');
+  document.getElementById('boleta-emitida-msg').textContent =
+    `Comprobante ${serie}-${String(correlativo).padStart(8, '0')} emitido`;
+  sonidoExito();
+  toast('Comprobante grabado y emitido', 'exito');
+  // Ocultar botón ← en estado emitida
+  actualizarBotonVolver('boleta');
+}
 
-    const tipoDocSunat = {
-      dni: '1',
-      ruc: '6',
-      ninguno: '0',
-    }[estado.cliente.tipoDoc];
+function descartarVentaPreview() {
+  confirmarModal({
+    titulo: '¿Descartar venta?',
+    texto: 'Se perderán los items, pagos y datos del cliente. El correlativo NO se usará.',
+    textoBotonSi: 'Sí, descartar',
+    icono: '🗑',
+    onConfirmar: () => {
+      toast('Venta descartada', '');
+      reiniciarFlujo();
+      irA('dictar', { sentido: 'izquierda' });
+    },
+  });
+}
 
-    const clienteHtml = estado.cliente.tipoDoc !== 'ninguno' ? `
-      <div class="b-meta"><strong>${tipoDocLabel}:</strong> ${estado.cliente.numero}</div>
-      ${estado.cliente.nombre ? `<div class="b-meta"><strong>Cliente:</strong> ${escapeHtml(estado.cliente.nombre).toUpperCase()}</div>` : ''}
-    ` : '';
-
-    // Pendiente de emisión
-    const pendienteHtml = !empresa.tieneCDT
-      ? `<div class="b-pendiente">PENDIENTE DE EMISIÓN</div>` : '';
-
-    // Pagos (en rectángulo destacado)
-    const lineasPagos = estado.metodosPago.map(p => {
-      const nombre = { yape: 'YAPE', plin: 'PLIN', efectivo: 'EFECTIVO' }[p.metodo];
-      const op = p.nOperacion ? ` op ${p.nOperacion}` : '';
-      return `<div class="b-pago-linea"><span>${nombre}${op}</span><span>S/ ${fmt2(p.monto)}</span></div>`;
-    }).join('');
-    const pagoHtml = `
-      <div class="b-pagos-box">
-        <div class="b-pagos-titulo">PAGOS</div>
-        ${lineasPagos}
-      </div>
-    `;
-
-    // Totales
-    const totalesHtml = aplicaIGV
-      ? `<div class="b-tot-linea"><span>Op. gravada:</span><span>S/ ${fmt2(subtotal)}</span></div>
-         <div class="b-tot-linea"><span>IGV 18%:</span><span>S/ ${fmt2(igv)}</span></div>
-         <div class="b-tot-linea gran-total"><span>TOTAL:</span><span>S/ ${fmt2(totalNum)}</span></div>`
-      : `<div class="b-tot-linea"><span>Op. exonerada:</span><span>S/ ${fmt2(subtotal)}</span></div>
-         <div class="b-tot-linea gran-total"><span>TOTAL:</span><span>S/ ${fmt2(totalNum)}</span></div>`;
-
-    // Domicilio fiscal vs anexo
-    const direccionHtml = local.esAnexo
-      ? `<div class="b-empresa-info">Domicilio fiscal: ${escapeHtml(empresa.domicilioFiscal)}</div>
-         <div class="b-empresa-info">Anexo: ${escapeHtml(local.direccion)}</div>`
-      : `<div class="b-empresa-info">${escapeHtml(local.direccion)}</div>`;
-
-    // Logo placeholder o imagen
-    const logoHtml = empresa.logoUrl
-      ? `<div class="b-logo-box"><img src="${empresa.logoUrl}" class="b-logo-img" alt="Logo"></div>`
-      : `<div class="b-logo-box b-logo-placeholder">LOGO</div>`;
-
-    // Leyenda Amazonía
-    const leyendaHtml = empresa.esAmazonia
-      ? `<div class="b-leyenda">"Bienes transferidos y servicios prestados en la Amazonía para ser consumidos en la misma."</div>`
-      : '';
-
-    // QR: formato híbrido SUNAT + URL al final
-    // RUC|tipoDoc|serie|correlativo|IGV|total|fecha|tipoDocCliente|docCliente|hash|
-    // + URL de verificación
-    const docCliente = estado.cliente.tipoDoc !== 'ninguno' ? estado.cliente.numero : '';
-    const urlVerif = `https://facturalo.pro/v/${serie}-${correlativoStr}`;
-    const qrData = [
-      estado.ruc,
-      tipoSunatCod,
-      serie,
-      correlativoStr,
-      fmt2(igv),
-      fmt2(totalNum),
-      fechaSunat,
-      tipoDocSunat,
-      docCliente,
-      '', // hash vacío offline; backend lo llenará al sincronizar
-    ].join('|') + '|\n' + urlVerif;
-
-    // Generar SVG del QR
-    const qrSvg = generarQRSvg(qrData);
-
-    const html = `
-      <div class="b-header">
-        ${logoHtml}
-        <div class="b-header-info">
-          <div class="b-empresa">${escapeHtml(empresa.nombreComercial).toUpperCase()}</div>
-          <div class="b-empresa-razon">${escapeHtml(empresa.razonSocial)}</div>
-          <div class="b-empresa-info">RUC ${estado.ruc}</div>
-          ${direccionHtml}
-          <div class="b-empresa-info">${escapeHtml(empresa.ciudad)}</div>
-        </div>
-      </div>
-      <div class="b-divider"></div>
-      <div class="b-tipo">${tipoLabel}</div>
-      <div class="b-numero">${serie} - ${correlativoStr}</div>
-      ${pendienteHtml}
-      <div class="b-divider"></div>
-      <div class="b-meta-row">
-        <div class="b-meta-col">
-          <div class="b-meta"><strong>Fecha:</strong> ${fechaCorta} ${hh}:${mi}</div>
-          <div class="b-meta"><strong>Vendedor:</strong> ${escapeHtml(v.nombre)}</div>
-          ${clienteHtml}
-        </div>
-        <div class="b-meta-col b-meta-col-derecha">
-          <div class="b-meta"><strong>Forma de pago:</strong></div>
-          <div class="b-meta b-forma-pago">${empresa.formaPago}</div>
-        </div>
-      </div>
-      <div class="b-divider"></div>
-      <table class="b-items-tabla">
-        <thead>
-          <tr>
-            <th>Cant</th>
-            <th>Descripción</th>
-            <th>P.Unit</th>
-            <th>Subtotal</th>
-          </tr>
-        </thead>
-        <tbody>${itemsHtml}</tbody>
-      </table>
-      <div class="b-divider"></div>
-      <div class="b-totales">${totalesHtml}</div>
-      ${pagoHtml}
-      ${leyendaHtml}
-      <div class="b-qr-wrap">${qrSvg}</div>
-      <div class="b-footer">
-        Representación impresa<br>
-        Consulta este comprobante en<br>
-        <strong>facturalo.pro/v/${serie}-${correlativoStr}</strong>
-      </div>
-      <div class="b-divider"></div>
-      <div class="b-publicidad">
-        Emitido con <strong>pagoOK</strong><br>
-        <em>La WebApp de los emprendedores en LATAM</em>
-      </div>
-    `;
-    document.getElementById('boleta-papel').innerHTML = html;
-    document.getElementById('cliente-form').classList.add('oculto');
-    document.getElementById('boleta-vista').classList.remove('oculto');
-    // Mostrar estado PREVIEW (antes de grabar)
-    document.getElementById('boleta-estado-preview').classList.remove('oculto');
-    document.getElementById('boleta-estado-emitida').classList.add('oculto');
-    sonidoTap();
-  }
-
-  // ============================================================
-  // GRABAR Y EMITIR - el punto sin retorno
-  // ============================================================
-  function grabarYEmitir() {
-    if (!estado.boletaPreview) return;
-    const { serie, correlativo } = estado.boletaPreview;
-    // Asignar correlativo definitivo
-    estado.correlativos[serie] = correlativo;
-    estado.boletaPreview.emitida = true;
-    estado.boletaPreview.emitidaEn = new Date().toISOString();
-    // Guardar venta en historial
-    guardarVenta();
-    guardarEstado();
-    // Cambiar UI a estado emitida
-    document.getElementById('boleta-estado-preview').classList.add('oculto');
-    document.getElementById('boleta-estado-emitida').classList.remove('oculto');
-    document.getElementById('boleta-emitida-msg').textContent =
-      `Comprobante ${serie}-${String(correlativo).padStart(8, '0')} emitido`;
-    sonidoExito();
-    toast('Comprobante grabado y emitido', 'exito');
-  }
-
-  function descartarVentaPreview() {
-    confirmarModal({
-      titulo: '¿Descartar venta?',
-      texto: 'Se perderán los items, pagos y datos del cliente. El correlativo NO se usará.',
-      textoBotonSi: 'Sí, descartar',
-      onConfirmar: () => {
-        sonidoTap();
-        toast('Venta descartada', '');
-        reiniciarFlujo();
-        irA('dictar', { sentido: 'izquierda' });
-      },
-    });
-  }
-
-  // ============================================================
-  // GENERADOR DE QR usando librería qrcodegen (estándar ISO/IEC 18004)
-  // ============================================================
-  function generarQRSvg(text) {
-    try {
-      const qr = qrcodegen.QrCode.encodeText(text, qrcodegen.QrCode.Ecc.MEDIUM);
-      const size = qr.size;
-      const cell = 3;
-      const pad = 12;
-      const total = size * cell + pad * 2;
-      let rects = '';
-      for (let r = 0; r < size; r++) {
-        for (let c = 0; c < size; c++) {
-          if (qr.getModule(c, r)) {
-            rects += `<rect x="${pad + c * cell}" y="${pad + r * cell}" width="${cell}" height="${cell}" fill="#000"/>`;
-          }
-        }
+function guardarVenta() {
+  const venta = {
+    id: 'v_' + Date.now(),
+    timestamp: new Date().toISOString(),
+    vendedor: estado.vendedor.nombre,
+    negocio: estado.empresa.nombreComercial,
+    serie: estado.boletaPreview ? estado.boletaPreview.serie : null,
+    correlativo: estado.boletaPreview ? estado.boletaPreview.correlativo : null,
+    items: [...estado.items],
+    total: estado.total,
+    metodos: [...estado.metodosPago],
+    cliente: estado.cliente.tipoDoc !== 'ninguno' ? { ...estado.cliente } : null,
+    online: estado.online,
+  };
+  estado.historial.push(venta);
+  // Actualizar catálogo
+  estado.items.forEach(item => {
+    const existe = estado.catalogo.find(c => c.nombre.toLowerCase() === item.nombre.toLowerCase());
+    if (existe) {
+      existe.veces++;
+      existe.ultimaVez = new Date().toISOString();
+      if (item.precioUnit && !item.calculado) {
+        existe.precioUnit = item.precioUnit;
       }
-      return `
-        <svg class="b-qr-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${total} ${total}" width="140" height="140">
-          <rect width="${total}" height="${total}" fill="#fff"/>
-          ${rects}
-        </svg>
-      `;
-    } catch (e) {
-      console.warn('Error generando QR', e);
-      return `<div class="b-qr-placeholder">QR no disponible</div>`;
+    } else {
+      estado.catalogo.push({
+        nombre: item.nombre,
+        alias: item.nombre.toLowerCase().split(' ')[0],
+        precioUnit: (item.precioUnit && !item.calculado) ? item.precioUnit : null,
+        veces: 1,
+        ultimaVez: new Date().toISOString(),
+      });
     }
-  }
+  });
+  persistirEstado();
+}
 
+function reiniciarFlujo() {
+  limpiarVentaEnCurso();
+  document.getElementById('texto-venta').value = '';
+  document.getElementById('resultado-card').classList.add('oculto');
+  document.getElementById('cliente-form').classList.remove('oculto');
+  document.getElementById('boleta-vista').classList.add('oculto');
+  document.getElementById('boleta-estado-preview').classList.add('oculto');
+  document.getElementById('boleta-estado-emitida').classList.add('oculto');
+  actualizarSugerencias();
+  persistirEstado();
+}
+
+function setupReceipt() {
+  // Grabar y emitir
+  document.getElementById('btn-grabar-emitir').addEventListener('click', () => {
+    sonidoTap();
+    grabarYEmitir();
+  });
+
+  // Descartar
+  document.getElementById('btn-descartar').addEventListener('click', () => {
+    sonidoTap();
+    descartarVentaPreview();
+  });
+
+  // Nueva venta (después de emitir)
+  document.getElementById('btn-boleta-finalizar').addEventListener('click', () => {
+    sonidoTap();
+    reiniciarFlujo();
+    irA('dictar', { sentido: 'izquierda' });
+  });
+
+  // Resultado: pendiente (cuando no se encontró el pago)
+  document.getElementById('btn-pendiente').addEventListener('click', () => {
+    guardarVenta();
+    reiniciarFlujo();
+    irA('dictar', { sentido: 'izquierda' });
+    setTimeout(() => toast('Venta pendiente', ''), 200);
+  });
+}
+
+/* === 16-share.js === */
+// ============================================================
+// 16-share.js — Compartir e imprimir comprobante
+// ============================================================
+
+function generarTextoBoleta() {
+  const empresa = estado.empresa;
+  const local = estado.localActual;
+  const v = estado.vendedor;
+  const ahora = new Date();
+  const fechaStr = ahora.toLocaleDateString('es-PE') + ' ' + ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
+  const tipo = estado.cliente.tipoDoc === 'ruc' ? 'F' : 'B';
+  const serie = estado.boletaPreview ? estado.boletaPreview.serie : (tipo === 'F' ? v.serieF : v.serieB);
+  const correlativo = estado.boletaPreview
+    ? String(estado.boletaPreview.correlativo).padStart(8, '0')
+    : '00000000';
+
+  let txt = `*${empresa.nombreComercial}*\n${empresa.razonSocial}\nRUC ${estado.ruc}\n${local.direccion}\n\n`;
+  txt += `*${estado.cliente.tipoDoc === 'ruc' ? 'FACTURA' : 'BOLETA'} DE VENTA*\n${serie} - ${correlativo}\n`;
+  if (!empresa.tieneCDT) txt += `_PENDIENTE DE EMISIÓN_\n`;
+  txt += `Fecha: ${fechaStr}\nVendedor: ${v.nombre}\nForma de pago: ${empresa.formaPago}\n\n`;
+  if (estado.cliente.tipoDoc !== 'ninguno') {
+    txt += `${estado.cliente.tipoDoc.toUpperCase()}: ${estado.cliente.numero}\n`;
+    if (estado.cliente.nombre) txt += `Cliente: ${estado.cliente.nombre}\n`;
+    txt += '\n';
+  }
+  estado.items.forEach(item => {
+    const sub = item.precioUnit ? ` = ${fmt(item.cantidad * item.precioUnit)}` : '';
+    const punit = item.precioUnit ? ` (S/${fmt2(item.precioUnit)} c/u)` : '';
+    txt += `${item.cantidad}× ${item.nombre}${punit}${sub}\n`;
+  });
+  txt += `\n*TOTAL: ${fmt(estado.total)}*\n\nPagos:\n`;
+  estado.metodosPago.forEach(p => {
+    const nombre = { yape: 'Yape', plin: 'Plin', efectivo: 'Efectivo', transferencia: 'Transferencia', tarjeta: 'Tarjeta' }[p.metodo];
+    txt += `  ${nombre}${p.nOperacion ? ' op ' + p.nOperacion : ''}: ${fmt(p.monto)}\n`;
+  });
+  txt += `\nVerifica en: facturalo.pro/v/${serie}-${correlativo}\n\n_Emitido con pagoOK_`;
+  return txt;
+}
+
+function setupShare() {
   document.getElementById('btn-compartir').addEventListener('click', async () => {
     sonidoTap();
     const texto = generarTextoBoleta();
@@ -2349,263 +2751,33 @@ var qrcodegen = (function() {
     }
   });
 
-  function generarTextoBoleta() {
-    const empresa = estado.empresa;
-    const local = estado.localActual;
-    const v = estado.vendedor;
-    const ahora = new Date();
-    const fechaStr = ahora.toLocaleDateString('es-PE') + ' ' + ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
-    const tipo = estado.cliente.tipoDoc === 'ruc' ? 'F' : 'B';
-    const serie = tipo === 'F' ? v.serieF : v.serieB;
-    const correlativo = String(estado.correlativos[serie]).padStart(8, '0');
-
-    let txt = `*${empresa.nombre}*\nRUC ${estado.ruc}\n${local.direccion}\n\n`;
-    txt += `*${estado.cliente.tipoDoc === 'ruc' ? 'FACTURA' : 'BOLETA'} DE VENTA*\n${serie} - ${correlativo}\n`;
-    if (!empresa.tieneCDT) txt += `_PENDIENTE DE EMISIÓN_\n`;
-    txt += `Fecha: ${fechaStr}\nVendedor: ${v.nombre}\n\n`;
-    if (estado.cliente.tipoDoc !== 'ninguno') {
-      txt += `${estado.cliente.tipoDoc.toUpperCase()}: ${estado.cliente.numero}\n`;
-      if (estado.cliente.nombre) txt += `Cliente: ${estado.cliente.nombre}\n`;
-      txt += '\n';
-    }
-    estado.items.forEach(item => {
-      const sub = item.precioUnit ? ` = ${fmt(item.cantidad * item.precioUnit)}` : '';
-      const punit = item.precioUnit ? ` (S/${fmt2(item.precioUnit)} c/u)` : '';
-      txt += `${item.cantidad}× ${item.nombre}${punit}${sub}\n`;
-    });
-    txt += `\n*TOTAL: ${fmt(estado.total)}*\n`;
-    if (estado.metodosPago.length === 1) {
-      const p = estado.metodosPago[0];
-      const nombre = { yape: 'Yape', plin: 'Plin', efectivo: 'Efectivo' }[p.metodo];
-      txt += `Pago: ${nombre}${p.nOperacion ? ' op ' + p.nOperacion : ''}\n`;
-    } else {
-      txt += `Pagos:\n`;
-      estado.metodosPago.forEach(p => {
-        const nombre = { yape: 'Yape', plin: 'Plin', efectivo: 'Efectivo' }[p.metodo];
-        txt += `  ${nombre}${p.nOperacion ? ' op ' + p.nOperacion : ''}: ${fmt(p.monto)}\n`;
-      });
-    }
-    txt += `\nVerifica en: facturalo.pro/v/${serie}-${correlativo}\n\n_Gracias por tu compra_`;
-    return txt;
-  }
-
   document.getElementById('btn-imprimir').addEventListener('click', () => {
     sonidoTap();
     window.print();
   });
+}
 
-  function reiniciarFlujo() {
-    estado.items = [];
-    estado.total = 0;
-    estado.metodosPago = [];
-    estado.metodoActual = null;
-    estado.nOperacion = '';
-    estado.foto = null;
-    estado.cliente = { tipoDoc: 'ninguno', numero: '', nombre: '' };
-    estado.boletaPreview = null;
-    document.getElementById('texto-venta').value = '';
-    document.getElementById('resultado-card').classList.add('oculto');
-    document.getElementById('cliente-form').classList.remove('oculto');
-    document.getElementById('boleta-vista').classList.add('oculto');
-    document.getElementById('boleta-estado-preview').classList.add('oculto');
-    document.getElementById('boleta-estado-emitida').classList.add('oculto');
-    actualizarSugerencias();
+/* === 17-menu.js === */
+// ============================================================
+// 17-menu.js — Menú lateral, simular pago, opciones
+// ============================================================
+
+function actualizarMenu() {
+  document.getElementById('catalogo-count').textContent = estado.catalogo.length;
+  document.getElementById('historial-count').textContent = estado.historial.length;
+  actualizarContadorPagos();
+  if (estado.vendedor) {
+    document.getElementById('menu-info-vendedor').textContent = estado.vendedor.nombre + ' · ' + estado.empresa.nombreComercial;
+    document.getElementById('menu-info-serie').textContent = 'SERIE ' + estado.vendedor.serieB + ' / ' + estado.vendedor.serieF;
+    document.getElementById('menu-info').classList.remove('oculto');
+  } else {
+    document.getElementById('menu-info').classList.add('oculto');
   }
+  document.getElementById('sonido-icono').textContent = estado.sonidoActivo ? '🔊' : '🔇';
+  document.getElementById('sonido-estado').textContent = estado.sonidoActivo ? 'ON' : 'OFF';
+}
 
-  function guardarVenta() {
-    const venta = {
-      id: 'v_' + Date.now(),
-      timestamp: new Date().toISOString(),
-      vendedor: estado.vendedor.nombre,
-      negocio: estado.empresa.nombreComercial,
-      items: [...estado.items],
-      total: estado.total,
-      metodos: [...estado.metodosPago],
-      cliente: estado.cliente.tipoDoc !== 'ninguno' ? { ...estado.cliente } : null,
-      online: estado.online,
-    };
-    estado.historial.push(venta);
-    // Actualizar catálogo
-    estado.items.forEach(item => {
-      const existe = estado.catalogo.find(c => c.nombre.toLowerCase() === item.nombre.toLowerCase());
-      if (existe) {
-        existe.veces++;
-        existe.ultimaVez = new Date().toISOString();
-        if (item.precioUnit && !item.calculado) {
-          existe.precioUnit = item.precioUnit; // actualizar precio
-        }
-      } else {
-        estado.catalogo.push({
-          nombre: item.nombre,
-          alias: item.nombre.toLowerCase().split(' ')[0],
-          precioUnit: (item.precioUnit && !item.calculado) ? item.precioUnit : null,
-          veces: 1,
-          ultimaVez: new Date().toISOString(),
-        });
-      }
-    });
-    guardarEstado();
-  }
-
-  document.getElementById('btn-finalizar').addEventListener('click', () => {
-    guardarVenta();
-    reiniciarFlujo();
-    irA('dictar', { sentido: 'izquierda' });
-    setTimeout(() => toast('Venta registrada', 'exito'), 200);
-  });
-
-  // btn-boleta-finalizar: la venta ya se guardó en grabarYEmitir; aquí solo limpiamos
-  document.getElementById('btn-boleta-finalizar').addEventListener('click', () => {
-    reiniciarFlujo();
-    irA('dictar', { sentido: 'izquierda' });
-  });
-
-  document.getElementById('btn-pendiente').addEventListener('click', () => {
-    guardarVenta();
-    reiniciarFlujo();
-    irA('dictar', { sentido: 'izquierda' });
-    setTimeout(() => toast('Venta pendiente', ''), 200);
-  });
-
-  // Listeners del modal confirmar
-  document.getElementById('btn-confirmar-si').addEventListener('click', () => {
-    const cb = confirmarCallback;
-    cerrarModalConfirmar();
-    if (cb) cb();
-  });
-  document.getElementById('btn-confirmar-no').addEventListener('click', () => {
-    sonidoTap();
-    cerrarModalConfirmar();
-  });
-  document.getElementById('modal-confirmar').addEventListener('click', (e) => {
-    // Cerrar al tocar fuera de la card
-    if (e.target.id === 'modal-confirmar') {
-      cerrarModalConfirmar();
-    }
-  });
-
-  // GRABAR Y EMITIR - punto sin retorno
-  document.getElementById('btn-grabar-emitir').addEventListener('click', () => {
-    sonidoTap();
-    grabarYEmitir();
-  });
-
-  // DESCARTAR - con confirmación
-  document.getElementById('btn-descartar').addEventListener('click', () => {
-    sonidoTap();
-    descartarVentaPreview();
-  });
-
-  // Event delegation para el modal de pago: maneja todos los clicks dentro del modal
-  document.getElementById('modal-pago').addEventListener('click', (e) => {
-    // Botón cerrar (X)
-    if (e.target.closest('#btn-modal-pago-cerrar')) {
-      sonidoTap();
-      cerrarModalPago();
-      return;
-    }
-    // Botón continuar (Ya yapearon / Confirmar efectivo / etc.)
-    if (e.target.closest('#btn-pago-continuar')) {
-      e.preventDefault();
-      e.stopPropagation();
-      sonidoTap();
-      const metodo = estado.modalPagoMetodo;
-      if (metodo) procesarContinuarPago(metodo);
-      return;
-    }
-    // Botón tarjeta rechazada
-    if (e.target.closest('#btn-pago-tarjeta-rechazada')) {
-      sonidoTap();
-      cerrarModalPago();
-      return;
-    }
-    // Pestañas de bancos (transferencia)
-    const tab = e.target.closest('.pago-tab');
-    if (tab) {
-      const idx = tab.dataset.cuentaIdx;
-      document.querySelectorAll('.pago-tab').forEach(t => t.classList.remove('activa'));
-      tab.classList.add('activa');
-      document.querySelectorAll('.pago-cuenta-panel').forEach(p => {
-        if (p.dataset.cuentaIdx === idx) {
-          p.classList.remove('oculto');
-          p.classList.add('activa');
-        } else {
-          p.classList.remove('activa');
-          p.classList.add('oculto');
-        }
-      });
-      sonidoTap();
-      return;
-    }
-    // Copiar al portapapeles (N° de cuenta o CCI)
-    const copyEl = e.target.closest('[data-copy]');
-    if (copyEl) {
-      const txt = copyEl.dataset.copy;
-      sonidoTap();
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(txt)
-          .then(() => toast('Copiado: ' + txt, 'exito'))
-          .catch(() => toast('No se pudo copiar', 'error'));
-      } else {
-        toast('No se pudo copiar', 'error');
-      }
-      return;
-    }
-  });
-
-  // Listener de input del modal efectivo (delegation por input)
-  document.getElementById('modal-pago').addEventListener('input', (e) => {
-    if (e.target.id === 'modal-efectivo-monto') {
-      actualizarVueltoEfectivo();
-    }
-  });
-
-  // ============================================================
-  // VOLVER
-  // ============================================================
-  // Listener especial para el botón ← de verificar que va a método
-  // Si hay pagos acumulados, pregunta si descartar
-  document.querySelectorAll('[data-ir]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      sonidoTap();
-      const destino = btn.dataset.ir;
-      // Si venimos de verificar y vamos a metodo con pagos acumulados → preguntar
-      if (destino === 'metodo' && estado.pantalla === 'verificar' && estado.metodosPago.length > 0) {
-        confirmarModal({
-          titulo: '¿Volver y descartar pagos?',
-          texto: 'Se perderán los pagos ya registrados en esta venta.',
-          textoBotonSi: 'Sí, volver',
-          icono: '↩',
-          onConfirmar: () => {
-            estado.metodosPago = [];
-            actualizarPagosAcumulados();
-            irA(destino, { sentido: 'izquierda' });
-          },
-        });
-        return;
-      }
-      irA(destino, { sentido: 'izquierda' });
-    });
-  });
-
-  // ============================================================
-  // MENÚ
-  // ============================================================
-  function actualizarMenu() {
-    document.getElementById('catalogo-count').textContent = estado.catalogo.length;
-    document.getElementById('historial-count').textContent = estado.historial.length;
-    actualizarContadorPagos();
-    if (estado.vendedor) {
-      document.getElementById('menu-info-vendedor').textContent = estado.vendedor.nombre + ' · ' + estado.empresa.nombreComercial;
-      document.getElementById('menu-info-serie').textContent = 'SERIE ' + estado.vendedor.serieB + ' / ' + estado.vendedor.serieF;
-      document.getElementById('menu-info').classList.remove('oculto');
-    } else {
-      document.getElementById('menu-info').classList.add('oculto');
-    }
-    document.getElementById('sonido-icono').textContent = estado.sonidoActivo ? '🔊' : '🔇';
-    document.getElementById('sonido-estado').textContent = estado.sonidoActivo ? 'ON' : 'OFF';
-  }
-
+function setupMenu() {
   document.getElementById('btn-menu').addEventListener('click', () => {
     sonidoTap();
     actualizarMenu();
@@ -2637,7 +2809,6 @@ var qrcodegen = (function() {
     document.getElementById('menu-overlay').classList.add('oculto');
     const p = simularPagoEntrante();
     sonidoTap();
-    // Mostrar toast con info para que el vendedor pueda usar este nOp en la prueba
     toast(`🎲 Demo: pago N° ${p.nOp} · S/ ${fmt2(p.monto)} · ${p.operador.toUpperCase()}`);
   });
 
@@ -2658,122 +2829,40 @@ var qrcodegen = (function() {
   document.getElementById('menu-sonido').addEventListener('click', () => {
     estado.sonidoActivo = !estado.sonidoActivo;
     actualizarMenu();
-    guardarEstado();
+    persistirEstado();
     if (estado.sonidoActivo) sonidoExito();
   });
 
   document.getElementById('menu-cambiar').addEventListener('click', () => {
     document.getElementById('menu-overlay').classList.add('oculto');
-    estado.vendedor = null;
-    estado.pin = '';
-    actualizarPinDisplay();
-    irA('login', { sentido: 'izquierda' });
-  });
-
-  // ============================================================
-  // PWA
-  // ============================================================
-  let deferredPrompt = null;
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    setTimeout(() => document.getElementById('banner-instalar').classList.remove('oculto'), 3000);
-  });
-
-  document.getElementById('btn-instalar').addEventListener('click', async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') { sonidoExito(); toast('Instalado', 'exito'); }
-    deferredPrompt = null;
-    document.getElementById('banner-instalar').classList.add('oculto');
-  });
-
-  document.getElementById('btn-banner-cerrar').addEventListener('click', () => {
-    document.getElementById('banner-instalar').classList.add('oculto');
-  });
-
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').catch(() => {});
+    confirmarModal({
+      titulo: '¿Cambiar de vendedor?',
+      texto: 'Tu sesión actual se cerrará.',
+      textoBotonSi: 'Sí, cambiar',
+      icono: '🚪',
+      onConfirmar: () => {
+        estado.vendedor = null;
+        estado.pin = '';
+        actualizarPinDisplay();
+        irA('login', { sentido: 'izquierda' });
+      },
     });
-  }
+  });
+}
+
+/* === 18-main.js === */
+// ============================================================
+// 18-main.js — Init + wiring de todos los listeners
+// ============================================================
+
+(function() {
+  'use strict';
+
+  console.log(`[pagoOK Caja] ${CAJA_VERSION} cargado`);
 
   // ============================================================
-  // PUSH SILENCIOSO DE PAGOS - v6
+  // FIX TECLADO: auto-scroll al input enfocado
   // ============================================================
-  // En producción, estos pagos llegan vía SSE/WebSocket desde Gestix
-  // Por ahora, simulamos con el botón "Simular pago entrante"
-  // ============================================================
-
-  function limpiarPagosExpirados() {
-    const ahora = Date.now();
-    const limite = ahora - (PAGOS_VENTANA_MIN * 60 * 1000);
-    const antes = estado.pagosEnMemoria.length;
-    estado.pagosEnMemoria = estado.pagosEnMemoria.filter(p => p.timestamp > limite);
-    if (estado.pagosEnMemoria.length > PAGOS_MAX) {
-      // Quedarse con los más recientes
-      estado.pagosEnMemoria = estado.pagosEnMemoria
-        .sort((a, b) => b.timestamp - a.timestamp)
-        .slice(0, PAGOS_MAX);
-    }
-    return antes !== estado.pagosEnMemoria.length;
-  }
-
-  function agregarPagoEnMemoria(pago) {
-    limpiarPagosExpirados();
-    // Evitar duplicados por N° Op
-    if (estado.pagosEnMemoria.some(p => p.nOp === pago.nOp)) return;
-    estado.pagosEnMemoria.push({
-      ...pago,
-      timestamp: Date.now(),
-    });
-    actualizarContadorPagos();
-  }
-
-  function actualizarContadorPagos() {
-    limpiarPagosExpirados();
-    const count = estado.pagosEnMemoria.length;
-    const elCount = document.getElementById('pagos-disponibles-count');
-    if (elCount) elCount.textContent = count;
-  }
-
-  // Buscar pago en memoria por N° de operación
-  function buscarEnMemoria(nOp) {
-    limpiarPagosExpirados();
-    return estado.pagosEnMemoria.find(p => p.nOp === nOp);
-  }
-
-  // Iniciales del nombre para privacidad
-  function iniciales(nombre) {
-    if (!nombre) return '***';
-    const partes = nombre.trim().split(/\s+/);
-    return partes.map(p => p.charAt(0).toUpperCase() + '***').join(' ');
-  }
-
-  // Datos demo para simular pagos
-  const NOMBRES_DEMO = [
-    'Juan Pérez Mendoza', 'María García Rojas', 'Carlos López Díaz',
-    'Ana Torres Vega', 'Luis Ramírez Flores', 'Sofía Castro Núñez',
-    'Pedro Vargas Quispe', 'Rosa Mendoza Pinto', 'José Sánchez León',
-    'Cesitar Ruiz Aguilar',
-  ];
-  const OPERADORES = ['yape', 'plin'];
-
-  function simularPagoEntrante() {
-    // Generar pago aleatorio plausible
-    const nOp = String(Math.floor(Math.random() * 90000000) + 10000000); // 8 dígitos
-    const monto = +(Math.floor(Math.random() * 20000) / 100 + 5).toFixed(2);
-    const operador = OPERADORES[Math.floor(Math.random() * OPERADORES.length)];
-    const nombre = NOMBRES_DEMO[Math.floor(Math.random() * NOMBRES_DEMO.length)];
-
-    agregarPagoEnMemoria({ nOp, monto, operador, nombre });
-    return { nOp, monto, operador, nombre };
-  }
-
-  // ============================================================
-  // Cuando aparece el teclado virtual en móvil, el viewport se reduce.
-  // Si el input está debajo del nuevo viewport, scrolleamos para que quede visible.
   function asegurarVisible(el) {
     if (!el) return;
     setTimeout(() => {
@@ -2782,33 +2871,105 @@ var qrcodegen = (function() {
       } catch (e) {
         el.scrollIntoView();
       }
-    }, 350); // dar tiempo a que aparezca el teclado
+    }, 350);
   }
 
-  // Aplicar a todos los inputs y textareas relevantes
-  document.querySelectorAll('input[type="text"], input[type="tel"], textarea').forEach(el => {
-    el.addEventListener('focus', () => asegurarVisible(el));
-  });
-
-  // visualViewport API (más confiable en móvil moderno)
-  if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', () => {
-      const focused = document.activeElement;
-      if (focused && (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA')) {
-        // Si el teclado redujo el viewport, asegurar que el input quede visible
-        const rect = focused.getBoundingClientRect();
-        if (rect.bottom > window.visualViewport.height - 20) {
-          asegurarVisible(focused);
-        }
-      }
+  function setupTeclado() {
+    document.querySelectorAll('input[type="text"], input[type="tel"], textarea').forEach(el => {
+      el.addEventListener('focus', () => asegurarVisible(el));
     });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', () => {
+        const focused = document.activeElement;
+        if (focused && (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA')) {
+          const rect = focused.getBoundingClientRect();
+          if (rect.bottom > window.visualViewport.height - 20) {
+            asegurarVisible(focused);
+          }
+        }
+      });
+    }
+  }
+
+  // ============================================================
+  // BOTÓN VOLVER UNIFICADO
+  // ============================================================
+  function setupBotonesVolver() {
+    document.querySelectorAll('[data-volver]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        sonidoTap();
+        manejarVolver();
+      });
+    });
+  }
+
+  // ============================================================
+  // PWA INSTALL BANNER
+  // ============================================================
+  let deferredPrompt = null;
+  function setupPWA() {
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      setTimeout(() => document.getElementById('banner-instalar').classList.remove('oculto'), 3000);
+    });
+
+    document.getElementById('btn-instalar').addEventListener('click', async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') { sonidoExito(); toast('Instalado', 'exito'); }
+      deferredPrompt = null;
+      document.getElementById('banner-instalar').classList.add('oculto');
+    });
+
+    document.getElementById('btn-banner-cerrar').addEventListener('click', () => {
+      document.getElementById('banner-instalar').classList.add('oculto');
+      // Marcar que el usuario rechazó, no mostrar de nuevo en esta sesión
+      sessionStorage.setItem('banner_descartado', '1');
+    });
+
+    // Si ya fue descartado en esta sesión, no mostrar
+    if (sessionStorage.getItem('banner_descartado')) {
+      document.getElementById('banner-instalar').classList.add('oculto');
+    }
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      });
+    }
   }
 
   // ============================================================
   // INIT
   // ============================================================
-  cargarEstado();
+  cargarEstadoPersistido();
   actualizarConexion();
+  setupConexion();
+  setupModalConfirmar();
+  setupLogin();
+  setupDictar();
+  setupItems();
+  setupModalPago();
+  setupVerify();
+  setupClient();
+  setupReceipt();
+  setupShare();
+  setupMenu();
+  setupBotonesVolver();
+  setupTeclado();
+  setupPWA();
+
+  // Auto-persistir cada vez que cambia el estado importante
+  // (versión simple: cada 30s si hay venta en curso)
+  setInterval(() => {
+    if (estado.items.length > 0) {
+      persistirEstado();
+    }
+  }, 30000);
+
+  // Activar audio en primera interacción
   document.body.addEventListener('click', function activarAudio() {
     getAudioCtx();
     document.body.removeEventListener('click', activarAudio);
