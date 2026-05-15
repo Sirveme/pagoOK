@@ -1,11 +1,16 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse, HTMLResponse
+from fastapi.requests import Request
+from fastapi.templating import Jinja2Templates
 from contextlib import asynccontextmanager
 import logging
 
 from app.config import get_settings
-from app.routes import router
+from app.routes import router as public_router
+from app.admin import router as admin_router
+from app.admin.deps import NoAutenticado
+from app.api import webhook_router, admin_dispositivos_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("pagook")
@@ -17,6 +22,10 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     logger.info(f"pagoOK arrancando en modo {settings.env}")
     logger.info(f"Backend Gestix: {settings.gestix_api_url}")
+    if settings.database_url:
+        logger.info(f"BD pagoOK conectada")
+    else:
+        logger.warning("DATABASE_URL no configurado")
     yield
     logger.info("pagoOK apagando")
 
@@ -31,6 +40,11 @@ app = FastAPI(
 )
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+@app.exception_handler(NoAutenticado)
+async def no_autenticado_handler(request: Request, exc: NoAutenticado):
+    return RedirectResponse(url="/admin/login", status_code=303)
 
 
 @app.get("/robots.txt", include_in_schema=False)
@@ -48,4 +62,7 @@ async def sitemap():
     return FileResponse("static/sitemap.xml", media_type="application/xml")
 
 
-app.include_router(router)
+app.include_router(public_router)
+app.include_router(admin_router)
+app.include_router(admin_dispositivos_router)
+app.include_router(webhook_router)
