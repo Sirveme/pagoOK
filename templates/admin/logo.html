@@ -1,0 +1,45 @@
+{% extends "admin/base.html" %}
+
+{% block titulo %}Logo / Ícono{% endblock %}
+{% block topbar %}Logo o ícono sectorial{% endblock %}
+
+{% block contenido %}
+
+<div class="card">
+  <p class="text-soft">
+    Puedes <strong>subir tu logo propio</strong> (próximamente) o elegir un <strong>ícono de tu rubro</strong>.<br>
+    Si no eliges nada, tu ticket mostrará solo el nombre de tu negocio (lo recomendado).
+  </p>
+
+  <div id="logo-preview">
+    {% include "admin/partials/logo_seleccionado.html" %}
+  </div>
+</div>
+
+<div class="card">
+  <h2>Elige un ícono de tu rubro</h2>
+  <p class="text-soft text-pequeno">
+    Tap en un ícono para asignarlo al ticket de venta.
+  </p>
+
+  {% set rubros = ['Comida', 'Comercio', 'Servicios', 'Otros'] %}
+  {% for rubro in rubros %}
+  <h3 class="rubro-titulo">{{ rubro }}</h3>
+  <div class="iconos-grid">
+    {% for ic in iconos_sectoriales %}
+      {% if ic.rubro == rubro %}
+      <button class="icono-card {% if empresa.icono_sectorial == ic.codigo %}activo{% endif %}"
+              hx-post="/admin/logo/icono"
+              hx-target="#logo-preview"
+              hx-swap="innerHTML"
+              hx-vals='{"codigo": "{{ ic.codigo }}"}'>
+        <img src="/static/admin/iconos/{{ ic.codigo }}.svg" class="icono-img" alt="{{ ic.nombre }}">
+        <div class="icono-nombre">{{ ic.nombre }}</div>
+      </button>
+      {% endif %}
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock %}

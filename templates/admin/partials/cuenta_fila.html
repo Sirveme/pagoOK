@@ -1,0 +1,17 @@
+<div class="cuenta-fila" id="cuenta-{{ cuenta.id }}">
+  <div class="cuenta-banco">
+    <strong>{{ cuenta.banco }}</strong>
+    <span class="text-soft text-pequeno">{{ cuenta.tipo_cuenta or '' }}</span>
+  </div>
+  <div class="cuenta-numeros">
+    <div class="cuenta-numero">{{ cuenta.numero }}</div>
+    {% if cuenta.cci %}<div class="cuenta-cci">CCI: {{ cuenta.cci }}</div>{% endif %}
+    {% if cuenta.titular %}<div class="cuenta-titular">{{ cuenta.titular }}</div>{% endif %}
+  </div>
+  <button class="btn-icono btn-peligro"
+          hx-delete="/admin/cuenta-bancaria/{{ cuenta.id }}"
+          hx-target="#cuenta-{{ cuenta.id }}"
+          hx-swap="outerHTML"
+          hx-confirm="¿Eliminar esta cuenta?"
+          title="Eliminar">×</button>
+</div>

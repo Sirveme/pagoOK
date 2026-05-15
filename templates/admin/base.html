@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#2a0404">
+  <title>{% block titulo %}Admin{% endblock %} · pagoOK</title>
+  <link rel="icon" type="image/svg+xml" href="/static/caja/icon.svg">
+  <link rel="stylesheet" href="/static/admin/admin.css">
+  <script src="https://unpkg.com/htmx.org@2.0.3" defer></script>
+  <script src="https://unpkg.com/hyperscript.org@0.9.13" defer></script>
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="logo">
+      <span class="logo-pago">pago</span><span class="logo-ok">OK</span>
+    </div>
+    <div class="logo-sub">ADMIN</div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <a href="/admin/" class="nav-item {% if request.url.path == '/admin/' %}activo{% endif %}">
+      <span class="nav-icono">⌂</span>
+      <span class="nav-texto">Dashboard</span>
+    </a>
+    {% if empresa %}
+    <a href="/admin/empresa" class="nav-item {% if '/empresa' in request.url.path and 'nueva' not in request.url.path %}activo{% endif %}">
+      <span class="nav-icono">🏢</span>
+      <span class="nav-texto">Datos del negocio</span>
+    </a>
+    <a href="/admin/logo" class="nav-item {% if '/logo' in request.url.path %}activo{% endif %}">
+      <span class="nav-icono">🖼</span>
+      <span class="nav-texto">Logo / Ícono</span>
+    </a>
+    <a href="/admin/pagos" class="nav-item {% if '/pagos' in request.url.path %}activo{% endif %}">
+      <span class="nav-icono">💳</span>
+      <span class="nav-texto">Métodos de pago</span>
+    </a>
+    <a href="/admin/vendedores" class="nav-item {% if '/vendedores' in request.url.path %}activo{% endif %}">
+      <span class="nav-icono">👥</span>
+      <span class="nav-texto">Vendedores y locales</span>
+    </a>
+    <a href="/admin/dispositivos" class="nav-item {% if '/dispositivos' in request.url.path %}activo{% endif %}">
+      <span class="nav-icono">📱</span>
+      <span class="nav-texto">Dispositivos (App)</span>
+    </a>
+    <a href="/admin/impresion" class="nav-item {% if '/impresion' in request.url.path %}activo{% endif %}">
+      <span class="nav-icono">🖨</span>
+      <span class="nav-texto">Impresión</span>
+    </a>
+    {% endif %}
+    <div class="nav-separador"></div>
+    <a href="/admin/perfil" class="nav-item {% if '/perfil' in request.url.path %}activo{% endif %}">
+      <span class="nav-icono">👤</span>
+      <span class="nav-texto">Mi perfil</span>
+    </a>
+    <form action="/admin/logout" method="post" style="margin: 0;">
+      <button type="submit" class="nav-item nav-item-logout">
+        <span class="nav-icono">🚪</span>
+        <span class="nav-texto">Cerrar sesión</span>
+      </button>
+    </form>
+  </nav>
+</aside>
+
+<div class="contenido-wrap">
+  <header class="topbar">
+    <button class="btn-menu" _="on click toggle .abierto on #sidebar">≡</button>
+    <div class="topbar-titulo">{% block topbar %}Panel admin{% endblock %}</div>
+    {% if persona %}
+    <div class="topbar-persona">
+      <span class="persona-nombre">{{ persona.nombre_completo.split()[0] }}</span>
+      {% if empresa %}<span class="persona-empresa">{{ empresa.nombre_comercial }}</span>{% endif %}
+    </div>
+    {% endif %}
+  </header>
+
+  <main class="contenido">
+    {% block contenido %}{% endblock %}
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// Toast simple para feedback
+function mostrarToast(msg, tipo='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast visible ' + tipo;
+  setTimeout(() => t.classList.remove('visible'), 2800);
+}
+document.body.addEventListener('htmx:responseError', () => mostrarToast('Error al guardar', 'error'));
+document.body.addEventListener('mostrar-toast', (e) => mostrarToast(e.detail.value, e.detail.tipo || ''));
+</script>
+
+</body>
+</html>

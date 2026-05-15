@@ -1,0 +1,61 @@
+{% extends "admin/base.html" %}
+
+{% block titulo %}Vendedores y locales{% endblock %}
+{% block topbar %}Vendedores y locales{% endblock %}
+
+{% block contenido %}
+
+<div class="card">
+  <p class="text-soft">
+    Crea primero los <strong>locales</strong> de tu negocio (puede ser solo uno si vendes en un solo sitio).
+    Luego asigna <strong>vendedores</strong> a cada local con su PIN de 4 dígitos.
+  </p>
+</div>
+
+<div class="card">
+  <details class="form-collapsible">
+    <summary>+ Agregar nuevo local</summary>
+    <form hx-post="/admin/local"
+          hx-target="#locales-lista"
+          hx-swap="beforeend"
+          _="on htmx:afterRequest reset() me">
+      <label class="campo-label">Nombre del local</label>
+      <input type="text" name="nombre" class="campo-input" placeholder="Local Bolognesi" required>
+
+      <label class="campo-label">Dirección</label>
+      <input type="text" name="direccion" class="campo-input" placeholder="Av. Bolognesi 346">
+
+      <div class="campo-row">
+        <div>
+          <label class="check-label">
+            <input type="checkbox" name="es_anexo" value="true">
+            <span>Es anexo (no es la sede principal)</span>
+          </label>
+        </div>
+        <div>
+          <label class="campo-label">Código de anexo (si aplica)</label>
+          <input type="text" name="codigo_anexo" class="campo-input" placeholder="0001">
+        </div>
+      </div>
+
+      <label class="campo-label">Serie base (últimos 3 dígitos de dirección)</label>
+      <input type="number" name="serie_base" class="campo-input" placeholder="346" min="1" max="999">
+
+      <button type="submit" class="btn-principal">Crear local</button>
+    </form>
+  </details>
+</div>
+
+<div id="locales-lista">
+  {% for local in locales %}
+  {% include "admin/partials/local_card.html" %}
+  {% endfor %}
+</div>
+
+{% if not locales %}
+<div class="card text-centro text-soft">
+  <p>Todavía no tienes locales registrados. Agrega el primero arriba ↑</p>
+</div>
+{% endif %}
+
+{% endblock %}

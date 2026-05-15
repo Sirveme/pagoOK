@@ -1,0 +1,226 @@
+{% extends "admin/base.html" %}
+
+{% block titulo %}Dispositivos{% endblock %}
+{% block topbar %}Dispositivos y notificaciones{% endblock %}
+
+{% block contenido %}
+
+<div class="card">
+  <div class="card-header">
+    <h2>Cómo funciona</h2>
+  </div>
+  <div class="text-soft">
+    <p>
+      <strong>Un dispositivo = un celular físico</strong> donde recibes
+      notificaciones de Yape, Plin o tu banco.
+    </p>
+    <ol style="margin-top:10px; padding-left:20px; line-height:1.8;">
+      <li>Decides qué celular usarás (puede ser el del dueño, el de la caja, etc.)</li>
+      <li>Agrégalo abajo con un nombre que te ayude a recordarlo
+          (ej: <em>"Celular Caja Principal"</em>).</li>
+      <li>Copia el token que se genera.</li>
+      <li>Instala la app <strong>pagoOK Listener</strong> en ese celular y pega el token.</li>
+    </ol>
+    <p style="margin-top:10px;">
+      Desde ese momento, cada Yape/Plin/transferencia que llegue a ese celular se
+      verifica automáticamente en tus cajas.
+    </p>
+    <p class="text-pequeno" style="margin-top:10px; padding:10px; background:rgba(245,166,35,0.08); border-radius:8px;">
+      💡 <strong>¿Tienes sucursales?</strong> Crea un dispositivo por cada celular.
+      Por ejemplo: "Celular Trujillo" y "Celular Huancayo" si cada local recibe
+      sus propios Yapes.
+      <br><br>
+      💡 <strong>¿Tienes varias cajas en el mismo local?</strong> Probablemente
+      necesitas <strong>un solo dispositivo</strong>: el celular del dueño donde
+      llegan TODOS los Yapes. Las cajas (PWA) consultan al servidor; no necesitan token.
+    </p>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Tus dispositivos</h2>
+
+  <details class="form-collapsible">
+    <summary>+ Agregar nuevo celular</summary>
+    <form hx-post="/admin/dispositivo"
+          hx-target="#dispositivos-lista"
+          hx-swap="afterbegin"
+          _="on htmx:afterRequest reset() me">
+      <label class="campo-label">Nombre del dispositivo</label>
+      <input type="text" name="nombre" class="campo-input"
+             placeholder="Ej: Celular Caja Principal" required>
+      <label class="campo-label">Modelo (opcional)</label>
+      <input type="text" name="modelo" class="campo-input"
+             placeholder="Ej: Samsung Galaxy A23">
+      <button type="submit" class="btn-principal">Generar token</button>
+    </form>
+  </details>
+
+  <div id="dispositivos-lista" style="margin-top:14px;">
+    {% for d in dispositivos %}
+      {% include "admin/partials/dispositivo_fila.html" with context %}
+    {% endfor %}
+  </div>
+
+  {% if not dispositivos %}
+  <p class="text-soft text-pequeno text-centro" style="padding:18px;">
+    Aún no registras dispositivos. Agrega el primero arriba ↑
+  </p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Últimos pagos detectados</h2>
+  {% if pagos %}
+  <div class="pagos-lista">
+    {% for p in pagos %}
+    <div class="pago-fila {% if p.consumido %}pago-consumido{% endif %}">
+      <div class="pago-metodo metodo-{{ p.metodo }}">{{ p.metodo|upper }}</div>
+      <div class="pago-monto"><strong>S/ {{ "%.2f"|format(p.monto) }}</strong></div>
+      <div class="pago-info">
+        {% if p.titular_corto %}<div>{{ p.titular_corto }}</div>{% endif %}
+        {% if p.codigo_operacion %}<div class="text-soft text-pequeno">Op: {{ p.codigo_operacion }}</div>{% endif %}
+        {% if p.banco %}<div class="text-soft text-pequeno">{{ p.banco }}</div>{% endif %}
+      </div>
+      <div class="pago-fecha text-soft text-pequeno">
+        {{ p.recibido_en.strftime('%H:%M:%S') if p.recibido_en else '' }}
+        {% if p.consumido %}<br><span class="badge badge-azul">CONSUMIDO</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="text-soft text-pequeno text-centro" style="padding:18px;">
+    Aún no se han detectado pagos. Llegarán acá cuando tu celular envíe la primera notificación de Yape/Plin/banco.
+  </p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Últimas notificaciones recibidas (debug)</h2>
+  <p class="text-soft text-pequeno">
+    Aquí puedes ver TODO lo que tu celular envía, incluso lo que no se parsea como pago. Útil para diagnosticar.
+  </p>
+  {% if notifs %}
+  <div class="notifs-lista">
+    {% for n in notifs %}
+    <div class="notif-fila">
+      <div class="notif-header">
+        <span class="badge {% if n.estado_parseo == 'parseada' %}badge-verde{% elif n.estado_parseo == 'ignorada' %}badge-gris{% else %}badge-rojo{% endif %}">
+          {{ n.estado_parseo }}
+        </span>
+        <span class="text-soft text-pequeno">{{ n.timestamp_servidor.strftime('%H:%M:%S') if n.timestamp_servidor else '' }}</span>
+        <span class="text-soft text-pequeno">{{ n.package_app }}</span>
+      </div>
+      <div class="notif-titulo">{{ n.titulo or '' }}</div>
+      <div class="notif-texto">{{ n.texto or '' }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="text-soft text-pequeno text-centro" style="padding:18px;">
+    Sin notificaciones aún. Una vez que instales la app en tu celular y configures el token, aparecerán acá en tiempo real.
+  </p>
+  {% endif %}
+</div>
+
+<style>
+.token-box {
+  background: rgba(245, 166, 35, 0.08);
+  border: 1px dashed var(--ambar);
+  border-radius: var(--r-sm);
+  padding: 10px 12px;
+  margin-top: 8px;
+}
+.token-valor {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: var(--ambar);
+  word-break: break-all;
+  flex: 1;
+}
+.token-acciones {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+.dispositivo-card {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 14px;
+  margin-bottom: 10px;
+}
+.dispositivo-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.dispositivo-stats {
+  display: flex;
+  gap: 14px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--txt-soft);
+}
+.pagos-lista, .notifs-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+.pago-fila {
+  display: grid;
+  grid-template-columns: 80px 100px 1fr 100px;
+  gap: 12px;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: var(--r-sm);
+  align-items: center;
+  border-left: 3px solid var(--verde);
+}
+.pago-consumido { opacity: 0.6; border-left-color: var(--azul); }
+.pago-metodo {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-align: center;
+  padding: 4px 0;
+  border-radius: var(--r-sm);
+  background: var(--bg-card);
+}
+.metodo-yape { background: #722ed1; color: white; }
+.metodo-plin { background: #06b6d4; color: white; }
+.metodo-transferencia { background: var(--ambar-oscuro); color: white; }
+.pago-monto strong {
+  color: var(--ambar);
+  font-size: 16px;
+  font-family: Georgia, serif;
+}
+.notif-fila {
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: var(--r-sm);
+}
+.notif-header {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+.notif-titulo { font-weight: 700; }
+.notif-texto { color: var(--txt-soft); font-size: 12px; }
+.badge-verde { background: var(--verde); color: white; }
+.badge-rojo { background: var(--rojo); color: white; }
+.badge-gris { background: var(--txt-mute); color: var(--bg); }
+
+@media (max-width: 600px) {
+  .pago-fila { grid-template-columns: 70px 1fr; }
+  .pago-info { grid-column: 1 / -1; }
+  .pago-fecha { grid-column: 1 / -1; }
+}
+</style>
+
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends "admin/base.html" %}
+
+{% block titulo %}Mi perfil{% endblock %}
+{% block topbar %}Mi perfil{% endblock %}
+
+{% block contenido %}
+
+<div class="card">
+  <h2>Datos personales</h2>
+  <div class="campo-readonly">
+    <label class="campo-label">Nombre completo</label>
+    <div class="campo-display">{{ persona.nombre_completo }}</div>
+  </div>
+  <div class="campo-readonly">
+    <label class="campo-label">País / Documento</label>
+    <div class="campo-display">{{ persona.pais_codigo }} · {{ persona.id_fiscal }}</div>
+  </div>
+  <div class="campo-readonly">
+    <label class="campo-label">Email</label>
+    <div class="campo-display">{{ persona.email or '—' }}</div>
+  </div>
+  <div class="campo-readonly">
+    <label class="campo-label">Teléfono</label>
+    <div class="campo-display">{{ persona.telefono or '—' }}</div>
+  </div>
+</div>
+
+<form class="card" hx-post="/admin/perfil/password" hx-target="#fb-pwd" hx-swap="innerHTML">
+  <h2>Cambiar contraseña</h2>
+
+  <label class="campo-label">Contraseña actual</label>
+  <input type="password" name="password_actual" class="campo-input" required>
+
+  <label class="campo-label">Nueva contraseña</label>
+  <input type="password" name="password_nuevo" class="campo-input" minlength="6" required>
+
+  <label class="campo-label">Confirmar nueva contraseña</label>
+  <input type="password" name="password_confirm" class="campo-input" minlength="6" required>
+
+  <button type="submit" class="btn-principal">Cambiar contraseña</button>
+  <div id="fb-pwd"></div>
+</form>
+
+{% endblock %}

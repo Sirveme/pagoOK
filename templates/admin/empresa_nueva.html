@@ -1,0 +1,58 @@
+{% extends "admin/base.html" %}
+
+{% block titulo %}Registra tu negocio{% endblock %}
+{% block topbar %}Registra tu negocio{% endblock %}
+
+{% block contenido %}
+
+<div class="bienvenida">
+  <h1>Bienvenido, {{ persona.nombre_completo.split()[0] }}</h1>
+  <p class="bienvenida-sub">Empecemos registrando tu negocio</p>
+</div>
+
+<form class="card" method="post" action="/admin/empresa/nueva">
+  <h2>Datos básicos</h2>
+
+  <label class="campo-label">País</label>
+  <select name="pais_codigo" class="campo-input campo-select" required
+          _="on change set #regimen-grupo.style.display to (my.value is 'PE' ? 'block' : 'none')">
+    {% for p in paises %}
+    <option value="{{ p.codigo }}" {% if p.codigo == 'PE' %}selected{% endif %}>{{ p.nombre }}</option>
+    {% endfor %}
+  </select>
+
+  <label class="campo-label">Documento fiscal (RUC, RFC, NIT, etc.)</label>
+  <input type="text" name="id_fiscal" class="campo-input" placeholder="Ej: 20615446565" required inputmode="numeric">
+
+  <label class="campo-label">Razón social</label>
+  <input type="text" name="razon_social" class="campo-input" placeholder="POLLERÍA BOLOGNESI S.A.C." required>
+
+  <label class="campo-label">Nombre comercial</label>
+  <input type="text" name="nombre_comercial" class="campo-input" placeholder="Pollería Bolognesi" required>
+
+  <label class="campo-label">Domicilio fiscal</label>
+  <input type="text" name="domicilio_fiscal" class="campo-input" placeholder="Av. Iquitos 230">
+
+  <label class="campo-label">Ciudad</label>
+  <input type="text" name="ciudad" class="campo-input" placeholder="Iquitos, Loreto">
+
+  <div id="regimen-grupo">
+    <label class="campo-label">Régimen tributario (Perú)</label>
+    <select name="regimen_tributario_id" class="campo-input campo-select">
+      <option value="">-- Selecciona --</option>
+      {% for r in regimenes_pe %}
+      <option value="{{ r.id }}">{{ r.nombre }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  {% if error %}
+  <div class="mensaje-error">{{ error }}</div>
+  {% endif %}
+
+  <button type="submit" class="btn-principal btn-principal-grande">
+    Crear negocio →
+  </button>
+</form>
+
+{% endblock %}

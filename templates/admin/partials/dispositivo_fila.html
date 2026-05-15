@@ -1,0 +1,50 @@
+<div class="dispositivo-card" id="disp-{{ d.id }}">
+  <div class="dispositivo-header">
+    <div>
+      <strong>{{ d.nombre }}</strong>
+      {% if not d.activo %}<span class="badge badge-rojo">DESACTIVADO</span>{% endif %}
+      {% if d.modelo %}<div class="text-soft text-pequeno">{{ d.modelo }}</div>{% endif %}
+    </div>
+    <div style="display:flex; gap:6px;">
+      <button class="btn-icono" title="Activar/Desactivar"
+              hx-post="/admin/dispositivo/{{ d.id }}/toggle"
+              hx-target="#disp-{{ d.id }}"
+              hx-swap="outerHTML">⏻</button>
+      <button class="btn-icono btn-peligro" title="Eliminar"
+              hx-delete="/admin/dispositivo/{{ d.id }}"
+              hx-target="#disp-{{ d.id }}"
+              hx-swap="outerHTML"
+              hx-confirm="¿Eliminar este dispositivo? El celular dejará de poder enviar notificaciones.">×</button>
+    </div>
+  </div>
+
+  <div class="token-box">
+    <div class="text-soft text-pequeno" style="text-transform:uppercase; letter-spacing:1px; font-weight:800;">
+      Token de este dispositivo
+    </div>
+    <div class="token-valor" id="token-{{ d.id }}">{{ d.token }}</div>
+    <div class="token-acciones">
+      <button class="btn-secundario btn-pequeno"
+              _="on click writeText({{ d.token|tojson }}) to navigator.clipboard
+                 then send mostrar-toast(value:'Token copiado', tipo:'exito') to <body/>">
+        Copiar
+      </button>
+      <button class="btn-secundario btn-pequeno"
+              hx-post="/admin/dispositivo/{{ d.id }}/regenerar"
+              hx-target="#disp-{{ d.id }}"
+              hx-swap="outerHTML"
+              hx-confirm="¿Regenerar token? El celular actual dejará de funcionar hasta que pegues el nuevo.">
+        Regenerar
+      </button>
+    </div>
+  </div>
+
+  <div class="dispositivo-stats">
+    <span>📨 {{ d.total_notificaciones or 0 }} notif.</span>
+    {% if d.ultimo_ping %}
+    <span>⏱ Último ping: {{ d.ultimo_ping.strftime('%H:%M:%S') }}</span>
+    {% else %}
+    <span class="text-mute">Aún sin pings</span>
+    {% endif %}
+  </div>
+</div>

@@ -1,0 +1,25 @@
+{% if empresa.logo_url %}
+<div class="logo-preview">
+  <img src="{{ empresa.logo_url }}" alt="Logo">
+  <div class="logo-preview-info">
+    <strong>Logo propio</strong>
+    <button class="btn-secundario btn-pequeno" hx-post="/admin/logo/quitar" hx-target="#logo-preview">Quitar</button>
+  </div>
+</div>
+{% elif empresa.icono_sectorial %}
+<div class="logo-preview">
+  <img src="/static/admin/iconos/{{ empresa.icono_sectorial }}.svg" alt="Ícono">
+  <div class="logo-preview-info">
+    <strong>Ícono sectorial: {{ empresa.icono_sectorial }}</strong>
+    <button class="btn-secundario btn-pequeno" hx-post="/admin/logo/quitar" hx-target="#logo-preview">Quitar</button>
+  </div>
+</div>
+{% else %}
+<div class="logo-preview logo-vacio">
+  <span class="logo-vacio-icono">∅</span>
+  <div class="logo-preview-info">
+    <strong>Sin logo (recomendado)</strong>
+    <div class="text-soft text-pequeno">Tu ticket usará solo el nombre del negocio.</div>
+  </div>
+</div>
+{% endif %}

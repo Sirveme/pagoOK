@@ -1,0 +1,70 @@
+{% extends "admin/base.html" %}
+
+{% block titulo %}Datos del negocio{% endblock %}
+{% block topbar %}Datos del negocio{% endblock %}
+
+{% block contenido %}
+
+<form class="card" hx-post="/admin/empresa" hx-target="#feedback" hx-swap="innerHTML">
+  <div class="campo-readonly">
+    <label class="campo-label">País</label>
+    <div class="campo-display">{{ empresa.pais.nombre }} ({{ empresa.pais_codigo }})</div>
+  </div>
+
+  <div class="campo-readonly">
+    <label class="campo-label">{{ empresa.pais.nombre_id_fiscal }}</label>
+    <div class="campo-display">{{ empresa.id_fiscal }}</div>
+  </div>
+
+  <label class="campo-label">Razón social</label>
+  <input type="text" name="razon_social" class="campo-input" value="{{ empresa.razon_social }}" required>
+
+  <label class="campo-label">Nombre comercial</label>
+  <input type="text" name="nombre_comercial" class="campo-input" value="{{ empresa.nombre_comercial or '' }}" required>
+
+  <label class="campo-label">Domicilio fiscal</label>
+  <input type="text" name="domicilio_fiscal" class="campo-input" value="{{ empresa.domicilio_fiscal or '' }}">
+
+  <label class="campo-label">Ciudad</label>
+  <input type="text" name="ciudad" class="campo-input" value="{{ empresa.ciudad or '' }}">
+
+  {% if empresa.pais_codigo == 'PE' %}
+  <label class="campo-label">Régimen tributario</label>
+  <select name="regimen_tributario_id" class="campo-input campo-select">
+    <option value="">-- Selecciona --</option>
+    {% for r in regimenes_pe %}
+    <option value="{{ r.id }}" {% if empresa.regimen_tributario_id == r.id %}selected{% endif %}>
+      {{ r.nombre }}
+    </option>
+    {% endfor %}
+  </select>
+  {% endif %}
+
+  <label class="campo-label">Forma de pago por defecto</label>
+  <select name="forma_pago_default" class="campo-input campo-select">
+    <option value="CONTADO" {% if empresa.forma_pago_default == 'CONTADO' %}selected{% endif %}>Contado</option>
+    <option value="CREDITO" {% if empresa.forma_pago_default == 'CREDITO' %}selected{% endif %}>Crédito</option>
+  </select>
+
+  <div class="check-fila">
+    <label class="check-label">
+      <input type="checkbox" name="es_zona_especial" value="true" {% if empresa.es_zona_especial %}checked{% endif %}
+             _="on change set #zona-nombre.style.display to (my.checked ? 'block' : 'none')">
+      <span>Mi negocio está en una zona con beneficios tributarios (ej: Amazonía en Perú)</span>
+    </label>
+  </div>
+
+  <div id="zona-nombre" style="display: {% if empresa.es_zona_especial %}block{% else %}none{% endif %};">
+    <label class="campo-label">Nombre de la zona</label>
+    <input type="text" name="zona_especial_nombre" class="campo-input"
+           value="{{ empresa.zona_especial_nombre or '' }}" placeholder="Ej: Amazonía">
+  </div>
+
+  <button type="submit" class="btn-principal btn-principal-grande">
+    Guardar cambios
+  </button>
+
+  <div id="feedback"></div>
+</form>
+
+{% endblock %}

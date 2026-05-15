@@ -1,0 +1,143 @@
+{% extends "admin/base.html" %}
+
+{% block titulo %}Métodos de pago{% endblock %}
+{% block topbar %}Métodos de pago{% endblock %}
+
+{% block contenido %}
+
+<!-- YAPE + PLIN -->
+<form class="card" hx-post="/admin/pagos/yape-plin" hx-target="#fb-yapeplin" hx-swap="innerHTML">
+  <h2>Yape y Plin</h2>
+
+  <div class="metodo-row">
+    <div class="metodo-row-titulo">
+      <span class="metodo-icono yape">Y</span>
+      <strong>Yape</strong>
+    </div>
+    <label class="check-label">
+      <input type="checkbox" name="yape_activo" value="true"
+             {% if metodos.get('yape') and metodos['yape'].activo %}checked{% endif %}>
+      <span>Activo</span>
+    </label>
+  </div>
+  <div class="campo-row">
+    <div>
+      <label class="campo-label">Celular Yape</label>
+      <input type="text" name="yape_celular" class="campo-input"
+             placeholder="987 654 321"
+             value="{{ metodos.get('yape').celular if metodos.get('yape') else '' }}">
+    </div>
+    <div>
+      <label class="campo-label">Titular</label>
+      <input type="text" name="yape_titular" class="campo-input"
+             placeholder="Nombre que aparece en Yape"
+             value="{{ metodos.get('yape').titular if metodos.get('yape') else '' }}">
+    </div>
+  </div>
+
+  <div class="metodo-separador"></div>
+
+  <div class="metodo-row">
+    <div class="metodo-row-titulo">
+      <span class="metodo-icono plin">P</span>
+      <strong>Plin</strong>
+    </div>
+    <label class="check-label">
+      <input type="checkbox" name="plin_activo" value="true"
+             {% if metodos.get('plin') and metodos['plin'].activo %}checked{% endif %}>
+      <span>Activo</span>
+    </label>
+  </div>
+  <div class="campo-row">
+    <div>
+      <label class="campo-label">Celular Plin</label>
+      <input type="text" name="plin_celular" class="campo-input"
+             placeholder="987 654 321"
+             value="{{ metodos.get('plin').celular if metodos.get('plin') else '' }}">
+    </div>
+    <div>
+      <label class="campo-label">Titular</label>
+      <input type="text" name="plin_titular" class="campo-input"
+             placeholder="Nombre que aparece en Plin"
+             value="{{ metodos.get('plin').titular if metodos.get('plin') else '' }}">
+    </div>
+  </div>
+
+  <button type="submit" class="btn-principal">Guardar Yape y Plin</button>
+  <div id="fb-yapeplin"></div>
+</form>
+
+<!-- CUENTAS BANCARIAS -->
+<div class="card">
+  <h2>Cuentas bancarias (transferencia)</h2>
+  <p class="text-soft text-pequeno">Máximo 5 cuentas. Recomendado: BCP, BBVA, Interbank.</p>
+
+  <div id="cuentas-lista">
+    {% for c in cuentas %}
+    {% include "admin/partials/cuenta_fila.html" %}
+    {% endfor %}
+  </div>
+
+  {% if cuentas|length < 5 %}
+  <details class="form-collapsible">
+    <summary>+ Agregar cuenta bancaria</summary>
+    <form hx-post="/admin/cuenta-bancaria"
+          hx-target="#cuentas-lista"
+          hx-swap="beforeend"
+          _="on htmx:afterRequest reset() me">
+      <div class="campo-row">
+        <div>
+          <label class="campo-label">Banco</label>
+          <select name="banco" class="campo-input campo-select" required>
+            {% for b in bancos_pe %}
+            <option value="{{ b }}">{{ b }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="campo-label">Tipo de cuenta</label>
+          <input type="text" name="tipo_cuenta" class="campo-input" placeholder="Corriente soles">
+        </div>
+      </div>
+      <label class="campo-label">N° de cuenta</label>
+      <input type="text" name="numero" class="campo-input" placeholder="191-2345678-0-12" required>
+      <label class="campo-label">CCI (opcional)</label>
+      <input type="text" name="cci" class="campo-input" placeholder="00219100023456781293">
+      <label class="campo-label">Titular</label>
+      <input type="text" name="titular" class="campo-input" placeholder="POLLERÍA BOLOGNESI SAC">
+      <button type="submit" class="btn-principal">Agregar cuenta</button>
+    </form>
+  </details>
+  {% endif %}
+</div>
+
+<!-- TARJETA -->
+<form class="card" hx-post="/admin/pagos/tarjeta" hx-target="#fb-tarjeta" hx-swap="innerHTML">
+  <h2>Tarjeta (POS físico)</h2>
+  <label class="check-label">
+    <input type="checkbox" name="tarjeta_activo" value="true"
+           {% if metodos.get('tarjeta') and metodos['tarjeta'].activo %}checked{% endif %}>
+    <span>Aceptamos pagos con tarjeta</span>
+  </label>
+  <label class="check-label">
+    <input type="checkbox" name="voucher_obligatorio" value="true"
+           {% if metodos.get('tarjeta') and metodos['tarjeta'].voucher_obligatorio %}checked{% endif %}>
+    <span>Pedir N° de voucher obligatorio al cobrar</span>
+  </label>
+  <button type="submit" class="btn-principal">Guardar tarjeta</button>
+  <div id="fb-tarjeta"></div>
+</form>
+
+<!-- EFECTIVO -->
+<form class="card" hx-post="/admin/pagos/efectivo" hx-target="#fb-efectivo" hx-swap="innerHTML">
+  <h2>Efectivo</h2>
+  <label class="check-label">
+    <input type="checkbox" name="efectivo_activo" value="true"
+           {% if not metodos.get('efectivo') or metodos['efectivo'].activo %}checked{% endif %}>
+    <span>Aceptamos pagos en efectivo</span>
+  </label>
+  <button type="submit" class="btn-principal">Guardar efectivo</button>
+  <div id="fb-efectivo"></div>
+</form>
+
+{% endblock %}

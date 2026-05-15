@@ -1,0 +1,17 @@
+<div class="vendedor-fila" id="vendedor-{{ vend.id }}">
+  <div class="vendedor-info">
+    <strong>{{ persona.nombre_completo }}</strong>
+    <span class="text-soft text-pequeno">DNI {{ persona.id_fiscal }}</span>
+  </div>
+  <div class="vendedor-series">
+    <span class="badge badge-ambar">{{ vend.serie_b }}</span>
+    <span class="badge badge-ambar">{{ vend.serie_f }}</span>
+    {% if vend.serie_p %}<span class="badge badge-azul">{{ vend.serie_p }}</span>{% endif %}
+  </div>
+  <button class="btn-icono btn-peligro"
+          hx-delete="/admin/vendedor/{{ vend.id }}"
+          hx-target="#vendedor-{{ vend.id }}"
+          hx-swap="outerHTML"
+          hx-confirm="¿Eliminar este vendedor?"
+          title="Eliminar">×</button>
+</div>

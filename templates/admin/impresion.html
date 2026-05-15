@@ -1,0 +1,79 @@
+{% extends "admin/base.html" %}
+
+{% block titulo %}Impresión{% endblock %}
+{% block topbar %}Configuración de impresión{% endblock %}
+
+{% block contenido %}
+
+<form class="card" hx-post="/admin/impresion" hx-target="#fb-impresion" hx-swap="innerHTML">
+  <h2>Formato de papel</h2>
+  <p class="text-soft text-pequeno">Elige el tamaño de tu impresora.</p>
+
+  <div class="opciones-radio">
+    <label class="radio-card {% if config.formato_default == '58mm' %}activo{% endif %}">
+      <input type="radio" name="formato_default" value="58mm" {% if config.formato_default == '58mm' %}checked{% endif %}>
+      <div class="radio-card-titulo">58 mm</div>
+      <div class="radio-card-sub">Térmica pequeña<br>(bodegas, polleras)</div>
+    </label>
+    <label class="radio-card {% if config.formato_default == '80mm' %}activo{% endif %}">
+      <input type="radio" name="formato_default" value="80mm" {% if config.formato_default == '80mm' %}checked{% endif %}>
+      <div class="radio-card-titulo">80 mm</div>
+      <div class="radio-card-sub">Térmica estándar<br>(restaurantes)</div>
+    </label>
+    <label class="radio-card {% if config.formato_default == 'a4' %}activo{% endif %}">
+      <input type="radio" name="formato_default" value="a4" {% if config.formato_default == 'a4' %}checked{% endif %}>
+      <div class="radio-card-titulo">A4</div>
+      <div class="radio-card-sub">Hoja completa<br>(facturas formales)</div>
+    </label>
+  </div>
+
+  <h2 style="margin-top: 24px;">Comprobante por defecto</h2>
+  <p class="text-soft text-pequeno">
+    Cuando el cliente no pide nada específico, ¿qué emitimos?
+  </p>
+  <select name="comprobante_default" class="campo-input campo-select">
+    <option value="boleta" {% if config.comprobante_default == 'boleta' %}selected{% endif %}>Boleta de venta</option>
+    <option value="factura" {% if config.comprobante_default == 'factura' %}selected{% endif %}>Factura</option>
+    <option value="ticket" {% if config.comprobante_default == 'ticket' %}selected{% endif %}>Ticket simple (sin SUNAT)</option>
+    <option value="proforma" {% if config.comprobante_default == 'proforma' %}selected{% endif %}>Proforma / Presupuesto</option>
+  </select>
+
+  <h2 style="margin-top: 24px;">¿Qué tipos de comprobante imprimes?</h2>
+  <p class="text-soft text-pequeno">Marca los que tu negocio necesita.</p>
+
+  <div class="check-grupo">
+    <label class="check-label">
+      <input type="checkbox" name="imprime_boleta" value="true" {% if config.imprime_boleta %}checked{% endif %}>
+      <span>Boletas de venta electrónica</span>
+    </label>
+    <label class="check-label">
+      <input type="checkbox" name="imprime_factura" value="true" {% if config.imprime_factura %}checked{% endif %}>
+      <span>Facturas electrónicas</span>
+    </label>
+    <label class="check-label">
+      <input type="checkbox" name="imprime_proforma" value="true" {% if config.imprime_proforma %}checked{% endif %}>
+      <span>Proformas / Presupuestos (no SUNAT)</span>
+    </label>
+    <label class="check-label">
+      <input type="checkbox" name="imprime_nota_credito" value="true" {% if config.imprime_nota_credito %}checked{% endif %}>
+      <span>Notas de crédito (próximamente)</span>
+    </label>
+    <label class="check-label">
+      <input type="checkbox" name="imprime_nota_debito" value="true" {% if config.imprime_nota_debito %}checked{% endif %}>
+      <span>Notas de débito (próximamente)</span>
+    </label>
+    <label class="check-label">
+      <input type="checkbox" name="imprime_guia_remision" value="true" {% if config.imprime_guia_remision %}checked{% endif %}>
+      <span>Guías de remisión (próximamente)</span>
+    </label>
+    <label class="check-label">
+      <input type="checkbox" name="imprime_ticket_simple" value="true" {% if config.imprime_ticket_simple %}checked{% endif %}>
+      <span>Ticket simple sin valor SUNAT</span>
+    </label>
+  </div>
+
+  <button type="submit" class="btn-principal btn-principal-grande">Guardar configuración</button>
+  <div id="fb-impresion"></div>
+</form>
+
+{% endblock %}

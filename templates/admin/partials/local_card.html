@@ -1,0 +1,90 @@
+<div class="local-card" id="local-{{ local.id }}">
+  <div class="local-header">
+    <div>
+      <h3>{{ local.nombre }}</h3>
+      <div class="text-soft text-pequeno">
+        {{ local.direccion or '' }}
+        {% if local.es_anexo %}<span class="badge badge-azul">Anexo {{ local.codigo_anexo or '' }}</span>{% endif %}
+      </div>
+    </div>
+    <button class="btn-icono btn-peligro"
+            hx-delete="/admin/local/{{ local.id }}"
+            hx-target="#local-{{ local.id }}"
+            hx-swap="outerHTML"
+            hx-confirm="¿Eliminar este local y todos sus vendedores?"
+            title="Eliminar local">×</button>
+  </div>
+
+  <div class="vendedores-lista" id="vendedores-local-{{ local.id }}">
+    {% for vend in local.vendedores %}
+      {% if vend.activo %}
+      <div class="vendedor-fila" id="vendedor-{{ vend.id }}">
+        <div class="vendedor-info">
+          <strong>{{ vend.persona.nombre_completo }}</strong>
+          <span class="text-soft text-pequeno">DNI {{ vend.persona.id_fiscal }}</span>
+        </div>
+        <div class="vendedor-series">
+          <span class="badge badge-ambar">{{ vend.serie_b }}</span>
+          <span class="badge badge-ambar">{{ vend.serie_f }}</span>
+          {% if vend.serie_p %}<span class="badge badge-azul">{{ vend.serie_p }}</span>{% endif %}
+        </div>
+        <button class="btn-icono btn-peligro"
+                hx-delete="/admin/vendedor/{{ vend.id }}"
+                hx-target="#vendedor-{{ vend.id }}"
+                hx-swap="outerHTML"
+                hx-confirm="¿Eliminar este vendedor?"
+                title="Eliminar">×</button>
+      </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  <details class="form-collapsible form-compacto">
+    <summary>+ Agregar vendedor a este local</summary>
+    <form hx-post="/admin/vendedor"
+          hx-target="#vendedores-local-{{ local.id }}"
+          hx-swap="beforeend"
+          _="on htmx:afterRequest reset() me">
+      <input type="hidden" name="local_id" value="{{ local.id }}">
+      <div class="campo-row">
+        <div>
+          <label class="campo-label">País</label>
+          <select name="pais_codigo" class="campo-input campo-select" required>
+            <option value="PE" selected>PE</option>
+            <option value="MX">MX</option>
+            <option value="CO">CO</option>
+            <option value="CL">CL</option>
+            <option value="EC">EC</option>
+            <option value="BO">BO</option>
+            <option value="AR">AR</option>
+            <option value="VE">VE</option>
+            <option value="ES">ES</option>
+          </select>
+        </div>
+        <div>
+          <label class="campo-label">DNI / Documento</label>
+          <input type="text" name="id_fiscal" class="campo-input" placeholder="12345678" inputmode="numeric" required>
+        </div>
+      </div>
+      <label class="campo-label">Nombre completo</label>
+      <input type="text" name="nombre_completo" class="campo-input" placeholder="Juan Pérez" required>
+      <label class="campo-label">PIN (4 dígitos)</label>
+      <input type="text" name="pin" class="campo-input" inputmode="numeric" maxlength="4" placeholder="1234" required pattern="[0-9]{4}">
+      <div class="campo-row campo-row-3">
+        <div>
+          <label class="campo-label">Serie Boleta</label>
+          <input type="text" name="serie_b" class="campo-input" placeholder="B{{ local.serie_base or '001' }}" required>
+        </div>
+        <div>
+          <label class="campo-label">Serie Factura</label>
+          <input type="text" name="serie_f" class="campo-input" placeholder="F{{ local.serie_base or '001' }}" required>
+        </div>
+        <div>
+          <label class="campo-label">Serie Proforma (opcional)</label>
+          <input type="text" name="serie_p" class="campo-input" placeholder="P{{ local.serie_base or '001' }}">
+        </div>
+      </div>
+      <button type="submit" class="btn-principal">Agregar vendedor</button>
+    </form>
+  </details>
+</div>

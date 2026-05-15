@@ -1,0 +1,114 @@
+{% extends "admin/base.html" %}
+
+{% block titulo %}Dashboard{% endblock %}
+{% block topbar %}Inicio{% endblock %}
+
+{% block contenido %}
+
+<div class="bienvenida">
+  <h1>Hola, {{ persona.nombre_completo.split()[0] }}</h1>
+  <p class="bienvenida-sub">Aquí está el estado de <strong>{{ empresa.nombre_comercial }}</strong></p>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-num">{{ n_locales }}</div>
+    <div class="stat-label">Locales</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num">{{ n_vendedores }}</div>
+    <div class="stat-label">Vendedores</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num">{{ n_metodos }}</div>
+    <div class="stat-label">Métodos de pago</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num">{{ n_cuentas }}</div>
+    <div class="stat-label">Cuentas bancarias</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2>Configuración de tu negocio</h2>
+    <span class="badge badge-ambar">{{ completado }} / {{ total_checklist }}</span>
+  </div>
+
+  <div class="checklist">
+    <a href="/admin/empresa" class="checklist-item {% if checklist.datos_negocio %}completo{% endif %}">
+      <span class="check-icono">{% if checklist.datos_negocio %}✓{% else %}○{% endif %}</span>
+      <div class="check-info">
+        <div class="check-titulo">Datos del negocio</div>
+        <div class="check-sub">Razón social, domicilio fiscal, régimen tributario</div>
+      </div>
+      <span class="check-flecha">›</span>
+    </a>
+    <a href="/admin/logo" class="checklist-item {% if checklist.logo %}completo{% endif %}">
+      <span class="check-icono">{% if checklist.logo %}✓{% else %}○{% endif %}</span>
+      <div class="check-info">
+        <div class="check-titulo">Logo o ícono sectorial</div>
+        <div class="check-sub">Sube tu logo o elige un ícono de tu rubro (opcional)</div>
+      </div>
+      <span class="check-flecha">›</span>
+    </a>
+    <a href="/admin/pagos" class="checklist-item {% if checklist.metodos_pago %}completo{% endif %}">
+      <span class="check-icono">{% if checklist.metodos_pago %}✓{% else %}○{% endif %}</span>
+      <div class="check-info">
+        <div class="check-titulo">Métodos de pago</div>
+        <div class="check-sub">Yape, Plin, cuentas bancarias, tarjeta, efectivo</div>
+      </div>
+      <span class="check-flecha">›</span>
+    </a>
+    <a href="/admin/vendedores" class="checklist-item {% if checklist.vendedores %}completo{% endif %}">
+      <span class="check-icono">{% if checklist.vendedores %}✓{% else %}○{% endif %}</span>
+      <div class="check-info">
+        <div class="check-titulo">Vendedores y locales</div>
+        <div class="check-sub">Configura los puntos de venta y quién atiende</div>
+      </div>
+      <span class="check-flecha">›</span>
+    </a>
+    <a href="/admin/impresion" class="checklist-item {% if checklist.impresion %}completo{% endif %}">
+      <span class="check-icono">{% if checklist.impresion %}✓{% else %}○{% endif %}</span>
+      <div class="check-info">
+        <div class="check-titulo">Configuración de impresión</div>
+        <div class="check-sub">Formato (58mm / 80mm / A4), tipos de comprobante</div>
+      </div>
+      <span class="check-flecha">›</span>
+    </a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2>Email de notificaciones bancarias</h2>
+  </div>
+  <p class="text-soft">
+    Configura tu correo de notificaciones bancarias para que pagoOK verifique pagos automáticamente.
+  </p>
+  <div class="email-notif-box">
+    <div class="email-notif-label">Tu dirección única:</div>
+    <div class="email-notif-valor" id="email-notif">{{ empresa.email_notif_bancos }}</div>
+    <button class="btn-secundario"
+      _="on click writeText({{ empresa.email_notif_bancos|tojson }}) to navigator.clipboard
+         then send mostrar-toast(value:'Copiado', tipo:'exito') to <body/>">
+      Copiar
+    </button>
+  </div>
+  <p class="text-soft text-pequeno">
+    📘 <strong>Cómo configurar:</strong> reenvía o redirige las notificaciones de tu app del banco a esta dirección.
+    Pronto agregaremos instructivos paso a paso y video tutorial.
+  </p>
+</div>
+
+<div class="card card-acceso-caja">
+  <div class="card-header">
+    <h2>App de Caja</h2>
+  </div>
+  <p>Tus vendedores ya pueden ingresar a la Caja:</p>
+  <a href="/caja/{{ empresa.slug }}" class="btn-principal" target="_blank">
+    Abrir Caja en nueva pestaña →
+  </a>
+</div>
+
+{% endblock %}

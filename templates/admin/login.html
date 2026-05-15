@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#2a0404">
+  <title>Login Admin · pagoOK</title>
+  <link rel="icon" type="image/svg+xml" href="/static/caja/icon.svg">
+  <link rel="stylesheet" href="/static/admin/admin.css">
+</head>
+<body class="login-body">
+
+<div class="login-wrap">
+  <div class="logo-grande">
+    <span class="logo-pago">pago</span><span class="logo-ok">OK</span>
+  </div>
+  <div class="logo-tagline">ADMIN · DUEÑO</div>
+
+  <form class="login-card" method="post" action="/admin/login">
+    <h2 class="login-titulo">Ingresa a tu negocio</h2>
+
+    <label class="campo-label">País</label>
+    <select name="pais_codigo" class="campo-input campo-select" required>
+      {% for p in paises %}
+      <option value="{{ p.codigo }}" {% if p.codigo == (pais_codigo or 'PE') %}selected{% endif %}>
+        {{ p.nombre }}
+      </option>
+      {% endfor %}
+    </select>
+
+    <label class="campo-label">DNI / Documento</label>
+    <input
+      type="text"
+      name="id_fiscal"
+      class="campo-input"
+      inputmode="numeric"
+      autocomplete="username"
+      placeholder="Tu documento de identidad"
+      value="{{ id_fiscal or '' }}"
+      required>
+
+    <label class="campo-label">Contraseña</label>
+    <input
+      type="password"
+      name="password"
+      class="campo-input"
+      autocomplete="current-password"
+      placeholder="Mínimo 6 caracteres"
+      required>
+
+    {% if error %}
+    <div class="mensaje-error">{{ error }}</div>
+    {% endif %}
+
+    <button type="submit" class="btn-principal btn-principal-grande">
+      Ingresar →
+    </button>
+  </form>
+
+  <div class="login-footer">
+    <a href="/">← Volver a pagoOK</a>
+  </div>
+</div>
+
+</body>
+</html>
