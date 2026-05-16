@@ -172,7 +172,7 @@
 }
 .pago-fila {
   display: grid;
-  grid-template-columns: 80px 100px 1fr 100px;
+  grid-template-columns: 110px 110px 1fr 80px;
   gap: 12px;
   padding: 10px 12px;
   background: rgba(0, 0, 0, 0.25);
@@ -182,7 +182,10 @@
 }
 .pago-consumido { opacity: 0.6; border-left-color: var(--azul); }
 .pago-metodo {
-  font-size: 10px;
+  font-size: 9px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-weight: 900;
   letter-spacing: 1px;
   text-align: center;
