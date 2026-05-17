@@ -11,6 +11,7 @@ from app.routes import router as public_router
 from app.admin import router as admin_router
 from app.admin.deps import NoAutenticado
 from app.api import webhook_router, admin_dispositivos_router
+from app.api.router_demo import router as router_demo
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("pagook")
@@ -66,3 +67,4 @@ app.include_router(public_router)
 app.include_router(admin_router)
 app.include_router(admin_dispositivos_router)
 app.include_router(webhook_router)
+app.include_router(router_demo)
