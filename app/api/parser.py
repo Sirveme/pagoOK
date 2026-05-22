@@ -32,7 +32,9 @@ def _normalizar_monto(s: str) -> Decimal | None:
 
 def _abreviar_titular(nombre: str) -> str:
     """'JUAN CARLOS PEREZ LOPEZ' -> 'J. C. PEREZ L.'
-    'Bertha Mariana Restuccia' -> 'B. M. Restuccia'"""
+    'Bertha Mariana Restuccia' -> 'B. M. Restuccia'
+    'DUILIO RESTUCCIA' -> 'D. RESTUCCIA'
+    """
     if not nombre:
         return ""
     partes = nombre.strip().split()
@@ -49,29 +51,43 @@ def _limpiar_titular(t: str) -> str:
     if not t:
         return ""
     t = t.strip()
-    # Quitar prefijos comunes
-    for prefijo in ["de ", "De ", "DE "]:
+    for prefijo in ["de ", "De ", "DE ", "Yape! ", "yape! "]:
         if t.startswith(prefijo):
             t = t[len(prefijo):]
-    # Quitar puntuación final
     t = t.rstrip(".,!?¡¿:;")
     return t.strip()
+
+
+# Caracteres permitidos en nombres: ASCII + acentos peruanos + ñ + asterisco
+# El asterisco aparece en notif Yape como mascara de seguridad: "Angela Rob*"
+NOMBRE_CHARS = r"A-Za-zÁÉÍÓÚáéíóúÑñ"
+NOMBRE_INICIO = r"[A-ZÁÉÍÓÚÑ]"  # debe empezar con mayúscula
 
 
 # =============================================================
 # YAPE (BCP)
 # =============================================================
-
 def parse_yape(package: str, titulo: str, texto: str) -> dict | None:
-    if "yape" not in (package or "").lower() and "yape" not in (titulo or "").lower():
+    pkg = (package or "").lower()
+    tit = (titulo or "").lower()
+    txt = (texto or "").lower()
+
+    es_yape = (
+        "yape" in pkg or
+        "yape" in tit or
+        "yape" in txt or
+        "te yape" in txt or
+        "te envió un pago" in txt or
+        "te envio un pago" in txt
+    )
+    if not es_yape:
         return None
 
-    # Filtrar egresos (no son pagos recibidos)
-    txt_low = (texto or "").lower()
-    es_egreso = any(x in txt_low for x in [
-        "yapeaste",     # "Yapeaste S/ X a Y"
-        "enviaste",
-        "envíaste",
+    # Filtrar egresos
+    es_egreso = any(x in txt for x in [
+        "yapeaste",
+        "enviaste un yape",
+        "tu yape de",  # "Tu Yape de S/ X fue enviado"
     ])
     if es_egreso:
         return None
@@ -80,39 +96,66 @@ def parse_yape(package: str, titulo: str, texto: str) -> dict | None:
     titular = None
     codigo_op = None
 
+    # Extraer monto: "S/ 1", "S/1.50", "S/. 100,50"
     m = re.search(r"S/\.?\s*([\d.,]+)", texto)
     if m:
         monto = _normalizar_monto(m.group(1))
 
-    # "X te yapeó"
-    m = re.search(
-        r"([A-Za-zÁÉÍÓÚáéíóúñÑ][\wÁÉÍÓÚáéíóúñÑ\s.]+?)\s+te\s+yape[oóò]",
-        texto, re.IGNORECASE
-    )
-    if m:
-        titular = m.group(1).strip()
+    # ============ PATRONES DE TITULAR EN ORDEN DE PRIORIDAD ============
 
-    # "Recibiste S/ X de Y"
+    # Patrón 1: "DUILIO RESTUCCIA te envió un pago por S/ 1"
+    # Patrón 2: "Angela Rob* te envió un pago por S/ 80"
+    # Permite asterisco para mascaras parciales del nombre
     if not titular:
         m = re.search(
-            r"\bde\s+([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚáéíóúñÑ\s.]+?)(?:\s+con\s|$|[.,])",
-            texto
+            rf"({NOMBRE_INICIO}[{NOMBRE_CHARS}\s.*]+?)\s+te\s+envi[oó]\s+un\s+pago",
+            texto,
+            re.IGNORECASE,
         )
         if m:
             titular = m.group(1).strip()
 
-    m = re.search(r"c[oó]digo\s*:?\s*(\d{6,12})", texto, re.IGNORECASE)
+    # Patrón 3: "Juan Carlos Perez Lopez te yapeó S/ 15.00"
+    if not titular:
+        m = re.search(
+            rf"({NOMBRE_INICIO}[{NOMBRE_CHARS}\s.]+?)\s+te\s+yape[oó]",
+            texto,
+            re.IGNORECASE,
+        )
+        if m:
+            titular = m.group(1).strip()
+
+    # Patrón 4: "Recibiste S/ X de Juan Perez"
+    if not titular:
+        m = re.search(
+            rf"\bde\s+({NOMBRE_INICIO}[{NOMBRE_CHARS}\s.]+?)(?:\s+con\s|$|[.,])",
+            texto,
+        )
+        if m:
+            titular = m.group(1).strip()
+
+    # Si el texto empieza con "Yape! NOMBRE te ..." la regex ya lo captura,
+    # pero el "Yape!" puede quedar pegado. Lo limpiamos al final.
+
+    # ============ CODIGO DE OPERACION ============
+    # "código 12345678" o "cód. 12345678"
+    m = re.search(r"c[oó]d(?:igo)?\.?\s*:?\s*(\d{4,12})", texto, re.IGNORECASE)
     if m:
         codigo_op = m.group(1)
+
+    # Fallback: cualquier numero largo NO sea el monto
     if not codigo_op:
-        m = re.search(r"\b(\d{8,9})\b", texto)
+        m = re.search(r"\b(\d{8,12})\b", texto)
         if m:
+            # No confundir con el código de seguridad ("El cód. de seguridad es: 135")
+            # ese son 3 digitos, no entran aquí
             codigo_op = m.group(1)
 
     if monto is None:
         return None
 
     titular = _limpiar_titular(titular)
+
     return {
         "metodo": "yape",
         "monto": monto,
@@ -127,27 +170,23 @@ def parse_yape(package: str, titulo: str, texto: str) -> dict | None:
 # =============================================================
 # PLIN (multi-banco)
 # =============================================================
-
 def parse_plin(package: str, titulo: str, texto: str) -> dict | None:
     pkg = (package or "").lower()
     tit = (titulo or "").lower()
     txt = (texto or "").lower()
 
-    # Detección de Plin en cualquiera de los campos
     es_plin = (
         "plin" in pkg or "plin" in tit or "plin" in txt or
         "plineado" in txt or "plineo" in txt or
-        # Interbank usa "te ha plineado" como pattern fuerte
         ("interbank" in pkg and ("plineado" in txt or "plineo" in txt))
     )
     if not es_plin:
         return None
 
-    # IMPORTANTE: filtrar egresos (no son pagos recibidos)
+    # Filtrar egresos
     es_egreso = any(x in txt for x in [
-        "plineaste",   # "Plineaste S/ X a Y"
-        "enviaste",    # "Enviaste un Plin"
-        "envíaste",
+        "plineaste",
+        "enviaste",
         "transferiste",
     ])
     if es_egreso:
@@ -157,15 +196,16 @@ def parse_plin(package: str, titulo: str, texto: str) -> dict | None:
     titular = None
     codigo_op = None
 
-    # Monto S/ X.YZ
+    # Monto
     m = re.search(r"S/\.?\s*([\d.,]+)", texto)
     if m:
         monto = _normalizar_monto(m.group(1))
 
     # Patrón Interbank: "Bertha Mariana Restuccia te ha plineado S/ 1.00"
     m = re.search(
-        r"([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚáéíóúñÑ\s.]+?)\s+te\s+ha\s+plineado",
-        texto, re.IGNORECASE
+        rf"({NOMBRE_INICIO}[{NOMBRE_CHARS}\s.*]+?)\s+te\s+ha\s+plineado",
+        texto,
+        re.IGNORECASE,
     )
     if m:
         titular = m.group(1).strip()
@@ -173,8 +213,9 @@ def parse_plin(package: str, titulo: str, texto: str) -> dict | None:
     # Patrón alterno: "X te plineó" / "X te plineo"
     if not titular:
         m = re.search(
-            r"([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚáéíóúñÑ\s.]+?)\s+te\s+plin[eé]?[oó]",
-            texto, re.IGNORECASE
+            rf"({NOMBRE_INICIO}[{NOMBRE_CHARS}\s.*]+?)\s+te\s+plin[eé]?[oó]",
+            texto,
+            re.IGNORECASE,
         )
         if m:
             titular = m.group(1).strip()
@@ -182,8 +223,8 @@ def parse_plin(package: str, titulo: str, texto: str) -> dict | None:
     # Patrón "Recibiste S/ X de Y"
     if not titular:
         m = re.search(
-            r"\bde\s+([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚáéíóúñÑ\s.]+?)(?:\s+con\s|$|[.,]|\s+c[oó]digo)",
-            texto
+            rf"\bde\s+({NOMBRE_INICIO}[{NOMBRE_CHARS}\s.]+?)(?:\s+con\s|$|[.,]|\s+c[oó]digo)",
+            texto,
         )
         if m:
             titular = m.group(1).strip()
@@ -192,6 +233,7 @@ def parse_plin(package: str, titulo: str, texto: str) -> dict | None:
     m = re.search(r"c[oó]digo\s*:?\s*(\w{4,15})", texto, re.IGNORECASE)
     if m:
         codigo_op = m.group(1)
+
     if not codigo_op:
         m = re.search(r"\b(\d{6,12})\b", texto)
         if m:
@@ -201,6 +243,7 @@ def parse_plin(package: str, titulo: str, texto: str) -> dict | None:
         return None
 
     titular = _limpiar_titular(titular)
+
     return {
         "metodo": "plin",
         "monto": monto,
@@ -215,19 +258,18 @@ def parse_plin(package: str, titulo: str, texto: str) -> dict | None:
 # =============================================================
 # BANCOS (transferencias)
 # =============================================================
-
 def _parse_banco_generico(package: str, titulo: str, texto: str,
                           claves_pkg: list[str], nombre_banco: str) -> dict | None:
     pkg = (package or "").lower()
     tit = (titulo or "").lower() + " " + (texto or "").lower()
+
     if not any(k in pkg for k in claves_pkg) and not any(k in tit for k in claves_pkg):
         return None
 
-    # Solo procesar entradas, no salidas
     txt_low = (texto or "").lower()
     es_egreso = any(x in txt_low for x in [
         "consumiste", "consumo", "realizaste", "transferiste",
-        "pagaste", "retiraste", "compraste", "envíaste", "enviaste",
+        "pagaste", "retiraste", "compraste", "enviaste",
         "plineaste", "yapeaste",
     ])
     if es_egreso:
@@ -270,7 +312,7 @@ def parse_bbva(package: str, titulo: str, texto: str) -> dict | None:
 
 def parse_interbank(package: str, titulo: str, texto: str) -> dict | None:
     # OJO: si es Plin Interbank, el parser de Plin debe haber matcheado antes.
-    # Acá solo capturamos transferencias / abonos genéricos.
+    # Aquí solo capturamos transferencias / abonos genéricos.
     return _parse_banco_generico(
         package, titulo, texto,
         claves_pkg=["interbank"],
@@ -289,7 +331,6 @@ def parse_scotiabank(package: str, titulo: str, texto: str) -> dict | None:
 # =============================================================
 # REGISTRO Y DISPATCH
 # =============================================================
-
 # OJO al orden: Plin antes de Interbank, porque Plin Interbank tiene texto
 # que contiene "interbank" en package. Si Interbank corre primero,
 # matchearía como transferencia genérica perdiendo info de titular.
