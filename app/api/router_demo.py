@@ -12,14 +12,18 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from fastapi import APIRouter, Request, HTTPException, Body
+from fastapi import APIRouter, Request, HTTPException, Body, Depends
 from fastapi.responses import HTMLResponse, JSONResponse
-from sqlalchemy import select, desc, and_, func
+from fastapi.templating import Jinja2Templates
+from sqlalchemy import select, desc, and_, func, or_
+from sqlalchemy.orm import Session
 from zoneinfo import ZoneInfo
 
-from app.admin.db import SessionLocal
+from app.admin.db import SessionLocal, get_db
 from app.admin.models import Empresa
-from app.api.models_webhook import PagoDetectado
+from app.api.models_webhook import PagoDetectado, Dispositivo
+
+templates = Jinja2Templates(directory="templates")
 
 # Zona horaria de Lima/Perú
 TZ_LIMA = ZoneInfo("America/Lima")
@@ -91,13 +95,23 @@ def _serializar_pago(pago: PagoDetectado) -> dict:
 
 
 def _obtener_empresa_por_slug(db, slug: str) -> Empresa | None:
-    """Busca empresa case-insensitive."""
+    """Busca empresa por slug (case-insensitive) o por id_fiscal (RUC) exacto."""
     if not slug:
         return None
     slug_norm = slug.strip().lower()
-    return db.execute(
+    # 1) Buscar por slug exacto (case-insensitive)
+    empresa = db.execute(
         select(Empresa).where(func.lower(Empresa.slug) == slug_norm)
     ).scalar_one_or_none()
+    if empresa is not None:
+        return empresa
+    # 2) Si no se encontró por slug y parece RUC (todo dígitos), buscar por id_fiscal
+    slug_raw = slug.strip()
+    if slug_raw.isdigit():
+        empresa = db.execute(
+            select(Empresa).where(Empresa.id_fiscal == slug_raw)
+        ).scalar_one_or_none()
+    return empresa
 
 
 def _obtener_pagos_recientes(db, empresa_id: int, limite: int = LIMITE_PAGOS) -> list[PagoDetectado]:
@@ -186,6 +200,62 @@ def api_demo_buscar(slug: str, payload: dict = Body(...)):
 
 
 # ============================================================
+# PÁGINA PÚBLICA /testers (grilla de empresas)
+# ============================================================
+
+@router.get("/testers", response_class=HTMLResponse)
+def vista_testers(request: Request, db: Session = Depends(get_db)):
+    """Página pública con grilla de empresas que usan pagoOK."""
+    empresas = (
+        db.query(Empresa)
+        .filter(Empresa.visible_en_testers == True)
+        .filter(Empresa.activa == True)
+        .order_by(Empresa.creada_en.asc())
+        .all()
+    )
+
+    resumen = []
+    ahora = datetime.utcnow()
+    for emp in empresas:
+        total_pagos = (
+            db.query(func.count(PagoDetectado.id))
+            .filter(PagoDetectado.empresa_id == emp.id)
+            .scalar() or 0
+        )
+        ultimo_ping = (
+            db.query(func.max(Dispositivo.ultimo_ping))
+            .filter(Dispositivo.empresa_id == emp.id)
+            .scalar()
+        )
+        estado = "sin_dispositivo"
+        if ultimo_ping is not None:
+            if ahora - ultimo_ping < timedelta(minutes=30):
+                estado = "activo"
+            else:
+                estado = "inactivo"
+
+        # URL preferida: slug alias si difiere del RUC, sino el RUC
+        url_slug = emp.slug if emp.slug != emp.id_fiscal else emp.id_fiscal
+
+        resumen.append({
+            "id": emp.id,
+            "nombre_comercial": emp.nombre_comercial or emp.razon_social,
+            "razon_social": emp.razon_social,
+            "id_fiscal": emp.id_fiscal,
+            "slug": emp.slug,
+            "url_slug": url_slug,
+            "logo_url": emp.logo_url,
+            "total_pagos": total_pagos,
+            "estado": estado,
+        })
+
+    return templates.TemplateResponse(
+        "testers/grilla.html",
+        {"request": request, "empresas": resumen}
+    )
+
+
+# ============================================================
 # HTML ENDPOINT (la pantalla pública)
 # ============================================================
 
@@ -203,7 +273,8 @@ def demo_pantalla_publica(slug: str, request: Request):
         "admin", "api", "static", "favicon.ico", "robots.txt",
         "demo", "docs", "openapi.json", "redoc", "health",
         "login", "logout", "register", "signup", "auth",
-        "assets", "public", "templates",
+        "assets", "public", "templates", "testers",
+        "videos", "qr", "caja", "sitemap.xml", "llms.txt",
     }
     if slug.lower() in RESERVADOS:
         raise HTTPException(status_code=404)
