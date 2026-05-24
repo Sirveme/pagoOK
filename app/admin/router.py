@@ -329,6 +329,88 @@ async def empresa_actualizar(
 
 
 # =============================================================
+# ALTA DE EMPRESAS BETA (sin dueño, para etapa beta)
+# =============================================================
+
+@router.get("/empresas/nuevas", response_class=HTMLResponse)
+async def empresas_nuevas_form(request: Request, db: Session = Depends(get_db)):
+    """Formulario para crear una empresa nueva (etapa beta, sin dueño)."""
+    empresas = (
+        db.query(Empresa)
+        .order_by(Empresa.creada_en.desc())
+        .limit(20)
+        .all()
+    )
+    return templates.TemplateResponse(
+        "admin/empresas_nuevas.html",
+        {"request": request, "empresas": empresas, "mensaje": None, "error": None},
+    )
+
+
+@router.post("/empresas/nuevas", response_class=HTMLResponse)
+async def empresas_nuevas_crear(
+    request: Request,
+    ruc: str = Form(...),
+    razon_social: str = Form(...),
+    nombre_comercial: str = Form(""),
+    slug_alias: str = Form(""),
+    email: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    """Crea una empresa nueva (beta). Sin duenio_id."""
+    ruc = ruc.strip()
+    razon_social = razon_social.strip().upper()
+    nombre_comercial = nombre_comercial.strip().upper() or razon_social
+    slug_alias = slug_alias.strip().lower()
+    email = email.strip().lower() or None
+
+    error = None
+    if not ruc.isdigit() or len(ruc) != 11:
+        error = "RUC debe tener exactamente 11 dígitos numéricos"
+    elif db.query(Empresa).filter(Empresa.id_fiscal == ruc).first():
+        error = f"Ya existe empresa con RUC {ruc}"
+    elif slug_alias and db.query(Empresa).filter(Empresa.slug == slug_alias).first():
+        error = f"El slug '{slug_alias}' ya está tomado"
+
+    if error:
+        empresas = db.query(Empresa).order_by(Empresa.creada_en.desc()).limit(20).all()
+        return templates.TemplateResponse(
+            "admin/empresas_nuevas.html",
+            {"request": request, "empresas": empresas, "error": error, "mensaje": None},
+        )
+
+    # Si no hay alias, usar el RUC como slug
+    slug_final = slug_alias if slug_alias else ruc
+
+    nueva = Empresa(
+        pais_codigo="PE",
+        id_fiscal=ruc,
+        razon_social=razon_social,
+        nombre_comercial=nombre_comercial,
+        slug=slug_final,
+        forma_pago_default="CONTADO",
+        es_zona_especial=False,
+        activa=True,
+        visible_en_testers=True,
+        email_notif_bancos=email,
+    )
+    db.add(nueva)
+    db.commit()
+    db.refresh(nueva)
+
+    mensaje = (
+        f"✓ Empresa creada: {nueva.nombre_comercial} "
+        f"→ URL: pagook.pro/{nueva.slug}"
+    )
+
+    empresas = db.query(Empresa).order_by(Empresa.creada_en.desc()).limit(20).all()
+    return templates.TemplateResponse(
+        "admin/empresas_nuevas.html",
+        {"request": request, "empresas": empresas, "mensaje": mensaje, "error": None},
+    )
+
+
+# =============================================================
 # LOGO
 # =============================================================
 

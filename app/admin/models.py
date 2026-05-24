@@ -86,6 +86,7 @@ class Empresa(Base):
     email_notif_bancos = Column(String(150), unique=True)
     duenio_id = Column(Integer, ForeignKey("persona.id"))
     activa = Column(Boolean, default=True)
+    visible_en_testers = Column(Boolean, default=True, nullable=False)
     creada_en = Column(DateTime, server_default=func.now())
     actualizada_en = Column(DateTime, server_default=func.now())
 
