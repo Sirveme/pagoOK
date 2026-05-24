@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crear empresa nueva</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 24px;
+            background: #fafafa;
+        }
+        h1 { color: #2d0e15; }
+        .form-card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 6px;
+            color: #333;
+            font-size: 14px;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        input:focus { outline: none; border-color: #d4a559; }
+        .hint {
+            color: #888;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+        button {
+            background: #d4a559;
+            color: #2d0e15;
+            border: 0;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover { background: #c69549; }
+        .alert {
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+        .alert-success {
+            background: #e8f5e9;
+            border: 1px solid #4caf50;
+            color: #1b5e20;
+        }
+        .alert-error {
+            background: #ffebee;
+            border: 1px solid #f44336;
+            color: #b71c1c;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+            font-size: 13px;
+        }
+        th {
+            background: #f5f5f5;
+            font-weight: bold;
+            color: #555;
+        }
+        .ruc { font-family: monospace; color: #666; }
+        .slug {
+            background: #fff8e1;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Crear empresa nueva</h1>
+
+    {% if mensaje %}
+        <div class="alert alert-success">{{ mensaje }}</div>
+    {% endif %}
+    {% if error %}
+        <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <div class="form-card">
+        <form method="POST" action="/admin/empresas/nuevas">
+            <div class="form-group">
+                <label>RUC (11 dígitos)</label>
+                <input type="text" name="ruc" placeholder="20612345678"
+                       pattern="[0-9]{11}" required maxlength="11">
+                <div class="hint">Será el slug por defecto: pagook.pro/{RUC}</div>
+            </div>
+
+            <div class="form-group">
+                <label>Razón social</label>
+                <input type="text" name="razon_social" placeholder="EMPRESA EJEMPLO SAC"
+                       required>
+                <div class="hint">Tal como aparece en SUNAT</div>
+            </div>
+
+            <div class="form-group">
+                <label>Nombre comercial (opcional)</label>
+                <input type="text" name="nombre_comercial" placeholder="EJEMPLO">
+                <div class="hint">Si está vacío, se usa la razón social</div>
+            </div>
+
+            <div class="form-group">
+                <label>Slug alias (opcional)</label>
+                <input type="text" name="slug_alias" placeholder="ejemplo"
+                       pattern="[a-z0-9-]+">
+                <div class="hint">
+                    Si lo defines, la URL será pagook.pro/{alias} en vez de pagook.pro/{RUC}.
+                    Solo minúsculas, números y guiones.
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Email de contacto (opcional)</label>
+                <input type="email" name="email" placeholder="dueño@ejemplo.com">
+                <div class="hint">Para futuras notificaciones del sistema</div>
+            </div>
+
+            <button type="submit">CREAR EMPRESA</button>
+        </form>
+    </div>
+
+    <h2 style="font-size: 18px; color: #555;">Últimas 20 empresas registradas</h2>
+
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Razón social</th>
+                <th>Nombre comercial</th>
+                <th>RUC</th>
+                <th>Slug (URL)</th>
+                <th>Activa</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for emp in empresas %}
+            <tr>
+                <td>{{ emp.id }}</td>
+                <td>{{ emp.razon_social }}</td>
+                <td>{{ emp.nombre_comercial or "—" }}</td>
+                <td class="ruc">{{ emp.id_fiscal }}</td>
+                <td>
+                    <a href="/{{ emp.slug }}" target="_blank">
+                        <span class="slug">{{ emp.slug }}</span>
+                    </a>
+                </td>
+                <td>{{ "✓" if emp.activa else "✗" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <p style="margin-top: 32px; color: #888; font-size: 12px;">
+        Después de crear: ejecutar las migraciones SQL en Railway para que la
+        columna visible_en_testers exista en la BD de producción.
+    </p>
+</body>
+</html>
