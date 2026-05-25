@@ -249,10 +249,26 @@ def vista_testers(request: Request, db: Session = Depends(get_db)):
             "estado": estado,
         })
 
-    return templates.TemplateResponse(
-        "testers/grilla.html",
-        {"request": request, "empresas": resumen}
-    )
+    context = {
+        "request": request,
+        "empresas": resumen,
+        # CONFIG: ajustar manualmente conforme entren testers
+        "cupos_total": 50,
+        "cupos_disponibles": 47,
+        "wa_numero": "51967317946",
+        "wa_mensaje_invitacion": (
+            "Hola, quiero ser tester de pagoOK.\n\n"
+            "Mi info:\n"
+            "RUC:\n"
+            "Nombre Comercial:\n"
+            "Email:\n"
+            "Ciudad:"
+        ),
+        # Videos: URLs vacías por default. Cuando grabes, pega aquí la URL embed
+        "video_demo_url": "",   # ej: "https://www.youtube.com/embed/abc123"
+        "video_casos_url": "",
+    }
+    return templates.TemplateResponse("testers/grilla.html", context)
 
 
 # ============================================================
