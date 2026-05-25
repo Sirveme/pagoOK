@@ -3,70 +3,401 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Empresas que usan pagoOK</title>
+    <title>pagoOK — Valida tus Yapes y Plines en vivo</title>
+    <meta name="description" content="Validamos Yape y Plin en tiempo real. Evita que te estafen clientes externos o colaboradores internos.">
     <style>
         :root {
             --vino-profundo: #2d0e15;
             --vino-oscuro: #4a1822;
             --vino: #6d2230;
             --ambar: #d4a559;
+            --ambar-claro: #e3bd7a;
             --blanco: #f5f0e8;
             --crema: #ebe0cf;
             --gris-texto: #b8a591;
             --gris-suave: #8a7d6e;
             --rojo: #c0392b;
             --verde: #2e7d32;
+            --verde-claro: #66bb6a;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
         body {
             background: var(--vino-profundo);
             color: var(--crema);
             font-family: Georgia, 'Times New Roman', serif;
             min-height: 100vh;
+            line-height: 1.5;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
             padding: 24px 16px;
         }
-        .header {
+
+        /* ─── HERO ─── */
+        .hero {
             text-align: center;
-            margin-bottom: 32px;
+            padding: 48px 16px 32px;
         }
         .logo {
-            font-size: 48px;
+            font-size: 56px;
             font-weight: bold;
             color: var(--blanco);
             margin-bottom: 4px;
         }
         .logo .ok {
             color: var(--ambar);
-            padding: 0 10px;
-            border-radius: 8px;
+            padding: 0 14px;
+            border-radius: 10px;
             background: rgba(212, 165, 89, 0.1);
+            margin-left: 4px;
         }
-        .subtitle {
+        .logo-sub {
             color: var(--ambar);
-            font-size: 11px;
-            letter-spacing: 0.4em;
+            font-size: 12px;
+            letter-spacing: 0.5em;
             font-weight: bold;
+            margin-bottom: 28px;
         }
-        .titulo-seccion {
+        .hero-claim {
+            font-size: 32px;
+            color: var(--blanco);
+            font-weight: bold;
+            max-width: 700px;
+            margin: 0 auto 16px;
+            line-height: 1.2;
+        }
+        .hero-claim .destacado {
+            color: var(--ambar);
+        }
+        .hero-sub {
+            font-size: 18px;
+            color: var(--gris-texto);
+            max-width: 600px;
+            margin: 0 auto 32px;
+        }
+        .hero-bullets {
+            display: flex;
+            justify-content: center;
+            gap: 32px;
+            flex-wrap: wrap;
+            margin-top: 24px;
+        }
+        .hero-bullet {
+            color: var(--crema);
+            font-size: 14px;
+        }
+        .hero-bullet .check {
+            color: var(--verde-claro);
+            font-weight: bold;
+            margin-right: 6px;
+        }
+
+        /* ─── VIDEOS ─── */
+        .videos-section {
+            padding: 32px 16px;
+        }
+        .video-card {
+            background: var(--vino-oscuro);
+            border: 1px solid var(--vino);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+        .video-card h3 {
+            color: var(--ambar);
+            font-size: 18px;
+            margin-bottom: 8px;
+        }
+        .video-card p {
+            color: var(--gris-texto);
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+        .video-container {
+            position: relative;
+            width: 100%;
+            padding-bottom: 56.25%; /* aspect ratio 16:9 */
+            background: var(--vino-profundo);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .video-container iframe,
+        .video-container video {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            border: 0;
+        }
+        .video-placeholder {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: var(--gris-suave);
+        }
+        .video-placeholder .icon {
+            font-size: 64px;
+            margin-bottom: 12px;
+            display: block;
+        }
+        .video-placeholder p {
+            font-size: 14px;
+            color: var(--gris-suave);
+            margin: 0;
+        }
+
+        /* ─── FLUJO INTERACTIVO ─── */
+        .flujo-section {
+            padding: 48px 16px;
+            background: linear-gradient(180deg, var(--vino-profundo) 0%, var(--vino-oscuro) 100%);
+        }
+        .seccion-titulo {
             text-align: center;
             color: var(--ambar);
             font-size: 14px;
             letter-spacing: 0.3em;
             font-weight: bold;
-            margin: 40px 0 8px 0;
+            margin-bottom: 8px;
         }
-        .descripcion {
+        .seccion-subtitulo {
             text-align: center;
-            color: var(--gris-texto);
-            font-size: 13px;
+            color: var(--crema);
+            font-size: 24px;
+            font-weight: bold;
             margin-bottom: 32px;
-            max-width: 500px;
+            max-width: 700px;
             margin-left: auto;
             margin-right: auto;
         }
+        .flujo-tabs {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 32px;
+            flex-wrap: wrap;
+        }
+        .flujo-tab {
+            background: var(--vino-oscuro);
+            color: var(--gris-texto);
+            border: 1px solid var(--vino);
+            padding: 12px 24px;
+            border-radius: 24px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: bold;
+            letter-spacing: 0.1em;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .flujo-tab.activo {
+            background: var(--ambar);
+            color: var(--vino-oscuro);
+            border-color: var(--ambar);
+        }
+        .flujo-tab:hover:not(.activo) {
+            border-color: var(--ambar);
+            color: var(--crema);
+        }
+        .flujo-escenario {
+            display: none;
+            max-width: 360px;
+            margin: 0 auto;
+        }
+        .flujo-escenario.activo {
+            display: block;
+        }
+        /* Mockup de celular */
+        .celular {
+            background: #1a0810;
+            border: 3px solid #1a0810;
+            border-radius: 32px;
+            padding: 8px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+        }
+        .pantalla {
+            background: var(--vino-profundo);
+            border-radius: 24px;
+            padding: 20px;
+            min-height: 480px;
+            position: relative;
+            overflow: hidden;
+        }
+        .pantalla-header {
+            text-align: center;
+            border-bottom: 1px solid var(--vino);
+            padding-bottom: 12px;
+            margin-bottom: 16px;
+        }
+        .pantalla-header .marca {
+            color: var(--ambar);
+            font-size: 14px;
+            font-weight: bold;
+            letter-spacing: 0.2em;
+        }
+        .pantalla-paso {
+            display: none;
+            animation: fadeInPaso 0.5s ease-in-out;
+        }
+        .pantalla-paso.activo {
+            display: block;
+        }
+        @keyframes fadeInPaso {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .paso-numero {
+            display: inline-block;
+            background: var(--ambar);
+            color: var(--vino-oscuro);
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            line-height: 32px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+        .paso-titulo {
+            color: var(--crema);
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .paso-detalle {
+            color: var(--gris-texto);
+            font-size: 13px;
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+        .paso-producto {
+            background: var(--vino-oscuro);
+            border-radius: 10px;
+            padding: 12px;
+            margin: 12px 0;
+            font-size: 13px;
+        }
+        .paso-producto .item {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            color: var(--crema);
+        }
+        .paso-producto .total {
+            border-top: 1px solid var(--vino);
+            padding-top: 8px;
+            margin-top: 8px;
+            font-weight: bold;
+            color: var(--ambar);
+        }
+        .paso-pago {
+            background: rgba(212, 165, 89, 0.1);
+            border: 1px solid var(--ambar);
+            border-radius: 10px;
+            padding: 12px;
+            margin: 12px 0;
+        }
+        .paso-pago .label {
+            font-size: 10px;
+            color: var(--gris-suave);
+            letter-spacing: 0.2em;
+            margin-bottom: 4px;
+        }
+        .paso-pago .monto {
+            font-size: 22px;
+            color: var(--ambar);
+            font-weight: bold;
+        }
+        .paso-pago .titular {
+            color: var(--crema);
+            font-size: 14px;
+            margin-top: 4px;
+        }
+        .paso-pago .hora {
+            color: var(--gris-suave);
+            font-size: 11px;
+            font-family: monospace;
+            margin-top: 4px;
+        }
+        .paso-confirmacion {
+            text-align: center;
+            padding: 24px 0;
+        }
+        .paso-confirmacion .check {
+            font-size: 64px;
+            color: var(--verde-claro);
+            margin-bottom: 12px;
+        }
+        .paso-confirmacion .texto {
+            color: var(--verde-claro);
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .indicadores {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 16px;
+        }
+        .indicador {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--vino);
+            transition: background 0.3s;
+        }
+        .indicador.activo {
+            background: var(--ambar);
+        }
+
+        /* ─── PARA QUIÉN ES ─── */
+        .quien-section {
+            padding: 48px 16px;
+        }
+        .grilla-tipos {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 16px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .tipo-card {
+            background: var(--vino-oscuro);
+            border: 1px solid var(--vino);
+            border-radius: 12px;
+            padding: 20px 16px;
+            text-align: center;
+            transition: border-color 0.2s;
+        }
+        .tipo-card:hover {
+            border-color: var(--ambar);
+        }
+        .tipo-icon {
+            font-size: 36px;
+            margin-bottom: 8px;
+            display: block;
+        }
+        .tipo-titulo {
+            color: var(--crema);
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+        .tipo-desc {
+            color: var(--gris-suave);
+            font-size: 11px;
+        }
+
+        /* ─── GRILLA EMPRESAS (existente, mejorada) ─── */
+        .empresas-section {
+            padding: 48px 16px;
+        }
         .grilla {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
             gap: 20px;
             max-width: 1100px;
             margin: 0 auto;
@@ -89,15 +420,15 @@
         }
         .empresa-logo {
             width: 100%;
-            height: 80px;
+            height: 70px;
             background: var(--vino-profundo);
             border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-bottom: 16px;
+            margin-bottom: 14px;
             color: var(--ambar);
-            font-size: 24px;
+            font-size: 22px;
             font-weight: bold;
             letter-spacing: 0.1em;
         }
@@ -107,30 +438,30 @@
             object-fit: contain;
         }
         .empresa-nombre {
-            font-size: 16px;
+            font-size: 15px;
             font-weight: bold;
             color: var(--crema);
             margin-bottom: 4px;
             line-height: 1.3;
         }
         .empresa-ruc {
-            font-size: 11px;
+            font-size: 10px;
             color: var(--gris-suave);
             font-family: monospace;
-            margin-bottom: 16px;
+            margin-bottom: 12px;
         }
         .empresa-estado {
             display: inline-block;
-            padding: 4px 12px;
+            padding: 3px 10px;
             border-radius: 12px;
-            font-size: 11px;
+            font-size: 10px;
             font-weight: bold;
             letter-spacing: 0.05em;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }
         .estado-activo {
             background: rgba(46, 125, 50, 0.2);
-            color: #66bb6a;
+            color: var(--verde-claro);
         }
         .estado-inactivo {
             background: rgba(192, 57, 43, 0.2);
@@ -142,71 +473,554 @@
         }
         .empresa-pagos {
             color: var(--ambar);
-            font-size: 13px;
+            font-size: 12px;
             font-weight: bold;
         }
         .empresa-pagos .num {
-            font-size: 18px;
+            font-size: 16px;
         }
-        .cta-section {
-            text-align: center;
-            margin-top: 64px;
-            padding: 32px 16px;
+
+        /* ─── TESTIMONIOS ─── */
+        .testimonios-section {
+            padding: 48px 16px;
             background: var(--vino-oscuro);
-            border-radius: 16px;
-            max-width: 600px;
-            margin-left: auto;
-            margin-right: auto;
         }
-        .cta-section h2 {
+        .testimonios-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        .testimonio-card {
+            background: var(--vino-profundo);
+            border: 1px solid var(--vino);
+            border-radius: 16px;
+            padding: 28px 24px;
+            position: relative;
+        }
+        .testimonio-card.principal {
+            border-color: var(--ambar);
+            background: linear-gradient(135deg, var(--vino-profundo) 0%, var(--vino-oscuro) 100%);
+        }
+        .testimonio-foto {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 3px solid var(--ambar);
+            margin: 0 auto 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--vino-oscuro);
+            overflow: hidden;
+        }
+        .testimonio-foto img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .testimonio-foto .iniciales {
             color: var(--ambar);
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .testimonio-texto {
+            color: var(--crema);
+            font-size: 14px;
+            font-style: italic;
+            margin-bottom: 16px;
+            line-height: 1.6;
+            text-align: center;
+        }
+        .testimonio-autor {
+            text-align: center;
+        }
+        .testimonio-autor .nombre {
+            color: var(--ambar);
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .testimonio-autor .empresa {
+            color: var(--gris-texto);
+            font-size: 12px;
+            margin-top: 2px;
+        }
+        .testimonio-pendiente {
+            opacity: 0.6;
+            text-align: center;
+        }
+        .testimonio-pendiente .placeholder-text {
+            color: var(--gris-suave);
+            font-size: 13px;
+            font-style: italic;
+            margin-bottom: 12px;
+        }
+
+        /* ─── CUPOS LIMITADOS ─── */
+        .cupos-section {
+            padding: 32px 16px;
+            text-align: center;
+        }
+        .cupos-card {
+            background: linear-gradient(135deg, var(--ambar) 0%, #c69549 100%);
+            color: var(--vino-oscuro);
+            border-radius: 20px;
+            padding: 32px 24px;
+            max-width: 600px;
+            margin: 0 auto;
+            box-shadow: 0 12px 40px rgba(212, 165, 89, 0.3);
+        }
+        .cupos-titulo {
             font-size: 22px;
+            font-weight: bold;
             margin-bottom: 8px;
         }
-        .cta-section p {
-            color: var(--gris-texto);
+        .cupos-disponibles {
+            font-size: 48px;
+            font-weight: bold;
+            margin: 12px 0;
+        }
+        .cupos-disponibles small {
+            font-size: 18px;
+            opacity: 0.7;
+        }
+        .cupos-mensaje {
             font-size: 14px;
+            font-weight: bold;
             margin-bottom: 20px;
+        }
+        .barra-progreso {
+            height: 8px;
+            background: rgba(45, 14, 21, 0.2);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+        .barra-progreso-fill {
+            height: 100%;
+            background: var(--vino-oscuro);
+            border-radius: 4px;
+        }
+
+        /* ─── CTA ─── */
+        .cta-section {
+            padding: 48px 16px;
+            text-align: center;
         }
         .cta-button {
             display: inline-block;
             background: var(--ambar);
             color: var(--vino-oscuro);
-            padding: 14px 32px;
-            border-radius: 12px;
-            font-size: 14px;
+            padding: 20px 48px;
+            border-radius: 16px;
+            font-size: 18px;
             font-weight: bold;
             letter-spacing: 0.1em;
             text-decoration: none;
-            transition: transform 0.2s;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 8px 24px rgba(212, 165, 89, 0.3);
         }
         .cta-button:hover {
             transform: scale(1.05);
+            box-shadow: 0 12px 32px rgba(212, 165, 89, 0.5);
         }
+        .cta-beneficios {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+            font-size: 13px;
+            color: var(--gris-texto);
+        }
+
+        /* ─── FAQ ─── */
+        .faq-section {
+            padding: 48px 16px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .faq-item {
+            background: var(--vino-oscuro);
+            border: 1px solid var(--vino);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 12px;
+        }
+        .faq-pregunta {
+            color: var(--ambar);
+            font-weight: bold;
+            font-size: 15px;
+            margin-bottom: 6px;
+        }
+        .faq-respuesta {
+            color: var(--crema);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        /* ─── FOOTER ─── */
         .footer {
             text-align: center;
-            margin-top: 48px;
+            padding: 40px 16px 24px;
             color: var(--gris-suave);
-            font-size: 11px;
+            font-size: 12px;
             letter-spacing: 0.2em;
+            border-top: 1px solid var(--vino);
+            margin-top: 24px;
         }
+        .footer-marca {
+            color: var(--ambar);
+            font-weight: bold;
+            margin-bottom: 6px;
+        }
+        .footer-info {
+            margin-top: 8px;
+            font-size: 11px;
+            letter-spacing: 0.1em;
+        }
+
+        /* Responsive */
         @media (max-width: 600px) {
-            .logo { font-size: 36px; }
-            .grilla { grid-template-columns: 1fr; }
+            .logo { font-size: 40px; }
+            .hero-claim { font-size: 22px; }
+            .hero-sub { font-size: 15px; }
+            .seccion-subtitulo { font-size: 18px; }
+            .cupos-disponibles { font-size: 36px; }
+            .cta-button { padding: 16px 32px; font-size: 15px; }
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        <div class="logo">pago<span class="ok">OK</span></div>
-        <div class="subtitle">LISTENER</div>
-    </div>
 
-    <div class="titulo-seccion">EMPRESAS QUE YA USAN PAGOOK</div>
-    <div class="descripcion">
-        Pagos en tiempo real, validados al instante.
-        Toca cualquier empresa para ver sus pagos en vivo.
+<!-- ═══════════ HERO ═══════════ -->
+<section class="hero">
+    <div class="logo">pago<span class="ok">OK</span></div>
+    <div class="logo-sub">LISTENER</div>
+
+    <h1 class="hero-claim">
+        Validamos <span class="destacado">Yape y Plin</span><br>
+        — evitamos que te <span class="destacado">estafen</span>
+    </h1>
+    <p class="hero-sub">
+        De afuera: clientes que muestran vouchers falsos.<br>
+        De adentro: colaboradores que dicen que cobraron.<br>
+        pagoOK confirma todo, en tiempo real.
+    </p>
+
+    <div class="hero-bullets">
+        <div class="hero-bullet"><span class="check">✓</span> Detecta pagos al instante</div>
+        <div class="hero-bullet"><span class="check">✓</span> Funciona aunque MIUI intente apagarlo</div>
+        <div class="hero-bullet"><span class="check">✓</span> Gratis en etapa beta</div>
     </div>
+</section>
+
+<!-- ═══════════ VIDEOS ═══════════ -->
+<section class="videos-section container">
+    <div class="seccion-titulo">VIDEO DEMOSTRATIVO</div>
+
+    <div class="video-card">
+        <h3>Caso real: pagoOK en una bodega</h3>
+        <p>Cómo funciona en menos de 60 segundos</p>
+        <div class="video-container">
+            {% if video_demo_url %}
+                <iframe src="{{ video_demo_url }}"
+                        allowfullscreen
+                        frameborder="0"></iframe>
+            {% else %}
+                <div class="video-placeholder">
+                    <span class="icon">🎬</span>
+                    <p>Video disponible pronto</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════ FLUJO INTERACTIVO ═══════════ -->
+<section class="flujo-section">
+    <div class="container">
+        <div class="seccion-titulo">CÓMO FUNCIONA</div>
+        <h2 class="seccion-subtitulo">Mira el flujo según tu necesidad</h2>
+
+        <div class="flujo-tabs">
+            <button class="flujo-tab activo" data-escenario="caja">EN CAJA</button>
+            <button class="flujo-tab" data-escenario="seguridad">EN SEGURIDAD</button>
+            <button class="flujo-tab" data-escenario="almacen">EN ALMACÉN</button>
+        </div>
+
+        <!-- ESCENARIO: CAJA -->
+        <div class="flujo-escenario activo" data-escenario="caja">
+            <div class="celular">
+                <div class="pantalla">
+                    <div class="pantalla-header">
+                        <div class="marca">pagoOK · CAJA</div>
+                    </div>
+
+                    <div class="pantalla-paso" data-paso="1">
+                        <div class="paso-numero">1</div>
+                        <div class="paso-titulo">Vendedor registra venta</div>
+                        <div class="paso-detalle">El cajero suma los productos</div>
+                        <div class="paso-producto">
+                            <div class="item"><span>1 par zapatos cuero</span><span>S/ 120</span></div>
+                            <div class="item"><span>1 correa cuero</span><span>S/ 20</span></div>
+                            <div class="item total"><span>TOTAL</span><span>S/ 140</span></div>
+                        </div>
+                    </div>
+
+                    <div class="pantalla-paso" data-paso="2">
+                        <div class="paso-numero">2</div>
+                        <div class="paso-titulo">Cliente paga con Yape</div>
+                        <div class="paso-detalle">Muestra su voucher al cajero</div>
+                        <div style="text-align: center; font-size: 80px; margin: 24px 0;">📱</div>
+                    </div>
+
+                    <div class="pantalla-paso" data-paso="3">
+                        <div class="paso-numero">3</div>
+                        <div class="paso-titulo">pagoOK detecta el pago</div>
+                        <div class="paso-pago">
+                            <div class="label">YAPE RECIBIDO</div>
+                            <div class="monto">S/ 140.00</div>
+                            <div class="titular">de Elia C. R.</div>
+                            <div class="hora">14:21:37 hoy</div>
+                        </div>
+                    </div>
+
+                    <div class="pantalla-paso" data-paso="4">
+                        <div class="paso-numero">4</div>
+                        <div class="paso-titulo">Cajero confirma identidad</div>
+                        <div class="paso-detalle">"¿Su nombre, por favor?"</div>
+                        <div style="text-align: center; font-size: 60px; margin: 16px 0;">🗣️</div>
+                    </div>
+
+                    <div class="pantalla-paso" data-paso="5">
+                        <div class="paso-numero">5</div>
+                        <div class="paso-titulo">Cliente responde</div>
+                        <div class="paso-detalle">"Soy Elia"</div>
+                        <div class="paso-pago" style="background: rgba(102, 187, 106, 0.1); border-color: var(--verde-claro);">
+                            <div class="label" style="color: var(--verde-claro);">COINCIDE ✓</div>
+                            <div class="titular">Elia = Elia C. R.</div>
+                        </div>
+                    </div>
+
+                    <div class="pantalla-paso" data-paso="6">
+                        <div class="paso-numero">6</div>
+                        <div class="paso-titulo">Cajero confirma con OK</div>
+                        <div style="text-align: center; font-size: 60px; margin: 24px 0;">👆</div>
+                    </div>
+
+                    <div class="pantalla-paso" data-paso="7">
+                        <div class="paso-confirmacion">
+                            <div class="check">✓</div>
+                            <div class="texto">100% Validado</div>
+                            <div class="paso-detalle" style="margin-top: 12px;">Venta cerrada con éxito</div>
+                        </div>
+                    </div>
+
+                    <div class="indicadores">
+                        <span class="indicador" data-i="1"></span>
+                        <span class="indicador" data-i="2"></span>
+                        <span class="indicador" data-i="3"></span>
+                        <span class="indicador" data-i="4"></span>
+                        <span class="indicador" data-i="5"></span>
+                        <span class="indicador" data-i="6"></span>
+                        <span class="indicador" data-i="7"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ESCENARIO: SEGURIDAD -->
+        <div class="flujo-escenario" data-escenario="seguridad">
+            <div class="celular">
+                <div class="pantalla">
+                    <div class="pantalla-header">
+                        <div class="marca">pagoOK · SEGURIDAD</div>
+                    </div>
+
+                    <div class="pantalla-paso" data-paso="1">
+                        <div class="paso-numero">1</div>
+                        <div class="paso-titulo">Cliente se acerca a la salida</div>
+                        <div class="paso-detalle">Lleva caja con compra</div>
+                        <div style="text-align: center; font-size: 80px; margin: 24px 0;">🚶📦</div>
+                    </div>
+
+                    <div class="pantalla-paso" data-paso="2">
+                        <div class="paso-numero">2</div>
+                        <div class="paso-titulo">Guardia pregunta</div>
+                        <div class="paso-detalle">"¿Cómo realizó su pago?"</div>
+                        <div style="text-align: center; font-size: 60px; margin: 16px 0;">🛡️</div>
+                    </div>
+
+                    <div class="pantalla-paso" data-paso="3">
+                        <div class="paso-numero">3</div>
+                        <div class="paso-titulo">Cliente responde</div>
+                        <div class="paso-detalle">"Por Yape, hace un momento"</div>
+                    </div>
+
+                    <div class="pantalla-paso" data-paso="4">
+                        <div class="paso-numero">4</div>
+                        <div class="paso-titulo">Guardia revisa pagoOK</div>
+                        <div class="paso-pago">
+                            <div class="label">ÚLTIMO YAPE</div>
+                            <div class="monto">S/ 140.00</div>
+                            <div class="titular">Elia C. R.</div>
+                            <div class="hora">hace 3 min</div>
+                        </div>
+                    </div>
+
+                    <div class="pantalla-paso" data-paso="5">
+                        <div class="paso-numero">5</div>
+                        <div class="paso-titulo">Confirma identidad</div>
+                        <div class="paso-detalle">"Sí, S/ 140 a nombre de Elia"</div>
+                    </div>
+
+                    <div class="pantalla-paso" data-paso="6">
+                        <div class="paso-numero">6</div>
+                        <div class="paso-titulo">Guardia autoriza salida</div>
+                        <div class="paso-detalle">"Adelante, que tenga buen día"</div>
+                    </div>
+
+                    <div class="pantalla-paso" data-paso="7">
+                        <div class="paso-confirmacion">
+                            <div class="check">✓</div>
+                            <div class="texto">Salida Validada</div>
+                            <div class="paso-detalle" style="margin-top: 12px;">Sin pérdidas, sin discusiones</div>
+                        </div>
+                    </div>
+
+                    <div class="indicadores">
+                        <span class="indicador" data-i="1"></span>
+                        <span class="indicador" data-i="2"></span>
+                        <span class="indicador" data-i="3"></span>
+                        <span class="indicador" data-i="4"></span>
+                        <span class="indicador" data-i="5"></span>
+                        <span class="indicador" data-i="6"></span>
+                        <span class="indicador" data-i="7"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ESCENARIO: ALMACÉN -->
+        <div class="flujo-escenario" data-escenario="almacen">
+            <div class="celular">
+                <div class="pantalla">
+                    <div class="pantalla-header">
+                        <div class="marca">pagoOK · ALMACÉN</div>
+                    </div>
+
+                    <div class="pantalla-paso" data-paso="1">
+                        <div class="paso-numero">1</div>
+                        <div class="paso-titulo">Vendedor llama a almacén</div>
+                        <div class="paso-detalle">"Despacha 1 par zapatos para Elia"</div>
+                        <div style="text-align: center; font-size: 60px; margin: 16px 0;">📞</div>
+                    </div>
+
+                    <div class="pantalla-paso" data-paso="2">
+                        <div class="paso-numero">2</div>
+                        <div class="paso-titulo">Almacenero abre pagoOK</div>
+                        <div class="paso-detalle">En la pantalla del depósito</div>
+                        <div style="text-align: center; font-size: 60px; margin: 16px 0;">💻</div>
+                    </div>
+
+                    <div class="pantalla-paso" data-paso="3">
+                        <div class="paso-numero">3</div>
+                        <div class="paso-titulo">Busca "Elia 140"</div>
+                        <div class="paso-detalle">Filtro por nombre y monto</div>
+                    </div>
+
+                    <div class="pantalla-paso" data-paso="4">
+                        <div class="paso-numero">4</div>
+                        <div class="paso-titulo">Confirma pago real</div>
+                        <div class="paso-pago">
+                            <div class="label">PAGO VERIFICADO</div>
+                            <div class="monto">S/ 140.00</div>
+                            <div class="titular">Elia C. R.</div>
+                            <div class="hora">14:21:37</div>
+                        </div>
+                    </div>
+
+                    <div class="pantalla-paso" data-paso="5">
+                        <div class="paso-numero">5</div>
+                        <div class="paso-titulo">Imprime guía de despacho</div>
+                        <div style="text-align: center; font-size: 60px; margin: 16px 0;">🖨️</div>
+                    </div>
+
+                    <div class="pantalla-paso" data-paso="6">
+                        <div class="paso-numero">6</div>
+                        <div class="paso-titulo">Entrega producto</div>
+                        <div class="paso-detalle">Con respaldo del pago confirmado</div>
+                        <div style="text-align: center; font-size: 60px; margin: 16px 0;">📦</div>
+                    </div>
+
+                    <div class="pantalla-paso" data-paso="7">
+                        <div class="paso-confirmacion">
+                            <div class="check">✓</div>
+                            <div class="texto">Despacho Validado</div>
+                            <div class="paso-detalle" style="margin-top: 12px;">Trazabilidad completa</div>
+                        </div>
+                    </div>
+
+                    <div class="indicadores">
+                        <span class="indicador" data-i="1"></span>
+                        <span class="indicador" data-i="2"></span>
+                        <span class="indicador" data-i="3"></span>
+                        <span class="indicador" data-i="4"></span>
+                        <span class="indicador" data-i="5"></span>
+                        <span class="indicador" data-i="6"></span>
+                        <span class="indicador" data-i="7"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════ PARA QUIÉN ES ═══════════ -->
+<section class="quien-section container">
+    <div class="seccion-titulo">¿TE IDENTIFICAS?</div>
+    <h2 class="seccion-subtitulo">pagoOK es para tu negocio si tienes...</h2>
+
+    <div class="grilla-tipos">
+        <div class="tipo-card">
+            <span class="tipo-icon">🏪</span>
+            <div class="tipo-titulo">Bodega</div>
+            <div class="tipo-desc">Cajero verifica al instante</div>
+        </div>
+        <div class="tipo-card">
+            <span class="tipo-icon">🍗</span>
+            <div class="tipo-titulo">Restaurante</div>
+            <div class="tipo-desc">Confirma delivery cobrado</div>
+        </div>
+        <div class="tipo-card">
+            <span class="tipo-icon">🔧</span>
+            <div class="tipo-titulo">Ferretería</div>
+            <div class="tipo-desc">Mostrador valida cobranza</div>
+        </div>
+        <div class="tipo-card">
+            <span class="tipo-icon">🚚</span>
+            <div class="tipo-titulo">Distribuidora</div>
+            <div class="tipo-desc">Vendedores en ruta</div>
+        </div>
+        <div class="tipo-card">
+            <span class="tipo-icon">📦</span>
+            <div class="tipo-titulo">Almacén</div>
+            <div class="tipo-desc">Despacha solo si pagó</div>
+        </div>
+        <div class="tipo-card">
+            <span class="tipo-icon">🛡️</span>
+            <div class="tipo-titulo">Seguridad</div>
+            <div class="tipo-desc">Valida salidas</div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════ EMPRESAS QUE YA USAN ═══════════ -->
+<section class="empresas-section container">
+    <div class="seccion-titulo">EMPRESAS QUE YA LO USAN</div>
+    <h2 class="seccion-subtitulo">Toca cualquiera para ver sus pagos en vivo</h2>
 
     <div class="grilla">
         {% for emp in empresas %}
@@ -239,19 +1053,229 @@
         </div>
         {% endfor %}
     </div>
+</section>
 
-    <div class="cta-section">
-        <h2>¿Quieres ser tester?</h2>
-        <p>
-            Únete a la beta gratuita. Te enviamos el APK y configuramos tu cuenta.
-        </p>
-        <a href="https://wa.me/51967317946?text=Me%20hablaron%20de%20pagoOK%20y%20quiero%20probarlo.%0A%0AMi%20info%3A%0ARUC%3A%0ANombre%20Comercial%3A%0AEmail%3A"
-           target="_blank"
-           class="cta-button">SOLICITAR ACCESO</a>
+<!-- ═══════════ TESTIMONIOS ═══════════ -->
+<section class="testimonios-section">
+    <div class="container">
+        <div class="seccion-titulo">TESTIMONIOS</div>
+        <h2 class="seccion-subtitulo">Quienes ya lo prueban</h2>
+
+        <div class="testimonios-grid">
+            <!-- Testimonio del fundador -->
+            <div class="testimonio-card principal">
+                <div class="testimonio-foto">
+                    <img src="/static/img/duilio.jpg"
+                         alt="Duilio Restuccia"
+                         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <div class="iniciales" style="display: none;">DR</div>
+                </div>
+                <div class="testimonio-texto">
+                    "Construí pagoOK porque vi negocios perder dinero por pagos
+                    no verificados. Cajeros distraídos, vouchers falsos, clientes
+                    apurados. Lo probamos 2 meses con Yape, Plin e Interbank:
+                    captura el 100% de los pagos, incluso de madrugada con el
+                    celular dormido."
+                </div>
+                <div class="testimonio-autor">
+                    <div class="nombre">Duilio Restuccia Eslava</div>
+                    <div class="empresa">Fundador · Perú Sistemas Pro · Iquitos</div>
+                </div>
+            </div>
+
+            <!-- Testimonio Aldo (placeholder) -->
+            <div class="testimonio-card testimonio-pendiente">
+                <div class="testimonio-foto">
+                    <img src="/static/img/aldo.jpg"
+                         alt="Aldo Castillo"
+                         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <div class="iniciales" style="display: none;">AC</div>
+                </div>
+                <div class="testimonio-texto">
+                    <div class="placeholder-text">"Estoy probando pagoOK..."</div>
+                    <div style="font-size: 11px; color: var(--gris-suave);">
+                        Review próximamente
+                    </div>
+                </div>
+                <div class="testimonio-autor">
+                    <div class="nombre">Aldo Castillo</div>
+                    <div class="empresa">Selva Viva Hotel · Iquitos</div>
+                </div>
+            </div>
+
+            <!-- Testimonio Pedro Shevalche (placeholder) -->
+            <div class="testimonio-card">
+                <div class="testimonio-foto">
+                    <img src="/static/img/pedro.jpg"
+                         alt="Pedro De Almeyda"
+                         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <div class="iniciales" style="display: none;">PDA</div>
+                </div>
+                <div class="testimonio-texto">
+                    "Una maravilla ...
+                    mi celular ya no lo dejo en el negocio y ya puedo pensar
+                    en otro local:
+                    los vendedores ya no serán estafados."
+                </div>
+                <div class="testimonio-autor">
+                    <div class="nombre">Pedro De Almeyda</div>
+                    <div class="empresa">Multiservicios Shevalche · Iquitos</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════ CUPOS LIMITADOS ═══════════ -->
+<section class="cupos-section">
+    <div class="cupos-card">
+        <div class="cupos-titulo">⚡ Beta limitada</div>
+        <div class="cupos-disponibles">
+            {{ cupos_disponibles }} <small>/ {{ cupos_total }} cupos</small>
+        </div>
+        <div class="cupos-mensaje">
+            Quedan solo {{ cupos_disponibles }} cupos en la beta gratuita
+        </div>
+        <div class="barra-progreso">
+            <div class="barra-progreso-fill"
+                 style="width: {{ ((cupos_total - cupos_disponibles) / cupos_total * 100) | round }}%;">
+            </div>
+        </div>
+        <div style="font-size: 12px; opacity: 0.7;">
+            {{ cupos_total - cupos_disponibles }} negocios ya están adentro
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════ CTA ═══════════ -->
+<section class="cta-section">
+    <a href="https://wa.me/{{ wa_numero }}?text={{ wa_mensaje_invitacion|urlencode }}"
+       target="_blank"
+       class="cta-button">
+        QUIERO PROBAR PAGOOK GRATIS
+    </a>
+    <div class="cta-beneficios">
+        <span>✓ Sin tarjeta de crédito</span>
+        <span>✓ Instalación en 5 minutos</span>
+        <span>✓ Soporte por WhatsApp</span>
+    </div>
+</section>
+
+<!-- ═══════════ FAQ ═══════════ -->
+<section class="faq-section">
+    <div class="seccion-titulo">PREGUNTAS FRECUENTES</div>
+    <h2 class="seccion-subtitulo" style="margin-bottom: 32px;">Lo que más nos preguntan</h2>
+
+    <div class="faq-item">
+        <div class="faq-pregunta">¿Funciona con mi banco?</div>
+        <div class="faq-respuesta">
+            Sí. Detecta Yape, Plin, y transferencias de BCP, BBVA, Interbank y
+            Scotiabank.
+        </div>
     </div>
 
-    <div class="footer">
-        por PERÚ SISTEMAS PRO
+    <div class="faq-item">
+        <div class="faq-pregunta">¿Y si tengo varios cajeros o sucursales?</div>
+        <div class="faq-respuesta">
+            La App PagoOK solo se instala en el celular donde está Yape o Plin.
+            Los colaboradores deben entrar a PagoOK.pro
+            Ellos comparten una sola pantalla en tiempo real. Vendedor, almacén
+            y seguridad ven los mismos pagos al instante.
+        </div>
     </div>
+
+    <div class="faq-item">
+        <div class="faq-pregunta">¿Mis clientes tienen que descargar algo?</div>
+        <div class="faq-respuesta">
+            No. Tus clientes no descargan nada ni cambian su forma de pagar.
+        </div>
+    </div>
+
+    <div class="faq-item">
+        <div class="faq-pregunta">¿Cuánto cuesta?</div>
+        <div class="faq-respuesta">
+            <b>Durante etapa beta es gratis hasta julio 2026</b>. 
+            Después: planes desde S/ 15/mes según número de cajeros y sucursales.
+            Si quieres integrar PagoOK a tus sistemas, debemos coordinar.
+        </div>
+    </div>
+
+    <div class="faq-item">
+        <div class="faq-pregunta">¿Mi información está segura?</div>
+        <div class="faq-respuesta">
+            Sí. PagoOK solo lee datos mínimos que tu propio celular ya recibe para avisarle a tus colaboradores.
+            Adicionalmente, estamos registrados ante la Autoridad Nacional de Protección de Datos Personales del Ministero de Justicia.
+            Tus datos y los de tus clientes están cifrados y seguros.
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════ FOOTER ═══════════ -->
+<footer class="footer">
+    <div class="footer-marca">PERÚ SISTEMAS PRO</div>
+    <div>RUC 20615446565</div>
+    <div class="footer-info">
+        Iquitos, Loreto · Perú · WhatsApp 967 317 946
+    </div>
+</footer>
+
+<script>
+    // ─── TABS Y AUTOPLAY DEL FLUJO ───
+    const tabs = document.querySelectorAll('.flujo-tab');
+    const escenarios = document.querySelectorAll('.flujo-escenario');
+    let escenarioActivo = 'caja';
+    let pasoActual = 1;
+    let intervaloPaso = null;
+
+    function mostrarPaso(numero) {
+        const escenario = document.querySelector(`.flujo-escenario[data-escenario="${escenarioActivo}"]`);
+        if (!escenario) return;
+
+        const pasos = escenario.querySelectorAll('.pantalla-paso');
+        pasos.forEach(p => p.classList.remove('activo'));
+        const pasoEl = escenario.querySelector(`.pantalla-paso[data-paso="${numero}"]`);
+        if (pasoEl) pasoEl.classList.add('activo');
+
+        const indicadores = escenario.querySelectorAll('.indicador');
+        indicadores.forEach(i => i.classList.remove('activo'));
+        const indEl = escenario.querySelector(`.indicador[data-i="${numero}"]`);
+        if (indEl) indEl.classList.add('activo');
+    }
+
+    function iniciarAutoplay() {
+        if (intervaloPaso) clearInterval(intervaloPaso);
+        pasoActual = 1;
+        mostrarPaso(pasoActual);
+        intervaloPaso = setInterval(() => {
+            pasoActual++;
+            if (pasoActual > 7) pasoActual = 1;
+            mostrarPaso(pasoActual);
+        }, 2800);
+    }
+
+    function cambiarEscenario(nombre) {
+        escenarioActivo = nombre;
+
+        tabs.forEach(t => t.classList.remove('activo'));
+        const tabSel = document.querySelector(`.flujo-tab[data-escenario="${nombre}"]`);
+        if (tabSel) tabSel.classList.add('activo');
+
+        escenarios.forEach(e => e.classList.remove('activo'));
+        const escSel = document.querySelector(`.flujo-escenario[data-escenario="${nombre}"]`);
+        if (escSel) escSel.classList.add('activo');
+
+        iniciarAutoplay();
+    }
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            cambiarEscenario(tab.dataset.escenario);
+        });
+    });
+
+    // Iniciar al cargar
+    iniciarAutoplay();
+</script>
+
 </body>
 </html>
