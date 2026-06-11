@@ -193,3 +193,50 @@ class Migracion(Base):
     id = Column(Integer, primary_key=True)
     version = Column(String(20), unique=True, nullable=False)
     aplicada_en = Column(DateTime, server_default=func.now())
+
+
+# =============================================================
+# WEB PUSH NOTIFICATIONS (receptores multi-usuario)
+# =============================================================
+from datetime import datetime
+
+
+class CodigoInvitacion(Base):
+    __tablename__ = "codigos_invitacion"
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey("empresa.id", ondelete="CASCADE"), nullable=False)
+    codigo = Column(String(20), unique=True, nullable=False)
+    descripcion = Column(String(100))
+    creado_por = Column(String(100))
+    creado_en = Column(DateTime, nullable=False, default=datetime.utcnow)
+    expira_en = Column(DateTime, nullable=False)
+    max_usos = Column(Integer, nullable=False, default=50)
+    usos_actuales = Column(Integer, nullable=False, default=0)
+    activo = Column(Boolean, nullable=False, default=True)
+
+    empresa = relationship("Empresa", lazy="joined")
+
+
+class PushSuscripcion(Base):
+    __tablename__ = "push_suscripciones"
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey("empresa.id", ondelete="CASCADE"), nullable=False)
+    codigo_invitacion_id = Column(
+        Integer,
+        ForeignKey("codigos_invitacion.id", ondelete="SET NULL"),
+    )
+    nombre_receptor = Column(String(100))
+    rol = Column(String(50), default="general")
+    endpoint = Column(Text, unique=True, nullable=False)
+    p256dh_key = Column(Text, nullable=False)
+    auth_key = Column(Text, nullable=False)
+    user_agent = Column(String(255))
+    creado_en = Column(DateTime, nullable=False, default=datetime.utcnow)
+    ultimo_envio_en = Column(DateTime)
+    envios_exitosos = Column(Integer, nullable=False, default=0)
+    envios_fallidos = Column(Integer, nullable=False, default=0)
+    activo = Column(Boolean, nullable=False, default=True)
+
+    empresa = relationship("Empresa", lazy="joined")

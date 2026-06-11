@@ -25,6 +25,11 @@ if not DATABASE_URL:
 
 logger.info(f"BD conectada: {DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else 'configurada'}")
 
+# VAPID keys para Web Push (generar con py-vapid / vapidkeys.com)
+VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "").strip()
+VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "").strip()
+VAPID_CLAIM_EMAIL = os.getenv("VAPID_CLAIM_EMAIL", "info@perusistemas.pro").strip()
+
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
