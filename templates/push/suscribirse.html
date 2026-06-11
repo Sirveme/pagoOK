@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recibir pagos en vivo · pagoOK</title>
+    <link rel="manifest" href="/static/manifest.json">
+    <style>
+        :root {
+            --vino-profundo: #2d0e15;
+            --vino-oscuro: #4a1822;
+            --vino: #6d2230;
+            --ambar: #d4a559;
+            --blanco: #f5f0e8;
+            --crema: #ebe0cf;
+            --gris-texto: #b8a591;
+            --verde: #66bb6a;
+            --rojo: #ef5350;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: var(--vino-profundo);
+            color: var(--crema);
+            font-family: Georgia, serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px 16px;
+        }
+        .card {
+            background: var(--vino-oscuro);
+            border: 1px solid var(--vino);
+            border-radius: 16px;
+            padding: 32px 28px;
+            max-width: 420px;
+            width: 100%;
+            text-align: center;
+        }
+        .logo {
+            font-size: 36px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        .logo .ok {
+            color: var(--ambar);
+            padding: 0 10px;
+            border-radius: 6px;
+            background: rgba(212, 165, 89, 0.1);
+        }
+        .titulo {
+            color: var(--ambar);
+            font-size: 12px;
+            letter-spacing: 0.3em;
+            margin-bottom: 24px;
+        }
+        h2 {
+            color: var(--blanco);
+            margin-bottom: 8px;
+            font-size: 22px;
+        }
+        .empresa-nombre {
+            color: var(--ambar);
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        .descripcion {
+            color: var(--gris-texto);
+            font-size: 14px;
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 12px 14px;
+            background: var(--vino-profundo);
+            border: 1px solid var(--vino);
+            color: var(--crema);
+            border-radius: 10px;
+            font-size: 16px;
+            font-family: inherit;
+            margin-bottom: 16px;
+        }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--ambar);
+        }
+        button {
+            width: 100%;
+            background: var(--ambar);
+            color: var(--vino-oscuro);
+            border: 0;
+            padding: 16px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            letter-spacing: 0.05em;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        button:hover { transform: scale(1.02); }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .alert {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 13px;
+            text-align: left;
+        }
+        .alert-error {
+            background: rgba(239, 83, 80, 0.15);
+            color: var(--rojo);
+            border: 1px solid var(--rojo);
+        }
+        .alert-success {
+            background: rgba(102, 187, 106, 0.15);
+            color: var(--verde);
+            border: 1px solid var(--verde);
+        }
+        .info-extra {
+            margin-top: 20px;
+            color: var(--gris-texto);
+            font-size: 11px;
+            letter-spacing: 0.1em;
+        }
+        .icon-big {
+            font-size: 64px;
+            margin-bottom: 16px;
+        }
+    </style>
+</head>
+<body>
+<div class="card">
+    <div class="logo">pago<span class="ok">OK</span></div>
+    <div class="titulo">RECEPTOR DE PAGOS EN VIVO</div>
+
+    {% if error %}
+        <div class="icon-big">⚠️</div>
+        <div class="alert alert-error">{{ error }}</div>
+        <p class="descripcion">
+            Pedile al administrador de la empresa que te envíe un código
+            de invitación nuevo.
+        </p>
+    {% elif not empresa %}
+        <div class="icon-big">🔑</div>
+        <h2>Necesitás un código</h2>
+        <p class="descripcion">
+            Usá el link que te enviaron por WhatsApp con el código de invitación,
+            o pedile al administrador que te lo comparta.
+        </p>
+    {% else %}
+        <div class="icon-big">🔔</div>
+        <h2>Te están invitando a recibir pagos de:</h2>
+        <div class="empresa-nombre">{{ empresa.nombre_comercial or empresa.razon_social }}</div>
+        <p class="descripcion">
+            Cuando alguien yapée a la empresa, vas a recibir aviso en este
+            celular o navegador, en tiempo real.
+        </p>
+
+        <input
+            type="text"
+            id="nombre_receptor"
+            placeholder="Tu nombre o rol (ej: Cajero Carlos)"
+            maxlength="100"
+        />
+
+        <button id="btnSuscribir" onclick="hacerSuscripcion()">
+            🔔 ACTIVAR NOTIFICACIONES
+        </button>
+
+        <div id="resultado"></div>
+
+        <div class="info-extra">
+            Tu navegador te va a pedir permiso. Acepta para recibir las alertas.
+        </div>
+    {% endif %}
+</div>
+
+{% if empresa %}
+<script src="/static/js/push-client.js"></script>
+<script>
+    async function hacerSuscripcion() {
+        const btn = document.getElementById('btnSuscribir');
+        const nombreInput = document.getElementById('nombre_receptor');
+        const resultado = document.getElementById('resultado');
+        const codigo = "{{ codigo }}";
+        const vapidKey = "{{ vapid_public_key }}";
+
+        btn.disabled = true;
+        btn.textContent = '⏳ Activando...';
+        resultado.innerHTML = '';
+
+        try {
+            const r = await window.pagoOKPush.suscribirseAPagoOK(
+                codigo,
+                nombreInput.value.trim(),
+                vapidKey
+            );
+
+            resultado.innerHTML = `
+                <div class="alert alert-success">
+                    ✅ ¡Listo! Vas a recibir los avisos de pago en vivo.<br>
+                    Podés cerrar esta página, las notificaciones llegan igual.
+                </div>
+            `;
+            btn.textContent = '✓ ACTIVADO';
+            btn.style.background = 'var(--verde)';
+
+            // Enviar push de prueba después de 2 seg
+            setTimeout(() => {
+                fetch('/api/v1/push/test/{{ empresa.slug }}', { method: 'POST' });
+            }, 2000);
+
+        } catch (err) {
+            resultado.innerHTML = `
+                <div class="alert alert-error">
+                    ❌ ${err.message}
+                </div>
+            `;
+            btn.disabled = false;
+            btn.textContent = '🔔 ACTIVAR NOTIFICACIONES';
+        }
+    }
+</script>
+{% endif %}
+
+</body>
+</html>
