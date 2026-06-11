@@ -48,7 +48,13 @@ class PagoDetectado(Base):
     titular_corto = Column(String(50))
     codigo_operacion = Column(String(30))
     banco = Column(String(50))
+    # ingreso = pago recibido; egreso = pago enviado desde el celular del titular
+    tipo = Column(String(10), default="ingreso", nullable=False, server_default="ingreso")
     recibido_en = Column(DateTime, server_default=func.now())
     consumido = Column(Boolean, default=False)
     consumido_en = Column(DateTime)
     venta_id = Column(Integer)
+    # --- API pública v1 (aditivo): reclamo por un consumidor externo ---
+    # Independiente de `consumido` (que lo usa la PWA Caja interna).
+    reclamado_por = Column(Integer, ForeignKey("cuenta_api.id", ondelete="SET NULL"))
+    reclamado_en = Column(DateTime)

@@ -10,7 +10,8 @@ Para v2 se agregará PIN guardado en app Android.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from collections import defaultdict
+from datetime import datetime, date, time, timedelta, timezone
 from decimal import Decimal
 from fastapi import APIRouter, Request, HTTPException, Body, Depends
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -269,6 +270,119 @@ def vista_testers(request: Request, db: Session = Depends(get_db)):
         "video_casos_url": "",
     }
     return templates.TemplateResponse("testers/grilla.html", context)
+
+
+# ============================================================
+# FLUJO DE CAJA SEMANAL (7 días x método, ingresos + egresos)
+# ============================================================
+
+METODOS_ORDEN = ["yape", "plin", "bim", "p51", "pix", "transferencia"]
+
+
+def _calcular_flujo_caja(db, slug: str) -> dict | None:
+    """Construye la matriz de flujo de caja de los últimos 7 días corridos.
+
+    Devuelve un dict (o None si la empresa no existe). Agrupa por fecha local
+    de Lima usando `recibido_en` (UTC en BD) y por `tipo` ('ingreso'/'egreso').
+    """
+    empresa = _obtener_empresa_por_slug(db, slug)
+    if empresa is None:
+        return None
+
+    # Rango: hoy (Lima) + 6 días anteriores
+    hoy = datetime.now(TZ_LIMA).date()
+    desde = hoy - timedelta(days=6)
+    dias = [desde + timedelta(days=i) for i in range(7)]
+    dias_str = [d.isoformat() for d in dias]
+
+    # Ventana en UTC naive (como se guarda recibido_en) cubriendo el rango Lima
+    inicio_utc = (
+        datetime.combine(desde, time.min, tzinfo=TZ_LIMA)
+        .astimezone(timezone.utc).replace(tzinfo=None)
+    )
+    fin_utc = (
+        datetime.combine(hoy, time.max, tzinfo=TZ_LIMA)
+        .astimezone(timezone.utc).replace(tzinfo=None)
+    )
+
+    pagos = list(db.execute(
+        select(PagoDetectado)
+        .where(and_(
+            PagoDetectado.empresa_id == empresa.id,
+            PagoDetectado.recibido_en >= inicio_utc,
+            PagoDetectado.recibido_en <= fin_utc,
+        ))
+    ).scalars().all())
+
+    matriz = {
+        "ingreso": defaultdict(lambda: [0.0] * 7),
+        "egreso": defaultdict(lambda: [0.0] * 7),
+    }
+
+    for p in pagos:
+        if not p.recibido_en:
+            continue
+        dt = p.recibido_en
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        d = dt.astimezone(TZ_LIMA).date()
+        idx = (d - desde).days
+        if idx < 0 or idx > 6:
+            continue
+        tipo = (getattr(p, "tipo", None) or "ingreso").lower()
+        if tipo not in ("ingreso", "egreso"):
+            tipo = "ingreso"
+        metodo = (p.metodo or "otro").lower()
+        if metodo not in METODOS_ORDEN:
+            metodo = "transferencia"  # cae en transferencia/otros
+        try:
+            matriz[tipo][metodo][idx] += float(p.monto or 0)
+        except (TypeError, ValueError):
+            continue
+
+    ingresos = {m: matriz["ingreso"].get(m, [0.0] * 7) for m in METODOS_ORDEN}
+    egresos = {m: matriz["egreso"].get(m, [0.0] * 7) for m in METODOS_ORDEN}
+
+    total_ingresos = [sum(ingresos[m][i] for m in METODOS_ORDEN) for i in range(7)]
+    total_egresos = [sum(egresos[m][i] for m in METODOS_ORDEN) for i in range(7)]
+    neto_dia = [total_ingresos[i] - total_egresos[i] for i in range(7)]
+
+    return {
+        "empresa": {
+            "slug": empresa.slug,
+            "nombre": empresa.nombre_comercial or empresa.razon_social,
+            "ruc": empresa.id_fiscal,
+        },
+        "rango": {"desde": desde.isoformat(), "hasta": hoy.isoformat()},
+        "dias": dias_str,
+        "metodos": METODOS_ORDEN,
+        "ingresos": ingresos,
+        "egresos": egresos,
+        "total_ingresos": total_ingresos,
+        "total_egresos": total_egresos,
+        "neto_dia": neto_dia,
+    }
+
+
+@router.get("/api/v1/flujo-caja/{slug}")
+def api_flujo_caja(slug: str, db: Session = Depends(get_db)):
+    """Flujo de caja semanal de la empresa (JSON). Últimos 7 días corridos."""
+    data = _calcular_flujo_caja(db, slug)
+    if data is None:
+        return JSONResponse({"ok": False, "error": "empresa_no_encontrada"}, status_code=404)
+    return data
+
+
+@router.get("/flujo-caja/{slug}", response_class=HTMLResponse)
+def vista_flujo_caja(request: Request, slug: str, db: Session = Depends(get_db)):
+    """Vista visual (HTML) del Flujo de Caja semanal."""
+    data = _calcular_flujo_caja(db, slug)
+    if data is None:
+        return HTMLResponse(_html_no_encontrado(slug), status_code=404)
+    return templates.TemplateResponse(
+        "flujo_caja/semanal.html",
+        {"request": request, "data": data},
+    )
 
 
 # ============================================================

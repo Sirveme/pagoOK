@@ -122,6 +122,7 @@ async def inbound(
                 titular_corto=parsed.get("titular_corto") or "",
                 codigo_operacion=parsed.get("codigo_operacion"),
                 banco=parsed.get("banco"),
+                tipo=parsed.get("tipo", "ingreso"),
             )
             db.add(pago)
             db.flush()

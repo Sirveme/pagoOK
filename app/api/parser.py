@@ -83,14 +83,16 @@ def parse_yape(package: str, titulo: str, texto: str) -> dict | None:
     if not es_yape:
         return None
 
-    # Filtrar egresos
+    # Detectar egresos (Yape enviado desde el celular del titular).
+    # Antes se descartaban (return None); ahora se guardan con tipo='egreso'
+    # para alimentar el Flujo de Caja Semanal.
     es_egreso = any(x in txt for x in [
         "yapeaste",
         "enviaste un yape",
-        "tu yape de",  # "Tu Yape de S/ X fue enviado"
+        "tu yape de",   # "Tu Yape de S/ X fue enviado"
+        "tu yape por",
     ])
-    if es_egreso:
-        return None
+    tipo = "egreso" if es_egreso else "ingreso"
 
     monto = None
     titular = None
@@ -164,6 +166,7 @@ def parse_yape(package: str, titulo: str, texto: str) -> dict | None:
         "titular_corto": _abreviar_titular(titular),
         "codigo_operacion": codigo_op,
         "banco": None,
+        "tipo": tipo,
     }
 
 
@@ -183,14 +186,14 @@ def parse_plin(package: str, titulo: str, texto: str) -> dict | None:
     if not es_plin:
         return None
 
-    # Filtrar egresos
+    # Detectar egresos (Plin enviado). Antes se descartaban; ahora tipo='egreso'.
     es_egreso = any(x in txt for x in [
         "plineaste",
+        "te plineaste",
         "enviaste",
         "transferiste",
     ])
-    if es_egreso:
-        return None
+    tipo = "egreso" if es_egreso else "ingreso"
 
     monto = None
     titular = None
@@ -252,6 +255,7 @@ def parse_plin(package: str, titulo: str, texto: str) -> dict | None:
         "titular_corto": _abreviar_titular(titular),
         "codigo_operacion": codigo_op,
         "banco": None,
+        "tipo": tipo,
     }
 
 
@@ -270,10 +274,9 @@ def _parse_banco_generico(package: str, titulo: str, texto: str,
     es_egreso = any(x in txt_low for x in [
         "consumiste", "consumo", "realizaste", "transferiste",
         "pagaste", "retiraste", "compraste", "enviaste",
-        "plineaste", "yapeaste",
+        "plineaste", "yapeaste", "transferencia enviada",
     ])
-    if es_egreso:
-        return None
+    tipo = "egreso" if es_egreso else "ingreso"
 
     monto = None
     m = re.search(r"S/\.?\s*([\d.,]+)", texto)
@@ -291,6 +294,7 @@ def _parse_banco_generico(package: str, titulo: str, texto: str,
         "titular_corto": "",
         "codigo_operacion": None,
         "banco": nombre_banco,
+        "tipo": tipo,
     }
 
 
@@ -329,6 +333,81 @@ def parse_scotiabank(package: str, titulo: str, texto: str) -> dict | None:
 
 
 # =============================================================
+# BILLETERAS ADICIONALES: BIM, P51 (ex Tunki), PIX
+# =============================================================
+def _parse_billetera_generica(
+    package: str, titulo: str, texto: str,
+    metodo: str, claves: list[str], patrones_egreso: list[str],
+) -> dict | None:
+    pkg = (package or "").lower()
+    tit = (titulo or "").lower()
+    txt = (texto or "").lower()
+
+    if not any(k in pkg for k in claves) and \
+       not any(k in tit for k in claves) and \
+       not any(k in txt for k in claves):
+        return None
+
+    monto = None
+    m = re.search(r"S/\.?\s*([\d.,]+)", texto)
+    if m:
+        monto = _normalizar_monto(m.group(1))
+    if monto is None:
+        return None
+
+    es_egreso = any(x in txt for x in patrones_egreso)
+    tipo = "egreso" if es_egreso else "ingreso"
+
+    # Intento básico de titular: "X te ..." al inicio
+    titular = ""
+    m = re.search(
+        rf"({NOMBRE_INICIO}[{NOMBRE_CHARS}\s.*]+?)\s+te\s+",
+        texto,
+    )
+    if m:
+        titular = _limpiar_titular(m.group(1).strip())
+
+    return {
+        "metodo": metodo,
+        "monto": monto,
+        "moneda": "PEN",
+        "titular": titular,
+        "titular_corto": _abreviar_titular(titular),
+        "codigo_operacion": None,
+        "banco": None,
+        "tipo": tipo,
+    }
+
+
+def parse_bim(package: str, titulo: str, texto: str) -> dict | None:
+    return _parse_billetera_generica(
+        package, titulo, texto,
+        metodo="bim",
+        claves=["bim de", "transferencia bim", "te bimearon", "billetera bim", " bim "],
+        patrones_egreso=["enviaste", "transferiste", "pagaste"],
+    )
+
+
+def parse_p51(package: str, titulo: str, texto: str) -> dict | None:
+    # P51 = nombre nuevo de Tunki
+    return _parse_billetera_generica(
+        package, titulo, texto,
+        metodo="p51",
+        claves=["p51", "tunki", "tunkiaste"],
+        patrones_egreso=["enviaste", "transferiste", "pagaste", "tunkiaste"],
+    )
+
+
+def parse_pix(package: str, titulo: str, texto: str) -> dict | None:
+    return _parse_billetera_generica(
+        package, titulo, texto,
+        metodo="pix",
+        claves=["pix", "te enviaron pix"],
+        patrones_egreso=["enviaste", "transferiste", "pagaste"],
+    )
+
+
+# =============================================================
 # REGISTRO Y DISPATCH
 # =============================================================
 # OJO al orden: Plin antes de Interbank, porque Plin Interbank tiene texto
@@ -337,6 +416,9 @@ def parse_scotiabank(package: str, titulo: str, texto: str) -> dict | None:
 PARSERS = [
     parse_yape,
     parse_plin,
+    parse_bim,
+    parse_p51,
+    parse_pix,
     parse_bcp,
     parse_bbva,
     parse_interbank,
