@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flujo de Caja Semanal — {{ data.empresa.nombre }}</title>
+    <style>
+        :root {
+            --vino-profundo: #2d0e15;
+            --vino-oscuro: #4a1822;
+            --vino: #6d2230;
+            --ambar: #d4a559;
+            --ambar-claro: #e3bd7a;
+            --blanco: #f5f0e8;
+            --crema: #ebe0cf;
+            --gris-texto: #b8a591;
+            --gris-suave: #8a7d6e;
+            --verde: #66bb6a;
+            --rojo: #ef5350;
+            --azul: #42a5f5;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: var(--vino-profundo);
+            color: var(--crema);
+            font-family: Georgia, 'Times New Roman', serif;
+            min-height: 100vh;
+            padding: 24px 16px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .logo {
+            font-size: 32px;
+            font-weight: bold;
+            color: var(--blanco);
+        }
+        .logo .ok {
+            color: var(--ambar);
+            padding: 0 8px;
+            border-radius: 6px;
+            background: rgba(212, 165, 89, 0.1);
+        }
+        .titulo {
+            color: var(--ambar);
+            font-size: 13px;
+            letter-spacing: 0.3em;
+            margin-top: 8px;
+        }
+        .empresa {
+            color: var(--crema);
+            font-size: 22px;
+            margin-top: 16px;
+        }
+        .rango {
+            color: var(--gris-texto);
+            font-size: 14px;
+            margin-top: 4px;
+        }
+        .tabla-wrap {
+            overflow-x: auto;
+            background: var(--vino-oscuro);
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 24px;
+        }
+        table.flujo {
+            width: 100%;
+            border-collapse: collapse;
+            color: var(--crema);
+            min-width: 800px;
+        }
+        table.flujo th,
+        table.flujo td {
+            padding: 10px 8px;
+            text-align: right;
+            border-bottom: 1px solid var(--vino);
+            font-size: 13px;
+        }
+        table.flujo th:first-child,
+        table.flujo td:first-child {
+            text-align: left;
+            font-weight: bold;
+            background: var(--vino-profundo);
+            position: sticky;
+            left: 0;
+        }
+        table.flujo thead th {
+            background: var(--vino);
+            color: var(--ambar);
+            font-size: 12px;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+        table.flujo tr.bloque-titulo td {
+            background: var(--vino);
+            color: var(--ambar);
+            font-weight: bold;
+            font-size: 14px;
+            letter-spacing: 0.2em;
+            text-align: left;
+            padding: 14px 8px;
+        }
+        table.flujo tr.total td {
+            background: rgba(212, 165, 89, 0.1);
+            color: var(--ambar);
+            font-weight: bold;
+            border-top: 2px solid var(--ambar);
+        }
+        table.flujo tr.neto td {
+            background: var(--vino-profundo);
+            color: var(--blanco);
+            font-weight: bold;
+            font-size: 14px;
+            border-top: 2px solid var(--ambar);
+        }
+        table.flujo tr.efectivo td {
+            background: rgba(66, 165, 245, 0.08);
+            color: var(--gris-texto);
+            font-style: italic;
+            font-size: 12px;
+        }
+        table.flujo td.cero {
+            color: var(--gris-suave);
+        }
+        table.flujo td.positivo {
+            color: var(--verde);
+        }
+        table.flujo td.negativo {
+            color: var(--rojo);
+        }
+        .upsell-banner {
+            grid-column: 1/-1;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            color: var(--gris-suave);
+            font-size: 11px;
+            letter-spacing: 0.2em;
+        }
+        .info-extra {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            margin-top: 24px;
+            flex-wrap: wrap;
+        }
+        .stat-card {
+            background: var(--vino-oscuro);
+            border: 1px solid var(--vino);
+            border-radius: 10px;
+            padding: 16px 24px;
+            text-align: center;
+            min-width: 150px;
+        }
+        .stat-label {
+            color: var(--gris-texto);
+            font-size: 11px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+        }
+        .stat-valor {
+            color: var(--ambar);
+            font-size: 22px;
+            font-weight: bold;
+            margin-top: 6px;
+        }
+        @media (max-width: 600px) {
+            body { padding: 12px 8px; }
+            .empresa { font-size: 18px; }
+            table.flujo th, table.flujo td { padding: 6px 4px; font-size: 11px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+<header class="header">
+    <div class="logo">pago<span class="ok">OK</span></div>
+    <div class="titulo">FLUJO DE CAJA SEMANAL</div>
+    <div class="empresa">{{ data.empresa.nombre }}</div>
+    <div class="rango">
+        RUC {{ data.empresa.ruc }} ·
+        del {{ data.rango.desde }} al {{ data.rango.hasta }}
+    </div>
+</header>
+
+<div class="tabla-wrap">
+<table class="flujo">
+
+    <thead>
+        <tr>
+            <th>MEDIO DE PAGO</th>
+            {% for d in data.dias %}
+                <th>{{ d[-5:] }}</th>
+            {% endfor %}
+            <th>TOTAL</th>
+        </tr>
+    </thead>
+
+    <tbody>
+
+        <!-- BLOQUE INGRESOS -->
+        <tr class="bloque-titulo">
+            <td colspan="9">↓ INGRESOS</td>
+        </tr>
+
+        {% for metodo in data.metodos %}
+        <tr>
+            <td>{{ metodo | upper }}</td>
+            {% set fila = data.ingresos[metodo] %}
+            {% for monto in fila %}
+                <td class="{% if monto == 0 %}cero{% else %}positivo{% endif %}">
+                    {% if monto == 0 %}—{% else %}S/ {{ "%.2f"|format(monto) }}{% endif %}
+                </td>
+            {% endfor %}
+            <td class="positivo">
+                S/ {{ "%.2f"|format(fila | sum) }}
+            </td>
+        </tr>
+        {% endfor %}
+
+        <!-- EFECTIVO INGRESO (upsell) -->
+        <tr class="efectivo">
+            <td>EFECTIVO</td>
+            <td colspan="8" style="text-align: center;">
+                Solo si integras pagoOK con tu sistema o usas
+                <strong style="color: var(--ambar);">QueVendi</strong>
+            </td>
+        </tr>
+
+        <!-- TOTAL INGRESOS -->
+        <tr class="total">
+            <td>TOTAL INGRESOS</td>
+            {% for monto in data.total_ingresos %}
+                <td>S/ {{ "%.2f"|format(monto) }}</td>
+            {% endfor %}
+            <td>S/ {{ "%.2f"|format(data.total_ingresos | sum) }}</td>
+        </tr>
+
+        <!-- BLOQUE EGRESOS -->
+        <tr class="bloque-titulo">
+            <td colspan="9">↑ EGRESOS</td>
+        </tr>
+
+        {% for metodo in data.metodos %}
+        <tr>
+            <td>{{ metodo | upper }}</td>
+            {% set fila = data.egresos[metodo] %}
+            {% for monto in fila %}
+                <td class="{% if monto == 0 %}cero{% else %}negativo{% endif %}">
+                    {% if monto == 0 %}—{% else %}S/ {{ "%.2f"|format(monto) }}{% endif %}
+                </td>
+            {% endfor %}
+            <td class="negativo">
+                S/ {{ "%.2f"|format(fila | sum) }}
+            </td>
+        </tr>
+        {% endfor %}
+
+        <!-- EFECTIVO EGRESO (upsell) -->
+        <tr class="efectivo">
+            <td>EFECTIVO</td>
+            <td colspan="8" style="text-align: center;">
+                Solo si integras pagoOK con tu sistema o usas
+                <strong style="color: var(--ambar);">QueVendi</strong>
+            </td>
+        </tr>
+
+        <!-- TOTAL EGRESOS -->
+        <tr class="total">
+            <td>TOTAL EGRESOS</td>
+            {% for monto in data.total_egresos %}
+                <td>S/ {{ "%.2f"|format(monto) }}</td>
+            {% endfor %}
+            <td>S/ {{ "%.2f"|format(data.total_egresos | sum) }}</td>
+        </tr>
+
+        <!-- NETO -->
+        <tr class="neto">
+            <td>NETO DEL DÍA</td>
+            {% for monto in data.neto_dia %}
+                <td class="{% if monto > 0 %}positivo{% elif monto < 0 %}negativo{% else %}cero{% endif %}">
+                    S/ {{ "%.2f"|format(monto) }}
+                </td>
+            {% endfor %}
+            <td class="{% if (data.neto_dia | sum) > 0 %}positivo{% elif (data.neto_dia | sum) < 0 %}negativo{% else %}cero{% endif %}">
+                S/ {{ "%.2f"|format(data.neto_dia | sum) }}
+            </td>
+        </tr>
+
+    </tbody>
+</table>
+</div>
+
+<div class="info-extra">
+    <div class="stat-card">
+        <div class="stat-label">Ingresos 7 días</div>
+        <div class="stat-valor">S/ {{ "%.2f"|format(data.total_ingresos | sum) }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Egresos 7 días</div>
+        <div class="stat-valor">S/ {{ "%.2f"|format(data.total_egresos | sum) }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Neto 7 días</div>
+        <div class="stat-valor">S/ {{ "%.2f"|format(data.neto_dia | sum) }}</div>
+    </div>
+</div>
+
+<div class="footer">
+    PERÚ SISTEMAS PRO · pagoOK Listener · RUC 20615446565
+</div>
+
+</div>
+</body>
+</html>
