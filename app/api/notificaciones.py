@@ -109,6 +109,7 @@ async def inbound(
 
     # 6) Parsear
     pago_creado = None
+    pago = None
     try:
         parsed = parsear(package, titulo, texto)
         if parsed:
@@ -143,6 +144,37 @@ async def inbound(
         logger.exception(f"Error parseando: {e}")
 
     db.commit()
+
+    # 7) Enviar Web Push a receptores suscritos (best-effort, post-commit)
+    if pago is not None:
+        try:
+            from app.api.push_service import enviar_push_a_empresa, formatear_push_pago
+            from app.admin.db import VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_CLAIM_EMAIL
+
+            slug_empresa = dispositivo.empresa.slug if dispositivo.empresa else ""
+            titulo, cuerpo = formatear_push_pago(pago)
+            resultado_push = enviar_push_a_empresa(
+                db=db,
+                empresa_id=pago.empresa_id,
+                titulo=titulo,
+                cuerpo=cuerpo,
+                datos_extra={
+                    "pago_id": pago.id,
+                    "tipo": getattr(pago, "tipo", "ingreso"),
+                    "monto": float(pago.monto) if pago.monto else 0,
+                    "metodo": pago.metodo,
+                    "titular": pago.titular,
+                    "url_destino": f"/{slug_empresa}",
+                },
+                vapid_public_key=VAPID_PUBLIC_KEY,
+                vapid_private_key=VAPID_PRIVATE_KEY,
+                vapid_email=VAPID_CLAIM_EMAIL,
+            )
+            logger.info(f"Push enviado para pago {pago.id}: {resultado_push}")
+        except Exception as exc:
+            logger.exception(f"Error enviando push para pago {pago_creado}: {exc}")
+            # NO relanzar - el pago ya está guardado, el push es best-effort
+
     return {
         "status": "ok",
         "raw_id": raw.id,
