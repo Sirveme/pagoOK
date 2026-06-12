@@ -115,6 +115,9 @@ def api_suscribir(
         .first()
     )
     if existente:
+        # Si se reactiva con un código distinto al anterior, contar el uso
+        if existente.codigo_invitacion_id != inv.id:
+            inv.usos_actuales = (inv.usos_actuales or 0) + 1
         existente.empresa_id = inv.empresa_id
         existente.codigo_invitacion_id = inv.id
         existente.nombre_receptor = nombre or existente.nombre_receptor
@@ -229,6 +232,37 @@ def crear_codigo(
 
     return RedirectResponse(
         url=f"/{empresa.slug}/receptores?nuevo={nuevo.codigo}",
+        status_code=303,
+    )
+
+
+@router.post("/{slug}/receptores/codigo/{codigo_id}/desactivar")
+def desactivar_codigo(
+    slug: str,
+    codigo_id: int,
+    db: Session = Depends(get_db),
+):
+    """Desactiva un código de invitación (no se puede usar para suscribir más)."""
+    empresa = (
+        db.query(Empresa)
+        .filter(or_(Empresa.slug == slug, Empresa.id_fiscal == slug))
+        .first()
+    )
+    if not empresa:
+        raise HTTPException(404, "Empresa no encontrada")
+
+    codigo = (
+        db.query(CodigoInvitacion)
+        .filter(CodigoInvitacion.id == codigo_id)
+        .filter(CodigoInvitacion.empresa_id == empresa.id)
+        .first()
+    )
+    if codigo:
+        codigo.activo = False
+        db.commit()
+
+    return RedirectResponse(
+        url=f"/{empresa.slug}/receptores",
         status_code=303,
     )
 
