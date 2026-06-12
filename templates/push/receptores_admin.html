@@ -302,6 +302,7 @@
                 <th>Usos</th>
                 <th>Expira</th>
                 <th>Estado</th>
+                <th>Acciones</th>
             </tr>
         </thead>
         <tbody>
@@ -320,6 +321,13 @@
                         <span class="badge badge-expirado">SIN CUPOS</span>
                     {% else %}
                         <span class="badge badge-activo">VIGENTE</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if c.activo and c.expira_en > now and c.usos_actuales < c.max_usos %}
+                    <form method="POST" action="/{{ empresa.slug }}/receptores/codigo/{{ c.id }}/desactivar" style="display: inline;">
+                        <button type="submit" class="peq" onclick="return confirm('¿Desactivar este código?')">DESACTIVAR</button>
+                    </form>
                     {% endif %}
                 </td>
             </tr>
