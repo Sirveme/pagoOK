@@ -20,7 +20,7 @@ async function suscribirseAPagoOK(codigo, nombreReceptor, vapidPublicKey) {
     }
 
     // Registrar Service Worker
-    const registration = await navigator.serviceWorker.register('/static/js/sw.js', {
+    const registration = await navigator.serviceWorker.register('/sw.js', {
         scope: '/'
     });
     await navigator.serviceWorker.ready;
