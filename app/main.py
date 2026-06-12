@@ -4,13 +4,14 @@ from fastapi.responses import FileResponse, RedirectResponse, HTMLResponse
 from fastapi.requests import Request
 from fastapi.templating import Jinja2Templates
 from contextlib import asynccontextmanager
+from pathlib import Path
 import logging
 
 from app.config import get_settings
 from app.routes import router as public_router
 from app.admin import router as admin_router
 from app.admin.deps import NoAutenticado
-from app.api import webhook_router, admin_dispositivos_router, api_v1_publica_router
+from app.api import webhook_router, admin_dispositivos_router
 from app.api.router_demo import router as router_demo
 from app.api.router_push import router as router_push
 
@@ -64,11 +65,21 @@ async def sitemap():
     return FileResponse("static/sitemap.xml", media_type="application/xml")
 
 
+@app.get("/sw.js", include_in_schema=False)
+def serve_service_worker():
+    """Sirve el Service Worker desde la raíz con scope amplio."""
+    return FileResponse(
+        Path("static/js/sw.js"),
+        media_type="application/javascript",
+        headers={"Service-Worker-Allowed": "/"},
+    )
+
+
 app.include_router(public_router)
 app.include_router(admin_router)
 app.include_router(admin_dispositivos_router)
 app.include_router(webhook_router)
-app.include_router(api_v1_publica_router)
+
 # router_push ANTES de router_demo: /recibir y /{slug}/receptores deben
 # resolverse antes que el catch-all /{slug} de router_demo
 app.include_router(router_push)
