@@ -58,3 +58,13 @@ class PagoDetectado(Base):
     # Independiente de `consumido` (que lo usa la PWA Caja interna).
     reclamado_por = Column(Integer, ForeignKey("cuenta_api.id", ondelete="SET NULL"))
     reclamado_en = Column(DateTime)
+
+
+# Co-registro del destino del FK `reclamado_por -> cuenta_api.id`.
+# PagoDetectado declara ese FK, así que la tabla `cuenta_api` (modelo CuentaApi)
+# DEBE estar en el mismo metadata/registry ANTES de resolver el FK (DDL/flush).
+# Sin esto, `cuenta_api` solo se registraba como efecto colateral de importar la
+# API v1 (app/api/publica_v1.py); si la ingesta resolvía el FK sin ese import,
+# rompía con NoReferencedTableError y NINGÚN pago se guardaba. Import al final
+# para evitar ciclos (models_cuenta no depende de este módulo).
+from app.api.models_cuenta import CuentaApi  # noqa: E402,F401
