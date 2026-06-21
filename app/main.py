@@ -11,7 +11,7 @@ from app.config import get_settings
 from app.routes import router as public_router
 from app.admin import router as admin_router
 from app.admin.deps import NoAutenticado
-from app.api import webhook_router, admin_dispositivos_router
+from app.api import webhook_router, admin_dispositivos_router, api_v1_publica_router
 from app.api.router_demo import router as router_demo
 from app.api.router_push import router as router_push
 
@@ -79,6 +79,12 @@ app.include_router(public_router)
 app.include_router(admin_router)
 app.include_router(admin_dispositivos_router)
 app.include_router(webhook_router)
+
+# API publica v1 (consumidores externos del ecosistema, ej. alerta.pe).
+# Auth por X-API-Key. Rutas /api/v1/pagos y /api/v1/pagos/{id}/reclamar:
+# multi-segmento, NO colisionan con el catch-all /{slug} de router_demo ni
+# con los /api/v1/pagos/{buscar,recientes,{id}/consumir} del webhook (X-Device-Token).
+app.include_router(api_v1_publica_router)
 
 # router_push ANTES de router_demo: /recibir y /{slug}/receptores deben
 # resolverse antes que el catch-all /{slug} de router_demo
