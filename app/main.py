@@ -14,6 +14,7 @@ from app.admin.deps import NoAutenticado
 from app.api import webhook_router, admin_dispositivos_router, api_v1_publica_router
 from app.api.router_demo import router as router_demo
 from app.api.router_push import router as router_push
+from app.middleware.security import SecurityScanBlockMiddleware
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("pagook")
@@ -41,6 +42,11 @@ app = FastAPI(
     docs_url="/api/docs" if settings.debug else None,
     redoc_url=None,
 )
+
+# Middleware de seguridad: DEBE ir ANTES de cualquier otro middleware para
+# cortar los escaneos de rutas maliciosas (backups, wp-admin, .env, dumps...)
+# como el punto más externo de la cadena.
+app.add_middleware(SecurityScanBlockMiddleware)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
