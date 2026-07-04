@@ -14,6 +14,7 @@ from app.admin.deps import NoAutenticado
 from app.api import webhook_router, admin_dispositivos_router, api_v1_publica_router
 from app.api.router_demo import router as router_demo
 from app.api.router_push import router as router_push
+from app.api.router_internos import router as router_internos
 from app.middleware.security import SecurityScanBlockMiddleware
 
 logging.basicConfig(level=logging.INFO)
@@ -92,7 +93,9 @@ app.include_router(webhook_router)
 # con los /api/v1/pagos/{buscar,recientes,{id}/consumir} del webhook (X-Device-Token).
 app.include_router(api_v1_publica_router)
 
-# router_push ANTES de router_demo: /recibir y /{slug}/receptores deben
-# resolverse antes que el catch-all /{slug} de router_demo
+# router_push y router_internos ANTES de router_demo: sus rutas /{slug}/...
+# (receptores, ingresos, egresos, config) deben resolverse antes que el
+# catch-all /{slug} de router_demo.
 app.include_router(router_push)
+app.include_router(router_internos)
 app.include_router(router_demo)
