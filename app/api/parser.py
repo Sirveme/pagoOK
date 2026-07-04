@@ -64,6 +64,54 @@ NOMBRE_CHARS = r"A-Za-zÁÉÍÓÚáéíóúÑñ"
 NOMBRE_INICIO = r"[A-ZÁÉÍÓÚÑ]"  # debe empezar con mayúscula
 
 
+def _detectar_moneda(texto: str) -> str:
+    """USD si aparece '$'; PEN si aparece 'S/'. Default PEN.
+
+    Cuando no hay símbolo claro devuelve PEN, pero el resultado se marca como
+    `tipo_incierto` río arriba para que el usuario lo revise.
+    """
+    return "USD" if "$" in (texto or "") else "PEN"
+
+
+def _extraer_monto(texto: str) -> Decimal | None:
+    """Extrae el primer monto en soles (S/) o dólares ($)."""
+    txt = texto or ""
+    m = re.search(r"S/\.?\s*([\d.,]+)", txt)
+    if not m:
+        m = re.search(r"\$\s*([\d.,]+)", txt)
+    return _normalizar_monto(m.group(1)) if m else None
+
+
+# Verbos que confirman la dirección del dinero. Si no aparece ninguno, el
+# resultado queda con tipo_incierto=True (se guarda como 'ingreso' por defecto).
+VERBOS_INGRESO = (
+    "te ha plineado", "te ha yapeado", "te plineó", "te plineo",
+    "te yapeó", "te yapeo", "te envió un pago", "te envio un pago",
+    "recibiste", "abono en tu cuenta", "te enviaron", "te depositaron",
+)
+VERBOS_EGRESO = (
+    "plineaste", "yapeaste", "enviaste", "transferiste", "pagaste",
+    "consumiste", "retiraste", "compraste", "se realizó un pago",
+    "se realizo un pago", "compra con tu tarjeta", "transferencia realizada",
+    "transferencia enviada", "retiro",
+)
+
+
+def _clasificar_tipo(texto: str) -> tuple[str, bool]:
+    """Devuelve (tipo, incierto) según los verbos presentes en el texto.
+
+    - Egreso si hay un verbo en primera persona activa ("Plineaste", "Pagaste").
+    - Ingreso si hay un verbo en pasiva / recepción ("te ha plineado", "recibiste").
+    - Si no matchea ninguno: ('ingreso', True) — default seguro, marcado a revisión.
+    """
+    txt = (texto or "").lower()
+    if any(v in txt for v in VERBOS_EGRESO):
+        return "egreso", False
+    if any(v in txt for v in VERBOS_INGRESO):
+        return "ingreso", False
+    return "ingreso", True
+
+
 # =============================================================
 # YAPE (BCP)
 # =============================================================
@@ -83,25 +131,25 @@ def parse_yape(package: str, titulo: str, texto: str) -> dict | None:
     if not es_yape:
         return None
 
-    # Detectar egresos (Yape enviado desde el celular del titular).
-    # Antes se descartaban (return None); ahora se guardan con tipo='egreso'
-    # para alimentar el Flujo de Caja Semanal.
-    es_egreso = any(x in txt for x in [
-        "yapeaste",
-        "enviaste un yape",
-        "tu yape de",   # "Tu Yape de S/ X fue enviado"
-        "tu yape por",
-    ])
-    tipo = "egreso" if es_egreso else "ingreso"
+    # Dirección del dinero (ingreso/egreso) por verbos. Los egresos antes se
+    # descartaban; ahora se guardan para el Flujo de Caja y los resúmenes.
+    tipo, tipo_incierto = _clasificar_tipo(texto)
+    es_egreso = tipo == "egreso"
 
-    monto = None
+    monto = _extraer_monto(texto)
+    moneda = _detectar_moneda(texto)
     titular = None
     codigo_op = None
 
-    # Extraer monto: "S/ 1", "S/1.50", "S/. 100,50"
-    m = re.search(r"S/\.?\s*([\d.,]+)", texto)
-    if m:
-        monto = _normalizar_monto(m.group(1))
+    # ============ TITULAR EN EGRESOS: "Yapeaste S/ X a NOMBRE" ============
+    if es_egreso:
+        m = re.search(
+            rf"yapeaste\s+S/\.?\s*[\d.,]+\s+a\s+({NOMBRE_INICIO}[{NOMBRE_CHARS}\s.*]+?)(?:\.|,|$)",
+            texto,
+            re.IGNORECASE,
+        )
+        if m:
+            titular = m.group(1).strip()
 
     # ============ PATRONES DE TITULAR EN ORDEN DE PRIORIDAD ============
 
@@ -161,12 +209,13 @@ def parse_yape(package: str, titulo: str, texto: str) -> dict | None:
     return {
         "metodo": "yape",
         "monto": monto,
-        "moneda": "PEN",
+        "moneda": moneda,
         "titular": titular,
         "titular_corto": _abreviar_titular(titular),
         "codigo_operacion": codigo_op,
         "banco": None,
         "tipo": tipo,
+        "tipo_incierto": tipo_incierto,
     }
 
 
@@ -186,23 +235,25 @@ def parse_plin(package: str, titulo: str, texto: str) -> dict | None:
     if not es_plin:
         return None
 
-    # Detectar egresos (Plin enviado). Antes se descartaban; ahora tipo='egreso'.
-    es_egreso = any(x in txt for x in [
-        "plineaste",
-        "te plineaste",
-        "enviaste",
-        "transferiste",
-    ])
-    tipo = "egreso" if es_egreso else "ingreso"
+    # Dirección del dinero por verbos (ingreso/egreso). Los egresos ahora se
+    # guardan con su titular destino.
+    tipo, tipo_incierto = _clasificar_tipo(texto)
+    es_egreso = tipo == "egreso"
 
-    monto = None
+    monto = _extraer_monto(texto)
+    moneda = _detectar_moneda(texto)
     titular = None
     codigo_op = None
 
-    # Monto
-    m = re.search(r"S/\.?\s*([\d.,]+)", texto)
-    if m:
-        monto = _normalizar_monto(m.group(1))
+    # ============ TITULAR EN EGRESOS: "Plineaste S/ X a NOMBRE" ============
+    if es_egreso:
+        m = re.search(
+            rf"plineaste\s+S/\.?\s*[\d.,]+\s+a\s+({NOMBRE_INICIO}[{NOMBRE_CHARS}\s.*]+?)(?:\.|,|$)",
+            texto,
+            re.IGNORECASE,
+        )
+        if m:
+            titular = m.group(1).strip()
 
     # Patrón Interbank: "Bertha Mariana Restuccia te ha plineado S/ 1.00"
     m = re.search(
@@ -250,12 +301,13 @@ def parse_plin(package: str, titulo: str, texto: str) -> dict | None:
     return {
         "metodo": "plin",
         "monto": monto,
-        "moneda": "PEN",
+        "moneda": moneda,
         "titular": titular,
         "titular_corto": _abreviar_titular(titular),
         "codigo_operacion": codigo_op,
         "banco": None,
         "tipo": tipo,
+        "tipo_incierto": tipo_incierto,
     }
 
 
@@ -270,31 +322,22 @@ def _parse_banco_generico(package: str, titulo: str, texto: str,
     if not any(k in pkg for k in claves_pkg) and not any(k in tit for k in claves_pkg):
         return None
 
-    txt_low = (texto or "").lower()
-    es_egreso = any(x in txt_low for x in [
-        "consumiste", "consumo", "realizaste", "transferiste",
-        "pagaste", "retiraste", "compraste", "enviaste",
-        "plineaste", "yapeaste", "transferencia enviada",
-    ])
-    tipo = "egreso" if es_egreso else "ingreso"
+    tipo, tipo_incierto = _clasificar_tipo(texto)
 
-    monto = None
-    m = re.search(r"S/\.?\s*([\d.,]+)", texto)
-    if m:
-        monto = _normalizar_monto(m.group(1))
-
+    monto = _extraer_monto(texto)
     if monto is None:
         return None
 
     return {
         "metodo": "transferencia",
         "monto": monto,
-        "moneda": "PEN",
+        "moneda": _detectar_moneda(texto),
         "titular": "",
         "titular_corto": "",
         "codigo_operacion": None,
         "banco": nombre_banco,
         "tipo": tipo,
+        "tipo_incierto": tipo_incierto,
     }
 
 
@@ -356,7 +399,10 @@ def _parse_billetera_generica(
         return None
 
     es_egreso = any(x in txt for x in patrones_egreso)
-    tipo = "egreso" if es_egreso else "ingreso"
+    if es_egreso:
+        tipo, tipo_incierto = "egreso", False
+    else:
+        tipo, tipo_incierto = _clasificar_tipo(texto)
 
     # Intento básico de titular: "X te ..." al inicio
     titular = ""
@@ -370,12 +416,13 @@ def _parse_billetera_generica(
     return {
         "metodo": metodo,
         "monto": monto,
-        "moneda": "PEN",
+        "moneda": _detectar_moneda(texto),
         "titular": titular,
         "titular_corto": _abreviar_titular(titular),
         "codigo_operacion": None,
         "banco": None,
         "tipo": tipo,
+        "tipo_incierto": tipo_incierto,
     }
 
 
@@ -408,6 +455,53 @@ def parse_pix(package: str, titulo: str, texto: str) -> dict | None:
 
 
 # =============================================================
+# TARJETA (compras y pagos recurrentes con tarjeta débito/crédito)
+# =============================================================
+def parse_tarjeta(package: str, titulo: str, texto: str) -> dict | None:
+    """Compras y pagos con tarjeta. Siempre egreso.
+
+    Ejemplos:
+      "Se realizó un pago recurrente de $ 100.00 en ANTHROPIC* CLAUDE SUB
+       con tu Tarjeta de Débito"  -> egreso, USD, titular='ANTHROPIC* CLAUDE SUB'
+      "Compra con tu tarjeta por S/ 50.00 en PLAZA VEA"
+    """
+    txt = (texto or "").lower()
+    señales = (
+        "con tu tarjeta", "pago recurrente", "compra con tu tarjeta",
+        "consumo con tu tarjeta", "tarjeta de débito", "tarjeta de debito",
+        "tarjeta de crédito", "tarjeta de credito", "se realizó un pago",
+        "se realizo un pago",
+    )
+    if not any(s in txt for s in señales):
+        return None
+
+    monto = _extraer_monto(texto)
+    if monto is None:
+        return None
+    moneda = _detectar_moneda(texto)
+
+    # Comercio como titular: "... en COMERCIO con tu tarjeta" / "... en COMERCIO"
+    comercio = ""
+    m = re.search(r"\ben\s+(.+?)\s+con\s+tu\s+tarjeta", texto, re.IGNORECASE)
+    if not m:
+        m = re.search(r"\ben\s+(.+?)(?:\.|$)", texto, re.IGNORECASE)
+    if m:
+        comercio = m.group(1).strip().rstrip(".,")
+
+    return {
+        "metodo": "tarjeta",
+        "monto": monto,
+        "moneda": moneda,
+        "titular": comercio,
+        "titular_corto": (comercio or "")[:50],
+        "codigo_operacion": None,
+        "banco": None,
+        "tipo": "egreso",
+        "tipo_incierto": False,
+    }
+
+
+# =============================================================
 # REGISTRO Y DISPATCH
 # =============================================================
 # OJO al orden: Plin antes de Interbank, porque Plin Interbank tiene texto
@@ -416,6 +510,7 @@ def parse_pix(package: str, titulo: str, texto: str) -> dict | None:
 PARSERS = [
     parse_yape,
     parse_plin,
+    parse_tarjeta,   # antes de los bancos: captura compras/pagos con tarjeta (USD)
     parse_bim,
     parse_p51,
     parse_pix,

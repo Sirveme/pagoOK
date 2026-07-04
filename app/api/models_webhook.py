@@ -58,6 +58,15 @@ class PagoDetectado(Base):
     # Independiente de `consumido` (que lo usa la PWA Caja interna).
     reclamado_por = Column(Integer, ForeignKey("cuenta_api.id", ondelete="SET NULL"))
     reclamado_en = Column(DateTime)
+    # --- Detección de cuentas propias (aditivo) ---
+    # Sugerencia calculada AL RECIBIR: el titular parece una cuenta del dueño.
+    # NUNCA cambia el `tipo` por sí solo; requiere confirmación manual del usuario.
+    posible_interno = Column(Boolean, default=False, nullable=False, server_default="false")
+    # NULL = sin revisar | 'confirmado_interno' | 'confirmado_externo'
+    confirmacion_usuario = Column(String(20), default=None)
+    # El parser no pudo clasificar ingreso/egreso con certeza (guardado como
+    # 'ingreso' por defecto, marcado para revisión).
+    tipo_incierto = Column(Boolean, default=False, nullable=False, server_default="false")
 
 
 # Co-registro del destino del FK `reclamado_por -> cuenta_api.id`.

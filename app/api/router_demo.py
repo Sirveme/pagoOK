@@ -78,6 +78,9 @@ def _metodo_label(metodo: str) -> str:
 def _serializar_pago(pago: PagoDetectado) -> dict:
     """Convierte PagoDetectado a dict para JSON."""
     monto = pago.monto or Decimal("0")
+    tipo = (getattr(pago, "tipo", None) or "ingreso").lower()
+    posible_interno = bool(getattr(pago, "posible_interno", False))
+    confirmacion = getattr(pago, "confirmacion_usuario", None)
     return {
         "id": pago.id,
         "metodo": (pago.metodo or "").lower(),
@@ -92,6 +95,13 @@ def _serializar_pago(pago: PagoDetectado) -> dict:
         "codigo_operacion": pago.codigo_operacion or "",
         "fecha": _fecha_local_str(pago.recibido_en),
         "hora": _hora_local_str(pago.recibido_en),
+        # Egresos + detección de cuentas propias
+        "tipo": tipo,
+        "es_egreso": tipo == "egreso",
+        "posible_interno": posible_interno,
+        "confirmacion_usuario": confirmacion,
+        # Badge "¿Es tuyo?" solo si es sugerencia sin revisar
+        "necesita_revision": posible_interno and confirmacion is None,
     }
 
 
@@ -141,12 +151,23 @@ def api_demo_pagos(slug: str):
         if empresa is None:
             return JSONResponse({"ok": False, "error": "empresa_no_encontrada"}, status_code=404)
 
-        pagos = _obtener_pagos_recientes(db, empresa.id)
+        pagos = _obtener_pagos_recientes(db, empresa.id, limite=40)
+        serializados = [_serializar_pago(p) for p in pagos]
+        ingresos = [p for p in serializados if not p["es_egreso"]]
+        egresos = [p for p in serializados if p["es_egreso"]]
+
+        from app.services.resumen_empresa import calcular_resumen_dia, resumen_serializable
+        hoy_lima = datetime.now(TZ_LIMA).date()
+        resumen = resumen_serializable(calcular_resumen_dia(empresa.id, hoy_lima, db))
+
         return {
             "ok": True,
             "empresa": empresa.nombre_comercial or empresa.razon_social or slug,
             "slug": slug,
-            "pagos": [_serializar_pago(p) for p in pagos],
+            "pagos": serializados,               # compat: lista completa como antes
+            "ingresos": ingresos[:LIMITE_PAGOS],
+            "egresos": egresos[:LIMITE_PAGOS],
+            "resumen_hoy": resumen,
             "timestamp_server": datetime.now(TZ_LIMA).strftime("%H:%M:%S"),
         }
     finally:
@@ -444,296 +465,317 @@ def _html_no_encontrado(slug: str) -> str:
 
 
 def _html_pantalla(slug: str, nombre_empresa: str) -> str:
-    """Pantalla pública sin candado, con polling cada 5 segundos."""
-    return f"""<!DOCTYPE html>
+    """Pantalla pública rediseñada (paleta "Amazonía Sereno").
+
+    HTML autocontenido, polling cada 5 s contra /api/v1/demo/{slug}. Muestra
+    resumen del día (total y "del negocio"), últimos ingresos y egresos, y un
+    badge "¿Es tuyo?" con modal HTML (sin confirm nativo) para confirmar si un
+    posible interno es cuenta propia o de otra persona.
+    """
+    plantilla = """<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>pagoOK · {nombre_empresa}</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='15' fill='%234E0808'/><text x='50' y='65' font-family='Georgia,serif' font-size='40' font-weight='bold' text-anchor='middle' fill='%23F5A623'>OK</text></svg>">
+  <title>pagoOK · __NOMBRE__</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%230f766e'/><text x='50' y='66' font-family='Georgia,serif' font-size='42' font-weight='bold' text-anchor='middle' fill='%23faf6ef'>OK</text></svg>">
   <style>
-    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-    body {{
-      background: linear-gradient(180deg, #1A0303 0%, #2A0404 100%);
-      color: #FFF6E0;
-      font-family: -apple-system, system-ui, sans-serif;
-      min-height: 100vh;
-      padding: 16px;
-    }}
-    .container {{ max-width: 720px; margin: 0 auto; }}
-    .header {{
+    :root {
+      --jade: #0f766e; --jade-claro: #14b8a6;
+      --coral: #ea6d40; --coral-hover: #f97316;
+      --crema-fondo: #faf6ef; --crema-tarjeta: #ffffff;
+      --grafito: #1c1f26; --grafito-suave: #4b5563;
+      --terracota: #f5cec0; --indigo: #4c5578; --amarillo: #fbbf24;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--crema-fondo); color: var(--grafito);
+      font-family: 'Inter', -apple-system, system-ui, sans-serif;
+      min-height: 100vh; padding: 16px; line-height: 1.4;
+    }
+    .container { max-width: 760px; margin: 0 auto; }
+    h1, h2, .monto { font-family: 'Space Grotesk', 'Inter', sans-serif; }
+    .num { font-variant-numeric: tabular-nums; }
+
+    .header {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 12px 0 20px; border-bottom: 1px solid #4E0808;
-    }}
-    .logo {{ display: flex; align-items: center; gap: 6px; font-family: Georgia, serif; font-size: 22px; font-weight: 700; }}
-    .logo .pago {{ color: #FFFFFF; }}
-    .logo .ok {{
-      color: #F5A623; border: 2px solid #F5A623; padding: 0 8px;
-      border-radius: 4px; line-height: 1.2;
-    }}
-    .empresa {{ color: #F5A623; font-size: 14px; font-weight: 600; text-align: right; }}
-    .empresa small {{ display: block; color: #BBBBBB; font-weight: 400; font-size: 11px; }}
-
-    .seccion-titulo {{
-      color: #F5A623; font-size: 12px; font-weight: 700;
-      letter-spacing: 1.5px; margin: 28px 0 12px;
-    }}
-
-    .seccion-subtitulo {{
-      color: #BBBBBB; font-size: 12px; font-style: italic;
-      margin: -8px 0 14px;
-    }}
-
-    .indicador-live {{
+      gap: 12px; padding: 6px 0 18px; flex-wrap: wrap;
+    }
+    .marca { display: flex; align-items: baseline; gap: 8px; }
+    .marca .logo { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 22px; color: var(--jade); }
+    .marca .empresa { font-size: 15px; font-weight: 600; color: var(--grafito); }
+    .marca .fecha { display: block; font-size: 12px; color: var(--grafito-suave); font-weight: 400; }
+    .pill-live {
       display: inline-flex; align-items: center; gap: 6px;
-      background: rgba(245,166,35,0.1); border: 1px solid #F5A623;
-      border-radius: 20px; padding: 4px 12px; font-size: 11px;
-      color: #F5A623; font-weight: 600;
-    }}
-    .punto {{
-      display: inline-block; width: 8px; height: 8px; border-radius: 50%;
-      background: #10B981; animation: pulse 1.5s infinite;
-    }}
-    @keyframes pulse {{
-      0%, 100% {{ opacity: 1; transform: scale(1); }}
-      50% {{ opacity: 0.5; transform: scale(1.3); }}
-    }}
+      background: rgba(15,118,110,0.09); border: 1px solid var(--jade);
+      color: var(--jade); border-radius: 999px; padding: 5px 12px;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.6px;
+    }
+    .punto { width: 8px; height: 8px; border-radius: 50%; background: var(--jade-claro); animation: latido 1.5s infinite; }
+    @keyframes latido { 0%,100% { opacity: 1; transform: scale(1);} 50% { opacity: .4; transform: scale(1.4);} }
 
-    .pagos {{ display: flex; flex-direction: column; gap: 8px; }}
+    .seccion-titulo { font-size: 13px; font-weight: 700; color: var(--grafito); letter-spacing: .3px; margin: 26px 0 12px; display: flex; align-items: center; justify-content: space-between; }
+    .ver-todos { font-size: 12px; font-weight: 600; color: var(--jade); text-decoration: none; border: 1px solid var(--jade); border-radius: 8px; padding: 5px 10px; }
+    .ver-todos:hover { background: rgba(15,118,110,0.08); }
 
-    .pago {{
-      background: rgba(0,0,0,0.3);
-      border: 1px solid #4E0808;
-      border-radius: 10px;
-      padding: 14px 16px;
-      display: flex; align-items: center; gap: 14px;
-      transition: transform 0.3s ease, border-color 0.3s ease;
-    }}
-    .pago.nuevo {{
-      animation: aparecer 0.6s ease-out;
-      border-color: #F5A623;
-    }}
-    @keyframes aparecer {{
-      from {{ transform: translateY(-20px); opacity: 0; background: rgba(245,166,35,0.2); }}
-      to {{ transform: translateY(0); opacity: 1; background: rgba(0,0,0,0.3); }}
-    }}
+    .fila-tarjetas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .tarjeta {
+      background: var(--crema-tarjeta); border-radius: 14px; padding: 16px;
+      box-shadow: 0 2px 10px rgba(28,31,38,0.06); border: 1px solid rgba(28,31,38,0.05);
+    }
+    .tarjeta .rotulo { font-size: 12px; color: var(--grafito-suave); font-weight: 500; }
+    .tarjeta .monto { font-size: 24px; font-weight: 700; margin-top: 6px; }
+    .tarjeta .conteo { font-size: 11px; color: var(--grafito-suave); margin-top: 4px; }
+    .tarjeta.chica .monto { font-size: 19px; }
+    .t-ingreso .monto { color: var(--jade); }
+    .t-egreso .monto { color: var(--coral); }
+    .t-dif .monto { color: var(--grafito); }
+    .dif-pos { color: var(--jade) !important; }
+    .dif-neg { color: var(--coral) !important; }
 
-    .badge {{
-      flex-shrink: 0; padding: 4px 10px; border-radius: 6px;
-      font-size: 10px; font-weight: 800; letter-spacing: 0.8px;
-      color: #FFFFFF; min-width: 70px; text-align: center;
-    }}
-    .monto {{
-      font-size: 22px; font-weight: 700; color: #F5A623;
-      font-family: Georgia, serif; min-width: 120px;
-    }}
-    .info {{ flex: 1; min-width: 0; }}
-    .titular {{
-      font-size: 14px; font-weight: 600; color: #FFF6E0;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }}
-    .meta {{ font-size: 11px; color: #BBBBBB; margin-top: 2px; }}
-    .hora {{ font-size: 12px; color: #888888; flex-shrink: 0; }}
+    .divisor { height: 1px; background: rgba(28,31,38,0.10); margin: 22px 0 14px; }
+    .subtitulo { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--indigo); margin-bottom: 12px; }
+    .ayuda { position: relative; cursor: help; display: inline-flex; }
+    .ayuda .ico { width: 16px; height: 16px; border-radius: 50%; background: var(--indigo); color: #fff; font-size: 11px; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+    .ayuda .tip { display: none; position: absolute; left: 22px; top: -4px; width: 240px; background: var(--grafito); color: #fff; font-size: 11px; font-weight: 400; padding: 8px 10px; border-radius: 8px; z-index: 5; }
+    .ayuda:hover .tip { display: block; }
 
-    .vacio {{
-      text-align: center; padding: 40px 20px; color: #888888;
-      border: 1px dashed #4E0808; border-radius: 10px;
-    }}
-    .vacio strong {{ display: block; color: #F5A623; font-size: 16px; margin-bottom: 6px; }}
+    .lista { display: flex; flex-direction: column; gap: 8px; }
+    .op {
+      background: var(--crema-tarjeta); border-radius: 12px; padding: 12px 14px;
+      display: flex; align-items: center; gap: 12px;
+      box-shadow: 0 1px 6px rgba(28,31,38,0.05); border: 1px solid rgba(28,31,38,0.05);
+    }
+    .op .hora { font-size: 12px; color: var(--grafito-suave); min-width: 46px; }
+    .op .metodo { flex-shrink: 0; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; color: #fff; min-width: 58px; text-align: center; }
+    .op .quien { flex: 1; min-width: 0; }
+    .op .quien .nombre { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .op .quien .flecha { color: var(--coral); font-weight: 700; }
+    .op .monto { font-size: 17px; font-weight: 700; }
+    .op.ingreso .monto { color: var(--jade); }
+    .op.egreso .monto { color: var(--coral); }
+    .badge-tuyo {
+      background: #fef3c7; border: 1px solid var(--amarillo); color: var(--grafito);
+      font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; cursor: pointer;
+    }
+    .vacio { text-align: center; padding: 26px 16px; color: var(--grafito-suave); border: 1px dashed rgba(28,31,38,0.15); border-radius: 12px; font-size: 13px; }
 
-    .buscar-box {{
-      background: rgba(0,0,0,0.3); border: 1px solid #4E0808;
-      border-radius: 10px; padding: 16px; margin-top: 8px;
-    }}
-    .buscar-row {{ display: flex; gap: 8px; align-items: center; }}
-    .buscar-row .moneda {{ color: #F5A623; font-weight: 700; }}
-    .buscar-row input {{
-      flex: 1; background: rgba(0,0,0,0.4); border: 1.5px solid #4E0808;
-      border-radius: 8px; padding: 10px 12px; color: #F5A623;
-      font-family: Georgia, serif; font-size: 18px; font-weight: 700;
-      letter-spacing: 1px; text-align: center;
-      outline: none; transition: border-color 0.2s;
-    }}
-    .buscar-row input:focus {{ border-color: #F5A623; }}
-    .buscar-row input::placeholder {{ color: #555; font-family: -apple-system, system-ui, sans-serif; font-size: 13px; font-weight: 400; letter-spacing: normal; }}
-    .buscar-row button {{
-      background: #F5A623; color: #2A0404; border: none;
-      padding: 10px 18px; border-radius: 8px; font-weight: 700;
-      cursor: pointer; font-size: 13px; letter-spacing: 0.5px;
-      transition: background 0.2s;
-    }}
-    .buscar-row button:hover {{ background: #FFC14F; }}
-    .buscar-row button:disabled {{ background: #888; cursor: not-allowed; }}
+    .footer { margin-top: 30px; padding-top: 16px; border-top: 1px solid rgba(28,31,38,0.10); text-align: center; font-size: 11px; color: var(--grafito-suave); }
+    .footer a { color: var(--jade); text-decoration: none; }
 
-    .resultado-buscar {{
-      margin-top: 12px; padding: 14px; border-radius: 8px;
-      font-size: 13px; line-height: 1.5;
-    }}
-    .resultado-ok {{ background: rgba(16,185,129,0.15); border: 1px solid #10B981; color: #10B981; }}
-    .resultado-ok strong {{ display: block; color: #FFFFFF; font-size: 18px; margin-bottom: 4px; }}
-    .resultado-no {{ background: rgba(239,68,68,0.1); border: 1px solid #EF4444; color: #FCA5A5; }}
+    .modal-fondo { display: none; position: fixed; inset: 0; background: rgba(28,31,38,0.55); align-items: center; justify-content: center; padding: 20px; z-index: 20; }
+    .modal-fondo.abierto { display: flex; }
+    .modal { background: #fff; border-radius: 16px; max-width: 400px; width: 100%; padding: 22px; }
+    .modal h3 { font-family: 'Space Grotesk', sans-serif; font-size: 18px; margin-bottom: 6px; }
+    .modal p { font-size: 13px; color: var(--grafito-suave); margin-bottom: 16px; }
+    .modal .dato { background: var(--crema-fondo); border-radius: 10px; padding: 10px 12px; margin-bottom: 16px; font-size: 14px; }
+    .modal .botones { display: flex; flex-direction: column; gap: 10px; }
+    .btn { border: none; border-radius: 10px; padding: 13px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .btn-si { background: var(--jade); color: #fff; }
+    .btn-si:hover { background: #0d6459; }
+    .btn-no { background: #fff; color: var(--coral); border: 1.5px solid var(--coral); }
+    .btn-no:hover { background: rgba(234,109,64,0.08); }
+    .btn-cerrar { background: transparent; color: var(--grafito-suave); font-weight: 500; }
 
-    .footer {{
-      margin-top: 32px; padding-top: 16px;
-      border-top: 1px solid #4E0808;
-      text-align: center; font-size: 11px; color: #888888;
-    }}
-    .footer a {{ color: #F5A623; text-decoration: none; }}
-
-    @media (max-width: 600px) {{
-      .pago {{ flex-wrap: wrap; gap: 8px; }}
-      .monto {{ min-width: auto; font-size: 20px; }}
-      .info {{ flex-basis: 100%; }}
-      .empresa {{ font-size: 12px; }}
-    }}
+    @media (max-width: 560px) {
+      .fila-tarjetas { grid-template-columns: 1fr 1fr; }
+      .fila-tarjetas .tarjeta.t-dif { grid-column: 1 / -1; }
+      .op .hora { min-width: 40px; }
+    }
   </style>
 </head>
 <body>
 <div class="container">
 
   <div class="header">
-    <div class="logo"><span class="pago">pago</span><span class="ok">OK</span></div>
-    <div class="empresa">
-      {nombre_empresa}
-      <small>{slug}</small>
+    <div class="marca">
+      <span class="logo">pagoOK</span>
+      <span>
+        <span class="empresa">__NOMBRE__</span>
+        <span class="fecha" id="fecha">&nbsp;</span>
+      </span>
+    </div>
+    <span class="pill-live"><span class="punto"></span> EN VIVO</span>
+  </div>
+
+  <h2 class="seccion-titulo">Tu día en un vistazo</h2>
+  <div class="fila-tarjetas">
+    <div class="tarjeta t-ingreso">
+      <div class="rotulo">Ingresos</div>
+      <div class="monto num" id="tot-ing">S/ 0.00</div>
+      <div class="conteo" id="cnt-ing">0 operaciones</div>
+    </div>
+    <div class="tarjeta t-egreso">
+      <div class="rotulo">Egresos</div>
+      <div class="monto num" id="tot-egr">S/ 0.00</div>
+      <div class="conteo" id="cnt-egr">0 operaciones</div>
+    </div>
+    <div class="tarjeta t-dif">
+      <div class="rotulo">Diferencia</div>
+      <div class="monto num" id="tot-dif">S/ 0.00</div>
+      <div class="conteo">del día</div>
     </div>
   </div>
 
-  <div class="seccion-titulo">
-    Últimos pagos recibidos &nbsp;
-    <span class="indicador-live"><span class="punto"></span> EN VIVO</span>
-  </div>
+  <div class="divisor"></div>
 
-  <div id="pagos" class="pagos">
-    <div class="vacio">
-      <strong>Esperando pagos...</strong>
-      Apenas alguien envíe un Yape, Plin o transferencia, aparecerá aquí en segundos.
+  <div class="subtitulo">
+    Excluyendo tus cuentas propias
+    <span class="ayuda"><span class="ico">?</span>
+      <span class="tip">Las transferencias entre tus billeteras se excluyen del cálculo del negocio.</span>
+    </span>
+  </div>
+  <div class="fila-tarjetas">
+    <div class="tarjeta chica t-ingreso">
+      <div class="rotulo">Ingresos del negocio</div>
+      <div class="monto num" id="neg-ing">S/ 0.00</div>
+    </div>
+    <div class="tarjeta chica t-egreso">
+      <div class="rotulo">Egresos del negocio</div>
+      <div class="monto num" id="neg-egr">S/ 0.00</div>
+    </div>
+    <div class="tarjeta chica t-dif">
+      <div class="rotulo">Del negocio hoy</div>
+      <div class="monto num" id="neg-dif">S/ 0.00</div>
     </div>
   </div>
 
-  <div class="seccion-titulo">¿Quieres verificar un Yape, Plin o Transferencia?</div>
-  <div class="seccion-subtitulo">En la práctica el vendedor o cajero buscará por un nombre del cliente/pagador.</div>
+  <h2 class="seccion-titulo">Últimos ingresos
+    <a class="ver-todos" href="/__SLUG__/ingresos">Ver todos</a>
+  </h2>
+  <div id="lista-ingresos" class="lista"></div>
 
-  <div class="buscar-box">
-    <div class="buscar-row">
-      <span class="moneda">S/</span>
-      <input type="text" id="buscar-monto" placeholder="Digita monto exacto que esperas recibir (ej: 1.00)" inputmode="decimal">
-      <button onclick="buscarPago()">Buscar</button>
-    </div>
-    <div id="resultado-buscar"></div>
-  </div>
+  <h2 class="seccion-titulo">Últimos egresos
+    <a class="ver-todos" href="/__SLUG__/egresos">Ver todos</a>
+  </h2>
+  <div id="lista-egresos" class="lista"></div>
 
   <div class="footer">
-    pagoOK detecta pagos Yape · Plin · Transferencias en tiempo real<br>
-    <a href="https://pagook.pro">pagook.pro</a> · por Perú Sistemas Pro
+    <span id="actualizado">Conectando...</span> · Powered by <a href="https://pagook.pro">pagoOK</a>
   </div>
+</div>
 
+<div class="modal-fondo" id="modal">
+  <div class="modal">
+    <h3>¿Esta cuenta es tuya?</h3>
+    <p>Si es una de tus propias billeteras, la separaremos del flujo del negocio.</p>
+    <div class="dato" id="modal-dato">—</div>
+    <div class="botones">
+      <button class="btn btn-si" onclick="confirmar(true)">Sí, es mía</button>
+      <button class="btn btn-no" onclick="confirmar(false)">No, es de otra persona</button>
+      <button class="btn btn-cerrar" onclick="cerrarModal()">Cancelar</button>
+    </div>
+  </div>
 </div>
 
 <script>
-const SLUG = "{slug}";
-let pagosVistos = new Set();
-let primeraCarga = true;
+const SLUG = "__SLUG__";
+let pagoEnRevision = null;
 
-async function cargarPagos() {{
-  try {{
-    const r = await fetch(`/api/v1/demo/${{SLUG}}`);
+function fmt(monto, moneda) {
+  const simbolo = moneda === "USD" ? "$" : "S/";
+  return simbolo + " " + monto;
+}
+function esc(s) {
+  if (s == null) return "";
+  return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+function fechaHoy() {
+  try {
+    const f = new Date().toLocaleDateString("es-PE", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    document.getElementById("fecha").textContent = "Hoy · " + f;
+  } catch (e) {}
+}
+
+function pintarResumen(r) {
+  if (!r) return;
+  const s = (n) => "S/ " + Number(n).toFixed(2);
+  document.getElementById("tot-ing").textContent = s(r.total_ingresos);
+  document.getElementById("tot-egr").textContent = s(r.total_egresos);
+  document.getElementById("cnt-ing").textContent = r.cuenta_ingresos + " operaciones";
+  document.getElementById("cnt-egr").textContent = r.cuenta_egresos + " operaciones";
+  const dif = document.getElementById("tot-dif");
+  dif.textContent = (r.diferencia >= 0 ? "+ " : "- ") + "S/ " + Math.abs(r.diferencia).toFixed(2);
+  dif.className = "monto num " + (r.diferencia >= 0 ? "dif-pos" : "dif-neg");
+  document.getElementById("neg-ing").textContent = s(r.ingresos_negocio);
+  document.getElementById("neg-egr").textContent = s(r.egresos_negocio);
+  const nd = document.getElementById("neg-dif");
+  nd.textContent = (r.diferencia_negocio >= 0 ? "+ " : "- ") + "S/ " + Math.abs(r.diferencia_negocio).toFixed(2);
+  nd.className = "monto num " + (r.diferencia_negocio >= 0 ? "dif-pos" : "dif-neg");
+}
+
+function filaOp(p, esEgreso) {
+  const badge = p.necesita_revision
+    ? '<span class="badge-tuyo" data-id="' + p.id + '" data-titular="' + esc(p.titular) + '" data-monto="' + esc(p.monto) + '" data-moneda="' + esc(p.moneda || "PEN") + '">¿Es tuyo?</span>'
+    : "";
+  const flecha = esEgreso ? '<span class="flecha">→ </span>' : "";
+  return '<div class="op ' + (esEgreso ? "egreso" : "ingreso") + '">' +
+      '<span class="hora num">' + esc(p.hora) + '</span>' +
+      '<span class="metodo" style="background:' + p.metodo_color + '">' + esc(p.metodo_label) + '</span>' +
+      '<span class="quien"><span class="nombre">' + flecha + esc(p.titular_corto) + '</span></span>' +
+      badge +
+      '<span class="monto num">' + fmt(p.monto, p.moneda) + '</span>' +
+    '</div>';
+}
+
+// Delegación: un solo listener para todos los badges "¿Es tuyo?".
+document.addEventListener("click", function (ev) {
+  const b = ev.target.closest(".badge-tuyo");
+  if (!b) return;
+  abrirModal(b.dataset.id, b.dataset.titular, b.dataset.monto, b.dataset.moneda);
+});
+
+function pintarLista(id, items, esEgreso) {
+  const cont = document.getElementById(id);
+  if (!items || items.length === 0) {
+    cont.innerHTML = '<div class="vacio">Aún no hay ' + (esEgreso ? "egresos" : "ingresos") + ' hoy.</div>';
+    return;
+  }
+  cont.innerHTML = items.map(p => filaOp(p, esEgreso)).join("");
+}
+
+async function cargar() {
+  try {
+    const r = await fetch("/api/v1/demo/" + SLUG);
     const data = await r.json();
     if (!data.ok) return;
+    pintarResumen(data.resumen_hoy);
+    pintarLista("lista-ingresos", data.ingresos, false);
+    pintarLista("lista-egresos", data.egresos, true);
+    document.getElementById("actualizado").textContent = "Actualizado a las " + data.timestamp_server;
+  } catch (e) {
+    console.error("Error cargando:", e);
+  }
+}
 
-    const cont = document.getElementById('pagos');
+function abrirModal(id, titular, monto, moneda) {
+  pagoEnRevision = id;
+  document.getElementById("modal-dato").textContent = (titular || "(sin titular)") + " · " + fmt(monto, moneda);
+  document.getElementById("modal").classList.add("abierto");
+}
+function cerrarModal() {
+  pagoEnRevision = null;
+  document.getElementById("modal").classList.remove("abierto");
+}
+async function confirmar(esPropia) {
+  if (!pagoEnRevision) return;
+  try {
+    await fetch("/api/v1/" + SLUG + "/pagos/" + pagoEnRevision + "/confirmacion", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ es_propia: esPropia })
+    });
+  } catch (e) {}
+  cerrarModal();
+  cargar();
+}
 
-    if (data.pagos.length === 0) {{
-      cont.innerHTML = `<div class="vacio"><strong>Esperando pagos...</strong>Apenas alguien envíe un Yape, Plin o transferencia, aparecerá aquí en segundos.</div>`;
-      return;
-    }}
-
-    const idsActuales = new Set(data.pagos.map(p => p.id));
-    const nuevos = data.pagos.filter(p => !pagosVistos.has(p.id));
-
-    cont.innerHTML = data.pagos.map(p => {{
-      const esNuevo = !primeraCarga && nuevos.some(n => n.id === p.id);
-      return `<div class="pago ${{esNuevo ? 'nuevo' : ''}}">
-        <div class="badge" style="background:${{p.metodo_color}}">${{p.metodo_label}}</div>
-        <div class="monto">S/ ${{p.monto}}</div>
-        <div class="info">
-          <div class="titular">${{escapeHtml(p.titular_corto)}}</div>
-          <div class="meta">${{escapeHtml(p.banco || p.titular || '')}}</div>
-        </div>
-        <div class="hora">${{p.hora}}</div>
-      </div>`;
-    }}).join('');
-
-    pagosVistos = idsActuales;
-    primeraCarga = false;
-  }} catch (e) {{
-    console.error('Error cargando pagos:', e);
-  }}
-}}
-
-async function buscarPago() {{
-  const input = document.getElementById('buscar-monto');
-  const cont = document.getElementById('resultado-buscar');
-  const monto = input.value.trim().replace(',', '.');
-
-  if (!monto || isNaN(parseFloat(monto)) || parseFloat(monto) <= 0) {{
-    cont.innerHTML = '<div class="resultado-buscar resultado-no">Digita un monto válido (ej: 1.50)</div>';
-    return;
-  }}
-
-  cont.innerHTML = '<div class="resultado-buscar" style="color:#888">Buscando...</div>';
-
-  try {{
-    const r = await fetch(`/api/v1/demo/${{SLUG}}/buscar`, {{
-      method: 'POST',
-      headers: {{'Content-Type': 'application/json'}},
-      body: JSON.stringify({{monto: monto}})
-    }});
-    const data = await r.json();
-
-    if (!data.ok) {{
-      cont.innerHTML = '<div class="resultado-buscar resultado-no">Error: ' + (data.error || 'desconocido') + '</div>';
-      return;
-    }}
-
-    if (!data.encontrado) {{
-      cont.innerHTML = `<div class="resultado-buscar resultado-no">
-        No encontramos un pago de <strong style="color:#F5A623">S/ ${{monto}}</strong> en los últimos 60 minutos.<br>
-        Verifica el monto exacto, o espera unos segundos a que llegue al sistema.
-      </div>`;
-      return;
-    }}
-
-    const p = data.pago;
-    cont.innerHTML = `<div class="resultado-buscar resultado-ok">
-      <strong>✓ ¡Es tu pago!</strong>
-      <div style="margin-top:8px; color:#FFF6E0">
-        <div><b>${{escapeHtml(p.titular)}}</b></div>
-        <div style="font-size:22px; font-family:Georgia,serif; color:#F5A623; margin:6px 0">S/ ${{p.monto}}</div>
-        <div style="font-size:12px; color:#BBBBBB">${{p.metodo_label}} · ${{p.fecha}} ${{p.hora}}</div>
-      </div>
-      <div style="margin-top:10px; font-size:11px; color:#10B981">
-        Detectado en tiempo real por pagoOK
-      </div>
-    </div>`;
-    input.value = '';
-  }} catch (e) {{
-    cont.innerHTML = '<div class="resultado-buscar resultado-no">Error de conexión. Intenta de nuevo.</div>';
-  }}
-}}
-
-function escapeHtml(s) {{
-  if (s == null) return '';
-  return String(s).replace(/[&<>"']/g, ch => ({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}})[ch]);
-}}
-
-document.getElementById('buscar-monto').addEventListener('keypress', e => {{
-  if (e.key === 'Enter') buscarPago();
-}});
-
-cargarPagos();
-setInterval(cargarPagos, 5000);
+fechaHoy();
+cargar();
+setInterval(cargar, 5000);
 </script>
 </body>
 </html>"""
+    return plantilla.replace("__SLUG__", slug).replace("__NOMBRE__", nombre_empresa)

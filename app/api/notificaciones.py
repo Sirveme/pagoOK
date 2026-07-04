@@ -113,20 +113,40 @@ async def inbound(
     try:
         parsed = parsear(package, titulo, texto)
         if parsed:
+            # Detección de cuenta propia AL RECIBIR (solo sugerencia; el `tipo`
+            # sigue siendo ingreso/egreso hasta que el usuario confirme).
+            from app.services.deteccion_interno import es_posible_interno
+            titular_parseado = parsed.get("titular") or ""
+            try:
+                posible_interno = es_posible_interno(
+                    dispositivo.empresa_id, titular_parseado, db
+                )
+            except Exception as exc_det:
+                posible_interno = False
+                logger.warning(f"Falló detección de interno: {exc_det}")
+
             pago = PagoDetectado(
                 empresa_id=dispositivo.empresa_id,
                 notificacion_raw_id=raw.id,
                 metodo=parsed["metodo"],
                 monto=parsed["monto"],
                 moneda=parsed.get("moneda", "PEN"),
-                titular=parsed.get("titular") or "",
+                titular=titular_parseado,
                 titular_corto=parsed.get("titular_corto") or "",
                 codigo_operacion=parsed.get("codigo_operacion"),
                 banco=parsed.get("banco"),
                 tipo=parsed.get("tipo", "ingreso"),
+                posible_interno=posible_interno,
+                confirmacion_usuario=None,
+                tipo_incierto=bool(parsed.get("tipo_incierto", False)),
             )
             db.add(pago)
             db.flush()
+            if parsed.get("tipo_incierto"):
+                logger.warning(
+                    f"Tipo incierto (guardado como ingreso) empresa="
+                    f"{dispositivo.empresa_id} texto={texto[:80]!r}"
+                )
             raw.estado_parseo = "parseada"
             raw.metodo_detectado = parsed["metodo"]
             pago_creado = pago.id
