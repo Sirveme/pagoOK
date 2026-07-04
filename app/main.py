@@ -15,6 +15,7 @@ from app.api import webhook_router, admin_dispositivos_router, api_v1_publica_ro
 from app.api.router_demo import router as router_demo
 from app.api.router_push import router as router_push
 from app.api.router_internos import router as router_internos
+from app.api.router_device import router as router_device
 from app.middleware.security import SecurityScanBlockMiddleware
 
 logging.basicConfig(level=logging.INFO)
@@ -31,6 +32,12 @@ async def lifespan(app: FastAPI):
         logger.info(f"BD pagoOK conectada")
     else:
         logger.warning("DATABASE_URL no configurado")
+    # Thread de consolidación horaria de estado de dispositivos (best-effort).
+    try:
+        from app.services.consolidacion_heartbeat import iniciar_consolidacion_background
+        iniciar_consolidacion_background()
+    except Exception as exc:
+        logger.warning(f"No se pudo iniciar la consolidación de heartbeats: {exc}")
     yield
     logger.info("pagoOK apagando")
 
@@ -86,6 +93,10 @@ app.include_router(public_router)
 app.include_router(admin_router)
 app.include_router(admin_dispositivos_router)
 app.include_router(webhook_router)
+
+# Heartbeat de dispositivos + dashboard admin de estado.
+# Después de notificaciones y antes del catch-all /{slug} de router_demo.
+app.include_router(router_device)
 
 # API publica v1 (consumidores externos del ecosistema, ej. alerta.pe).
 # Auth por X-API-Key. Rutas /api/v1/pagos y /api/v1/pagos/{id}/reclamar:
