@@ -14,23 +14,58 @@ from __future__ import annotations
 
 import logging
 import os
+import secrets
+import threading
+import time
 from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.admin.db import get_db
-from app.admin.models import Empresa
+from app.admin.models import CodigoInvitacion, Empresa
 from app.api.models_device import DeviceEstadoActual
 from app.api.models_webhook import Dispositivo
+from app.api.router_demo import _obtener_empresa_por_slug
+from app.api.tokens_legacy import advertir_si_token_legacy
 
 logger = logging.getLogger("pagook")
 router = APIRouter(tags=["device-heartbeat"])
 
 ESTADOS_VALIDOS = {"verde", "amarillo", "rojo"}
 UMBRAL_SIN_HEARTBEAT_MIN = 5
+
+# Rate limit del auto-registro: máx 10 requests por IP en 60 s (en memoria).
+LIMITE_REGISTRO = 10
+VENTANA_REGISTRO_SEG = 60
+_lock_registro = threading.Lock()
+_buckets_registro: dict[str, tuple[int, int]] = {}  # ip -> (ventana, conteo)
+
+
+def _ip_cliente(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "desconocida"
+
+
+def _registro_excedido(ip: str) -> bool:
+    ventana = int(time.time() // VENTANA_REGISTRO_SEG)
+    with _lock_registro:
+        v, conteo = _buckets_registro.get(ip, (ventana, 0))
+        if v != ventana:
+            v, conteo = ventana, 0
+        conteo += 1
+        _buckets_registro[ip] = (v, conteo)
+    return conteo > LIMITE_REGISTRO
+
+
+def reiniciar_rate_limit_registro() -> None:
+    """Limpia el estado del rate limit (usado por los tests)."""
+    with _lock_registro:
+        _buckets_registro.clear()
 
 # Campos obligatorios del body del heartbeat.
 CAMPOS_REQUERIDOS = (
@@ -61,6 +96,112 @@ def _ahora_utc() -> datetime:
 
 
 # =============================================================
+# AUTO-REGISTRO DE DISPOSITIVOS
+# =============================================================
+
+def _respuesta_registro(disp: Dispositivo, empresa: Empresa) -> dict:
+    return {
+        "token": disp.token,
+        "dispositivo_id": disp.id,
+        "empresa": (empresa.nombre_comercial or empresa.razon_social or "").upper(),
+        "empresa_slug": empresa.slug,
+    }
+
+
+@router.post("/api/v1/dispositivos/registrar", status_code=201)
+async def registrar_dispositivo(request: Request, db: Session = Depends(get_db)):
+    """Alta de un dispositivo. Sin auth previa; rate limit estricto por IP.
+
+    Idempotente por (empresa, instalacion_id): un reintento devuelve el mismo
+    token en vez de crear otro dispositivo.
+
+    Los tokens se guardan en TEXTO PLANO (patrón actual del sistema).
+    """
+    # Rate limit: 10 por IP por minuto.
+    ip = _ip_cliente(request)
+    if _registro_excedido(ip):
+        raise HTTPException(429, "Demasiados intentos de registro. Espera un minuto.")
+
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(400, "JSON inválido")
+    if not isinstance(data, dict):
+        raise HTTPException(400, "El body debe ser un objeto JSON")
+
+    slug = (data.get("empresa_slug") or "").strip()
+    if not slug:
+        raise HTTPException(400, "Falta empresa_slug")
+
+    # 1) Empresa existe?
+    empresa = _obtener_empresa_por_slug(db, slug)
+    if empresa is None:
+        raise HTTPException(404, "Empresa no encontrada")
+
+    instalacion_id = (data.get("instalacion_id") or "").strip()[:64] or None
+
+    # 2) Idempotencia por instalacion_id + empresa.
+    if instalacion_id:
+        existente = (
+            db.query(Dispositivo)
+            .filter(
+                Dispositivo.empresa_id == empresa.id,
+                Dispositivo.instalacion_id == instalacion_id,
+            )
+            .first()
+        )
+        if existente is not None:
+            if existente.activo:
+                return _respuesta_registro(existente, empresa)  # 201 idempotente
+            raise HTTPException(403, "Dispositivo desactivado. Contacta al administrador.")
+
+    # 3) Validar código de invitación (o auto-registro abierto).
+    codigo = (data.get("codigo_invitacion") or "").strip().upper()
+    inv = None
+    if codigo:
+        inv = (
+            db.query(CodigoInvitacion)
+            .filter(
+                CodigoInvitacion.codigo == codigo,
+                CodigoInvitacion.empresa_id == empresa.id,
+                CodigoInvitacion.activo == True,  # noqa: E712
+            )
+            .first()
+        )
+        if inv is None or inv.expira_en < datetime.utcnow() or (inv.usos_actuales or 0) >= inv.max_usos:
+            raise HTTPException(400, "Código de invitación inválido")
+    else:
+        if not getattr(empresa, "acepta_autoregistro", False):
+            raise HTTPException(403, "Este comercio requiere código de invitación.")
+
+    # 4) Crear el dispositivo con token único.
+    token = "tok_" + secrets.token_urlsafe(24)
+    manufacturer = str(data.get("manufacturer") or "")[:50] or None
+    modelo = str(data.get("modelo") or "")[:80] or None
+    nombre = (f"{manufacturer or ''} {modelo or ''}").strip()[:100] or "Dispositivo"
+
+    disp = Dispositivo(
+        empresa_id=empresa.id,
+        token=token,
+        nombre=nombre,
+        modelo=modelo,
+        instalacion_id=instalacion_id,
+        manufacturer=manufacturer,
+        android_version=str(data.get("android_version") or "")[:20] or None,
+        app_version=str(data.get("app_version") or "")[:30] or None,
+        activo=True,
+    )
+    db.add(disp)
+    if inv is not None:
+        inv.usos_actuales = (inv.usos_actuales or 0) + 1
+    db.commit()
+    db.refresh(disp)
+
+    logger.info(f"Dispositivo auto-registrado id={disp.id} empresa={empresa.id} instalacion={instalacion_id}")
+    return _respuesta_registro(disp, empresa)
+
+
+# =============================================================
 # ENDPOINT 1: POST /api/v1/device/heartbeat
 # =============================================================
 
@@ -80,6 +221,8 @@ async def heartbeat(
     )
     if not dispositivo:
         raise HTTPException(401, "Token inválido o desactivado")
+
+    advertir_si_token_legacy(x_device_token, "heartbeat", logger)
 
     # 2) Validar body y campos requeridos.
     try:
@@ -114,6 +257,8 @@ async def heartbeat(
         f.ultimo_pago_bancario = _epoch_ms_a_dt(data.get("ultimo_pago_bancario"))
         f.pings_fallidos_consecutivos = int(data.get("pings_fallidos_consecutivos") or 0)
         f.veces_zombie_total = int(data.get("veces_zombie_total") or 0)
+        f.veces_rebind_intentado = int(data.get("veces_rebind_intentado") or 0)
+        f.veces_rebind_exitoso = int(data.get("veces_rebind_exitoso") or 0)
         f.manufacturer = str(data.get("manufacturer"))[:50]
         f.modelo = str(data.get("modelo"))[:80]
         f.android_version = str(data.get("android_version"))[:20]

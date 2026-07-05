@@ -36,6 +36,8 @@ class DeviceEstadoActual(Base):
     pings_fallidos_consecutivos = Column(Integer, default=0)
     veces_zombie_total = Column(Integer, default=0)
     veces_alarma_disparada = Column(Integer, default=0)
+    veces_rebind_intentado = Column(Integer, default=0)
+    veces_rebind_exitoso = Column(Integer, default=0)
     manufacturer = Column(String(50))
     modelo = Column(String(80))
     android_version = Column(String(20))
@@ -62,5 +64,14 @@ class DeviceEstadoHistorico(Base):
     modelo = Column(String(80))
     android_version = Column(String(20))
     app_version = Column(String(30))
+    # Métricas consolidadas de la hora (Tarea 2).
+    heartbeats_recibidos = Column(Integer, default=0)
+    minutos_verde = Column(Integer, default=0)
+    minutos_amarillo = Column(Integer, default=0)
+    minutos_rojo = Column(Integer, default=0)
+    pings_guardian_perdidos = Column(Integer, default=0)
+    alarmas_disparadas = Column(Integer, default=0)
+    rebinds_intentados = Column(Integer, default=0)
+    rebinds_exitosos = Column(Integer, default=0)
 
     dispositivo = relationship("Dispositivo")

@@ -68,6 +68,9 @@ async def inbound(
         logger.warning(f"Token inválido o desactivado: {x_device_token[:20]}...")
         raise HTTPException(401, "Token inválido o desactivado")
 
+    from app.api.tokens_legacy import advertir_si_token_legacy
+    advertir_si_token_legacy(x_device_token, "notificaciones/inbound", logger)
+
     # 2) Leer JSON
     try:
         data = await request.json()

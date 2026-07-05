@@ -16,6 +16,11 @@ class Dispositivo(Base):
     ultimo_ping = Column(DateTime)
     total_notificaciones = Column(Integer, default=0)
     creado_en = Column(DateTime, server_default=func.now())
+    # Auto-registro (aditivo): identidad de la instalación + telemetría básica.
+    instalacion_id = Column(String(64))
+    manufacturer = Column(String(50))
+    android_version = Column(String(20))
+    app_version = Column(String(30))
 
     empresa = relationship("Empresa")
 
