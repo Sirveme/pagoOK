@@ -312,6 +312,7 @@ def _obtener_dispositivos(db: Session) -> dict:
         db.query(Dispositivo, Empresa, DeviceEstadoActual)
         .join(Empresa, Empresa.id == Dispositivo.empresa_id)
         .outerjoin(DeviceEstadoActual, DeviceEstadoActual.dispositivo_id == Dispositivo.id)
+        .filter(Dispositivo.activo == True)  # noqa: E712  (solo dispositivos activos)
         .all()
     )
 
