@@ -87,6 +87,9 @@ class Empresa(Base):
     duenio_id = Column(Integer, ForeignKey("persona.id"))
     activa = Column(Boolean, default=True)
     visible_en_testers = Column(Boolean, default=True, nullable=False)
+    # ¿Permite auto-registro de dispositivos sin código de invitación?
+    # Default FALSE (seguro): sin esto, la empresa exige código.
+    acepta_autoregistro = Column(Boolean, default=False, nullable=False, server_default="false")
     creada_en = Column(DateTime, server_default=func.now())
     actualizada_en = Column(DateTime, server_default=func.now())
 
