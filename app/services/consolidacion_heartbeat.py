@@ -61,11 +61,24 @@ def consolidar_hora_anterior(session) -> int:
             dispositivo_id=dea.dispositivo_id,
             hora_inicio=hora_inicio,
             hora_fin=hora_fin,
-            estado_predominante=dea.estado,  # aproximación MVP
+            estado_predominante=dea.estado,  # aproximación MVP (último estado)
             manufacturer=dea.manufacturer,
             modelo=dea.modelo,
             android_version=dea.android_version,
             app_version=dea.app_version,
+            # Métricas de la hora (Tarea 2):
+            heartbeats_recibidos=60,          # aproximación MVP: 1 por minuto
+            # TODO: minutos_verde/amarillo/rojo requieren un log por-heartbeat
+            #       (device_heartbeat_log) para ser exactos. Por ahora 0.
+            minutos_verde=0,
+            minutos_amarillo=0,
+            minutos_rojo=0,
+            pings_guardian_perdidos=0,        # TODO: requiere log detallado
+            alarmas_disparadas=0,             # TODO: requiere log detallado
+            # TODO: rebinds_*_ serían la diferencia contra un snapshot de hace
+            #       1 hora; aún no guardamos snapshots horarios de acumulados, 0.
+            rebinds_intentados=0,
+            rebinds_exitosos=0,
         ))
         insertados += 1
     return insertados
