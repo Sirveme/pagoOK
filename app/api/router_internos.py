@@ -479,7 +479,8 @@ async function cargar() {
   const { desde, hasta } = rangoFechas(rango);
   const metodo = document.getElementById("metodo").value;
   const soloNeg = document.getElementById("solo-negocio").checked;
-  const url = "/api/v1/" + SLUG + "/" + TIPO + "?desde="+encodeURIComponent(desde)+"&hasta="+encodeURIComponent(hasta)+"&metodo="+metodo+"&solo_negocio="+soloNeg+"&pagina="+pagina;
+  // El endpoint es plural (/ingresos, /egresos); TIPO viene en singular.
+  const url = "/api/v1/" + SLUG + "/" + TIPO + "s?desde="+encodeURIComponent(desde)+"&hasta="+encodeURIComponent(hasta)+"&metodo="+metodo+"&solo_negocio="+soloNeg+"&pagina="+pagina;
   const r = await fetch(url); const data = await r.json();
   if (!data.ok) { document.getElementById("tbody").innerHTML = '<tr><td colspan=6 class=vacio>No se pudo cargar.</td></tr>'; return; }
   ultimaData = data;
