@@ -17,6 +17,7 @@ from app.api.router_push import router as router_push
 from app.api.router_internos import router as router_internos
 from app.api.router_device import router as router_device
 from app.api.router_webhook_ejemplo import router as router_webhook_ejemplo
+from app.api.publica_v1_consulta import router as router_consulta_pagos
 from app.middleware.security import SecurityScanBlockMiddleware
 
 logging.basicConfig(level=logging.INFO)
@@ -110,6 +111,11 @@ app.include_router(router_device)
 # multi-segmento, NO colisionan con el catch-all /{slug} de router_demo ni
 # con los /api/v1/pagos/{buscar,recientes,{id}/consumir} del webhook (X-Device-Token).
 app.include_router(api_v1_publica_router)
+
+# API publica v1 — consulta de pagos (pull) + marcar-usado. Auth X-API-Key.
+# POST /api/v1/pagos/consultar y /api/v1/pagos/{id}/marcar-usado: no chocan con
+# /pagos/{id}/reclamar ni con /pagos/{buscar,recientes,{id}/consumir}.
+app.include_router(router_consulta_pagos)
 
 # Receptor de EJEMPLO del contrato de eventos (webhooks salientes firmados).
 # Ruta multi-segmento /api/v1/webhooks/receptor-ejemplo: no choca con /{slug}.
