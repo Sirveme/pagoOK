@@ -16,6 +16,7 @@ from app.api.router_demo import router as router_demo
 from app.api.router_push import router as router_push
 from app.api.router_internos import router as router_internos
 from app.api.router_device import router as router_device
+from app.api.router_webhook_ejemplo import router as router_webhook_ejemplo
 from app.middleware.security import SecurityScanBlockMiddleware
 
 logging.basicConfig(level=logging.INFO)
@@ -38,6 +39,12 @@ async def lifespan(app: FastAPI):
         iniciar_consolidacion_background()
     except Exception as exc:
         logger.warning(f"No se pudo iniciar la consolidación de heartbeats: {exc}")
+    # Worker de webhooks salientes (contrato de eventos v1).
+    try:
+        from app.services.eventos import iniciar_worker_eventos
+        iniciar_worker_eventos()
+    except Exception as exc:
+        logger.warning(f"No se pudo iniciar el worker de webhooks: {exc}")
     yield
     logger.info("pagoOK apagando")
 
@@ -103,6 +110,10 @@ app.include_router(router_device)
 # multi-segmento, NO colisionan con el catch-all /{slug} de router_demo ni
 # con los /api/v1/pagos/{buscar,recientes,{id}/consumir} del webhook (X-Device-Token).
 app.include_router(api_v1_publica_router)
+
+# Receptor de EJEMPLO del contrato de eventos (webhooks salientes firmados).
+# Ruta multi-segmento /api/v1/webhooks/receptor-ejemplo: no choca con /{slug}.
+app.include_router(router_webhook_ejemplo)
 
 # router_push y router_internos ANTES de router_demo: sus rutas /{slug}/...
 # (receptores, ingresos, egresos, config) deben resolverse antes que el
