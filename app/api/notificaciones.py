@@ -198,6 +198,16 @@ async def inbound(
             logger.exception(f"Error enviando push para pago {pago_creado}: {exc}")
             # NO relanzar - el pago ya está guardado, el push es best-effort
 
+    # 8) Contrato de eventos: encolar pago.confirmado para los sistemas
+    #    suscritos (best-effort; solo inserta en BD, el envío lo hace el worker).
+    if pago is not None:
+        try:
+            from app.services.eventos import emitir_pago_confirmado
+            emitir_pago_confirmado(db, pago)
+        except Exception as exc:
+            db.rollback()
+            logger.exception(f"Error encolando pago.confirmado para pago {pago_creado}: {exc}")
+
     return {
         "status": "ok",
         "raw_id": raw.id,
