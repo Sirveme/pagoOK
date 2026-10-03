@@ -99,7 +99,7 @@ def ahora_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _a_iso_lima(dt: datetime | None) -> str | None:
+def a_iso_lima(dt: datetime | None) -> str | None:
     """ISO 8601 con zona (-05:00). Las fechas naive de la BD se asumen UTC."""
     if dt is None:
         return None
@@ -177,7 +177,7 @@ def armar_sobre(
         "evento_id": evento_id or str(uuid.uuid4()),
         "tipo": tipo,
         "version": VERSION_SOBRE,
-        "ocurrido_en": _a_iso_lima(ocurrido_en or ahora_utc()),
+        "ocurrido_en": a_iso_lima(ocurrido_en or ahora_utc()),
         "empresa": empresa,
         "moneda": moneda,
         "datos": datos,
@@ -255,7 +255,8 @@ def emitir_evento(
 # EVENTO pago.confirmado
 # =============================================================
 
-_CANALES = {"yape", "plin", "transferencia", "tarjeta", "cajero"}
+# Canales del contrato (compartidos con la API de consulta de pagos).
+CANALES = ("yape", "plin", "transferencia", "tarjeta", "cajero", "otro")
 _INSTITUCION_POR_METODO = {
     "yape": "Yape",
     "plin": "Plin",
@@ -265,23 +266,33 @@ _INSTITUCION_POR_METODO = {
 }
 
 
-def _monto_texto(monto) -> str:
+def monto_texto(monto) -> str:
     """Decimal exacto como string con 2 decimales ("15.00"), nunca float."""
     return str(Decimal(str(monto)).quantize(Decimal("0.01")))
 
 
-def armar_datos_pago_confirmado(pago, referencia_pedido: str | None = None) -> dict:
+def canal_de_metodo(metodo: str | None) -> str:
+    """`metodo` interno del parser → `canal` del contrato (o "otro")."""
+    m = (metodo or "").lower()
+    return m if m in CANALES else "otro"
+
+
+def institucion_de(pago) -> str:
     metodo = (pago.metodo or "").lower()
+    return pago.banco or _INSTITUCION_POR_METODO.get(metodo) or (metodo or "otro")
+
+
+def armar_datos_pago_confirmado(pago, referencia_pedido: str | None = None) -> dict:
     return {
         "pago_id": pago.id,
-        "monto": _monto_texto(pago.monto),
-        "canal": metodo if metodo in _CANALES else "otro",
-        "institucion": pago.banco or _INSTITUCION_POR_METODO.get(metodo) or (metodo or "otro"),
+        "monto": monto_texto(pago.monto),
+        "canal": canal_de_metodo(pago.metodo),
+        "institucion": institucion_de(pago),
         "contraparte": pago.titular or "",
         "codigo_operacion": pago.codigo_operacion or None,
         # Hoy el parser no extrae la hora que imprime el banco: se usa la hora
         # en que el SERVIDOR recibió la notificación (no la del celular).
-        "fecha_hora_banco": _a_iso_lima(pago.recibido_en),
+        "fecha_hora_banco": a_iso_lima(pago.recibido_en),
         "referencia_pedido": referencia_pedido,
     }
 
