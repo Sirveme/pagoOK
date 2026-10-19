@@ -13,7 +13,9 @@ from decimal import Decimal
 def _normalizar_monto(s: str) -> Decimal | None:
     if not s:
         return None
-    s = s.strip().replace(" ", "")
+    # rstrip: la regex del monto se lleva el punto que cierra la oración
+    # ("por S/ 5.5. El cód..." -> "5.5."), que no es un decimal válido.
+    s = s.strip().replace(" ", "").rstrip(".,")
     if "," in s and "." in s:
         if s.rfind(",") > s.rfind("."):
             s = s.replace(".", "").replace(",", ".")
@@ -83,11 +85,12 @@ def _extraer_monto(texto: str) -> Decimal | None:
 
 
 # Verbos que confirman la dirección del dinero. Si no aparece ninguno, el
-# resultado queda con tipo_incierto=True (se guarda como 'ingreso' por defecto).
+# resultado queda con tipo_incierto=True y parsear() lo descarta (ver abajo).
 VERBOS_INGRESO = (
     "te ha plineado", "te ha yapeado", "te plineó", "te plineo",
     "te yapeó", "te yapeo", "te envió un pago", "te envio un pago",
     "recibiste", "abono en tu cuenta", "te enviaron", "te depositaron",
+    "te plinearon", "te yapearon", "te transfirieron", "te pagaron",
 )
 VERBOS_EGRESO = (
     "plineaste", "yapeaste", "enviaste", "transferiste", "pagaste",
@@ -522,13 +525,20 @@ PARSERS = [
 
 
 def parsear(package: str, titulo: str, texto: str) -> dict | None:
+    """Primer parser que reconoce el texto. Si su resultado es dudoso
+    (tipo_incierto: ningún verbo confirma que entró o salió dinero) NO es un
+    pago: devuelve None y la notificación queda 'ignorada' en notificacion_raw
+    (reprocesable). Así promociones como "Gana hasta S/3,000…" de la app de
+    Yape no se registran como pagos. No se prueba el siguiente parser: varios
+    son genéricos (ej. "BCP" en el texto) y también tomarían la promoción.
+    """
     if not texto:
         return None
     for parser in PARSERS:
         try:
             res = parser(package or "", titulo or "", texto)
             if res:
-                return res
+                return None if res.get("tipo_incierto") else res
         except Exception:
             continue
     return None

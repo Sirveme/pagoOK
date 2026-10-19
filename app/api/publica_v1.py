@@ -155,6 +155,8 @@ def listar_pagos(
         PagoDetectado.empresa_id == cuenta.empresa_id,
         (PagoDetectado.reclamado_por.is_(None))
         | (PagoDetectado.reclamado_por == cuenta.id),
+        # Nunca ofrecer pagos dudosos (sin verbo de ingreso: posibles promociones).
+        PagoDetectado.tipo_incierto == False,  # noqa: E712
     )
 
     if monto is not None:
