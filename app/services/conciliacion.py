@@ -191,10 +191,13 @@ def consultar_pago(
     }
 
     # Base: SIEMPRE la empresa de la credencial. Solo ingresos (un egreso o una
-    # transferencia entre cuentas propias confirmada no es pago de un cliente).
+    # transferencia entre cuentas propias confirmada no es pago de un cliente)
+    # y nunca dudosos (tipo_incierto: sin verbo que confirme el ingreso, ej.
+    # promociones de Yape "Gana hasta S/3,000…"). Mismo criterio que el webhook.
     base = db.query(PagoDetectado).filter(
         PagoDetectado.empresa_id == empresa_id,
         PagoDetectado.tipo == "ingreso",
+        PagoDetectado.tipo_incierto == False,  # noqa: E712
         PagoDetectado.monto == monto,
         or_(PagoDetectado.confirmacion_usuario.is_(None),
             PagoDetectado.confirmacion_usuario != "confirmado_interno"),
