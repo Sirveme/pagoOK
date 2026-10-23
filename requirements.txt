@@ -20,3 +20,5 @@ tzdata
 pywebpush>=2.0.0
 cryptography>=41.0.0
 py-vapid>=1.9.1
+# Política de privacidad (/privacidad): Markdown -> HTML
+markdown==3.7
