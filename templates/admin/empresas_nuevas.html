@@ -111,6 +111,7 @@
 
     <div class="form-card">
         <form method="POST" action="/admin/empresas/nuevas">
+            <input type="hidden" name="token" value="{{ token }}">
             <div class="form-group">
                 <label>RUC (11 dígitos)</label>
                 <input type="text" name="ruc" placeholder="20612345678"
