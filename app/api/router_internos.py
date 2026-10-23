@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
@@ -32,6 +33,7 @@ from app.services.deteccion_interno import es_posible_interno, normalizar
 router = APIRouter(tags=["egresos-internos"])
 
 TAM_PAGINA = 50
+TZ_LIMA = ZoneInfo("America/Lima")
 LOTE_RECALCULO = 500
 
 
@@ -98,13 +100,22 @@ def _verificar_acceso_dueno(slug: str, request: Request, db: Session) -> Empresa
 # =============================================================
 
 def _parse_iso_opcional(valor: Optional[str], campo: str) -> Optional[datetime]:
+    """Fecha del filtro -> UTC naive (así se guarda recibido_en).
+
+    Acepta 'YYYY-MM-DD' o ISO completo (con 'Z' o con offset, ej. -05:00).
+    Sin zona horaria se interpreta como hora de Lima. Antes se descartaba la
+    zona sin convertir: "hoy desde las 00:00" de Lima se comparaba como 00:00
+    UTC y se perdían 5 horas en cada borde del rango.
+    """
     if not valor:
         return None
     try:
-        # Acepta 'YYYY-MM-DD' o ISO completo, tolera sufijo 'Z'.
-        return datetime.fromisoformat(valor.replace("Z", "+00:00")).replace(tzinfo=None)
+        dt = datetime.fromisoformat(valor.strip().replace(" ", "+").replace("Z", "+00:00"))
     except (ValueError, AttributeError):
         raise HTTPException(400, f"Parámetro '{campo}' no es una fecha válida")
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=TZ_LIMA)
+    return dt.astimezone(timezone.utc).replace(tzinfo=None)
 
 
 ETIQUETA_TIPO_EGRESO = {
@@ -490,6 +501,8 @@ def _html_lista_movimientos(slug: str, nombre_empresa: str, tipo: str) -> str:
   .filtros button, .filtros select { border:1px solid #ddd; background:#fff; border-radius:8px; padding:7px 11px; font-size:13px; cursor:pointer; font-family:inherit; }
   .filtros button.activo { background:var(--acento); color:#fff; border-color:var(--acento); }
   .toggle { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--suave); }
+  .rango-pers { display:flex; gap:6px; align-items:center; font-size:13px; color:var(--suave); }
+  .rango-pers input { border:1px solid #ddd; border-radius:8px; padding:6px 8px; font-size:13px; font-family:inherit; }
   .btn-csv { margin-left:auto; background:var(--jade); color:#fff; border:none; }
   table { width:100%; border-collapse:collapse; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 1px 8px rgba(28,31,38,.06); }
   th, td { text-align:left; padding:10px 12px; font-size:13px; border-bottom:1px solid #f0ece3; }
@@ -511,14 +524,19 @@ def _html_lista_movimientos(slug: str, nombre_empresa: str, tipo: str) -> str:
     <button data-rango="7">7 días</button>
     <button data-rango="30">30 días</button>
     <button data-rango="mes">Este mes</button>
-    <select id="metodo">
-      <option value="">Todos los métodos</option>
-      <option value="yape">Yape</option>
+    <button data-rango="todo">Todo</button>
+    <span class="rango-pers">
+      <label>Desde <input type="date" id="f-desde" autocomplete="off"></label>
+      <label>Hasta <input type="date" id="f-hasta" autocomplete="off"></label>
+    </span>
+    <select id="metodo" autocomplete="off">
+      <option value="" selected>Todos</option>
+      <option value="yape" class="solo-ingreso">Yape</option>
       <option value="plin">Plin</option>
       <option value="transferencia">Transferencia</option>
       <option value="tarjeta">Tarjeta</option>
     </select>
-    <select id="tipo-egreso" style="display:none">
+    <select id="tipo-egreso" style="display:none" autocomplete="off">
       <option value="">Todos los tipos</option>
       <option value="envio_billetera">Envío por billetera</option>
       <option value="transferencia_enviada">Transferencia enviada</option>
@@ -528,7 +546,8 @@ def _html_lista_movimientos(slug: str, nombre_empresa: str, tipo: str) -> str:
       <option value="cargo_recurrente">Cargo recurrente</option>
       <option value="otro_egreso">Otro egreso</option>
     </select>
-    <label class="toggle"><input type="checkbox" id="solo-negocio"> Solo del negocio</label>
+    <label class="toggle" title="Oculta las transferencias que confirmaste como movimientos entre tus propias cuentas">
+      <input type="checkbox" id="solo-negocio" autocomplete="off"> Solo del negocio</label>
     <button class="btn-csv" id="csv">Descargar CSV</button>
   </div>
   <div class="sub" id="totales"></div>
@@ -550,7 +569,22 @@ const TIPO = "__TIPO__";
 const ES_EGRESO = __ES_EGRESO__;
 let pagina = 1, rango = "hoy", ultimaData = null;
 
+// ISO con la zona del navegador (ej. 2026-10-23T00:00:00-05:00): el servidor
+// la convierte a UTC. Sin zona, el servidor asume hora de Lima.
+function isoConZona(d) {
+  const p = n => String(n).padStart(2, "0");
+  const off = -d.getTimezoneOffset(), s = off >= 0 ? "+" : "-", a = Math.abs(off);
+  return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"T"+p(d.getHours())+":"+p(d.getMinutes())+":"+p(d.getSeconds())
+         + s + p(Math.floor(a/60)) + ":" + p(a%60);
+}
 function rangoFechas(clave) {
+  if (clave === "todo") return { desde: "", hasta: "" };
+  if (clave === "personalizado") {
+    const d = document.getElementById("f-desde").value, h = document.getElementById("f-hasta").value;
+    const [dy, dm, dd] = (d || "").split("-").map(Number), [hy, hm, hd] = (h || "").split("-").map(Number);
+    return { desde: d ? isoConZona(new Date(dy, dm-1, dd, 0, 0, 0)) : "",
+             hasta: h ? isoConZona(new Date(hy, hm-1, hd, 23, 59, 59)) : "" };
+  }
   const ahora = new Date();
   const fin = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), 23, 59, 59);
   let ini;
@@ -559,20 +593,26 @@ function rangoFechas(clave) {
   else if (clave === "30") ini = new Date(ahora.getTime() - 30*864e5);
   else if (clave === "mes") ini = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
   else ini = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
-  const iso = (d) => d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")+"T"+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")+":"+String(d.getSeconds()).padStart(2,"0");
-  return { desde: iso(ini), hasta: iso(fin) };
+  return { desde: isoConZona(ini), hasta: isoConZona(fin) };
 }
 function esc(s){ if(s==null) return ""; return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 function filtrosQS() {
   const { desde, hasta } = rangoFechas(rango);
   const tipoEgreso = ES_EGRESO ? document.getElementById("tipo-egreso").value : "";
-  return "desde="+encodeURIComponent(desde)+"&hasta="+encodeURIComponent(hasta)+
+  return (desde ? "desde="+encodeURIComponent(desde) : "desde=") + (hasta ? "&hasta="+encodeURIComponent(hasta) : "&hasta=") +
          "&metodo="+document.getElementById("metodo").value+
          "&solo_negocio="+document.getElementById("solo-negocio").checked+
          (tipoEgreso ? "&tipo_egreso="+encodeURIComponent(tipoEgreso) : "");
 }
 if (ES_EGRESO) document.getElementById("tipo-egreso").style.display = "";
+// Yape no notifica a quien paga: en egresos ese filtro siempre daría vacío.
+if (ES_EGRESO) document.querySelectorAll("#metodo .solo-ingreso").forEach(o => o.remove());
+// Al cargar, filtros en su valor por defecto (el navegador puede reponer uno viejo).
+document.getElementById("metodo").value = "";
+document.getElementById("tipo-egreso").value = "";
+document.getElementById("solo-negocio").checked = false;
+document.getElementById("f-desde").value = ""; document.getElementById("f-hasta").value = "";
 
 async function cargar() {
   const { desde, hasta } = rangoFechas(rango);
@@ -608,7 +648,13 @@ async function cargar() {
 
 document.querySelectorAll(".filtros [data-rango]").forEach(b => b.addEventListener("click", () => {
   document.querySelectorAll(".filtros [data-rango]").forEach(x => x.classList.remove("activo"));
-  b.classList.add("activo"); rango = b.dataset.rango; pagina = 1; cargar();
+  b.classList.add("activo"); rango = b.dataset.rango; pagina = 1;
+  document.getElementById("f-desde").value = ""; document.getElementById("f-hasta").value = "";
+  cargar();
+}));
+["f-desde", "f-hasta"].forEach(id => document.getElementById(id).addEventListener("change", () => {
+  document.querySelectorAll(".filtros [data-rango]").forEach(x => x.classList.remove("activo"));
+  rango = "personalizado"; pagina = 1; cargar();
 }));
 document.getElementById("metodo").addEventListener("change", () => { pagina = 1; cargar(); });
 document.getElementById("solo-negocio").addEventListener("change", () => { pagina = 1; cargar(); });
