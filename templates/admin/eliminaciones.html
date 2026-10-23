@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Solicitudes de eliminación · PagoOK</title>
+  <link rel="stylesheet" href="/static/panel/panel.css">
+</head>
+<body>
+<div class="cont">
+  <h1>Solicitudes de eliminación</h1>
+  <p class="sub">Recibidas por el formulario público de /eliminar-cuenta. Confirma la identidad por el contacto
+     antes de ejecutar. Plazo comprometido: 15 días.</p>
+  <table>
+    <thead><tr><th>#</th><th>Fecha</th><th>Estado</th><th>País / ID fiscal</th><th>Nombre</th><th>Contacto</th>
+      <th>Empresa en PagoOK</th></tr></thead>
+    <tbody>
+    {% for f in filas %}{% set s = f.s %}
+      <tr>
+        <td>{{ s.id }}</td>
+        <td>{{ s.creado_en.strftime('%Y-%m-%d %H:%M') if s.creado_en else '' }}</td>
+        <td><span class="chip {{ 'amarillo' if s.estado == 'pendiente' else 'verde' }}">{{ s.estado }}</span></td>
+        <td>{{ s.pais }} {{ s.id_fiscal }}</td>
+        <td>{{ s.nombre or '—' }}</td>
+        <td>{{ s.contacto or '—' }}{% if s.motivo %}<div class="mute">{{ s.motivo }}</div>{% endif %}</td>
+        <td>
+          {% if f.empresa %}
+            <b>{{ f.empresa.slug }}</b>
+            {% if f.protegida %}<div class="error">Protegida (demo o principal): no se elimina.</div>
+            {% else %}<div class="mute" style="font-family:monospace">python scripts/gestion_empresas.py eliminar --empresa {{ f.empresa.slug }} --solicitud {{ s.id }} --aplicar</div>{% endif %}
+          {% elif s.estado == 'pendiente' %}<span class="mute">No hay empresa con ese ID fiscal</span>{% else %}—{% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="mute">No hay solicitudes.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+</body>
+</html>
