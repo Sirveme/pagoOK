@@ -326,6 +326,7 @@ def marcar_usado(db: Session, *, cuenta, pago_id: int, referencia_externa: str,
     pago = db.query(PagoDetectado).filter(
         PagoDetectado.id == pago_id,
         PagoDetectado.empresa_id == cuenta.empresa_id,
+        PagoDetectado.tipo == "ingreso",  # un egreso no se usa para confirmar nada
     ).first()
     if pago is None:
         raise PagoNoEncontrado()
@@ -384,6 +385,7 @@ def marcar_usado_panel(db: Session, *, empresa_id: int, usuario_nombre: str, pag
     referencia_externa = referencia_externa.strip()
     pago = db.query(PagoDetectado).filter(
         PagoDetectado.id == pago_id, PagoDetectado.empresa_id == empresa_id,
+        PagoDetectado.tipo == "ingreso",
     ).first()
     if pago is None:
         raise PagoNoEncontrado()
