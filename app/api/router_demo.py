@@ -10,6 +10,7 @@ Para v2 se agregará PIN guardado en app Android.
 """
 from __future__ import annotations
 
+import os
 from collections import defaultdict
 from datetime import datetime, date, time, timedelta, timezone
 from decimal import Decimal
@@ -139,6 +140,21 @@ def _obtener_pagos_recientes(db, empresa_id: int, limite: int = LIMITE_PAGOS) ->
 # JSON ENDPOINTS (para polling desde la pantalla)
 # ============================================================
 
+def slugs_demo() -> set[str]:
+    """Empresas cuya pantalla de pagos en vivo es pública (SLUGS_DEMO, separados
+    por coma). Por defecto solo perusistemas. Cualquier otro slug -> 404."""
+    return {x.strip().lower() for x in os.getenv("SLUGS_DEMO", "perusistemas").split(",") if x.strip()}
+
+
+def _obtener_empresa_demo(db, slug: str) -> Empresa | None:
+    """Como _obtener_empresa_por_slug, pero None si la empresa no es de demo
+    (mismo 404 que si no existiera: no revela qué empresas existen)."""
+    empresa = _obtener_empresa_por_slug(db, slug)
+    if empresa is None or (empresa.slug or "").lower() not in slugs_demo():
+        return None
+    return empresa
+
+
 @router.get("/api/v1/demo/{slug}")
 def api_demo_pagos(slug: str):
     """Devuelve JSON con los últimos pagos de la empresa.
@@ -147,7 +163,7 @@ def api_demo_pagos(slug: str):
     """
     db = SessionLocal()
     try:
-        empresa = _obtener_empresa_por_slug(db, slug)
+        empresa = _obtener_empresa_demo(db, slug)
         if empresa is None:
             return JSONResponse({"ok": False, "error": "empresa_no_encontrada"}, status_code=404)
 
@@ -182,7 +198,7 @@ def api_demo_buscar(slug: str, payload: dict = Body(...)):
     """
     db = SessionLocal()
     try:
-        empresa = _obtener_empresa_por_slug(db, slug)
+        empresa = _obtener_empresa_demo(db, slug)
         if empresa is None:
             return JSONResponse({"ok": False, "error": "empresa_no_encontrada"}, status_code=404)
 
@@ -269,6 +285,8 @@ def vista_testers(request: Request, db: Session = Depends(get_db)):
             "logo_url": emp.logo_url,
             "total_pagos": total_pagos,
             "estado": estado,
+            # Solo las empresas de demo tienen pantalla pública; el resto no enlaza.
+            "es_demo": (emp.slug or "").lower() in slugs_demo(),
         })
 
     context = {
@@ -386,8 +404,14 @@ def _calcular_flujo_caja(db, slug: str) -> dict | None:
 
 
 @router.get("/api/v1/flujo-caja/{slug}")
-def api_flujo_caja(slug: str, db: Session = Depends(get_db)):
-    """Flujo de caja semanal de la empresa (JSON). Últimos 7 días corridos."""
+def api_flujo_caja(slug: str, request: Request, db: Session = Depends(get_db)):
+    """Flujo de caja semanal de la empresa (JSON). Últimos 7 días corridos.
+
+    Acceso: sesión de esa empresa con permiso de reportes, o perusistemas
+    mientras LEGACY_PUBLICO_PERUSISTEMAS=true.
+    """
+    from app.api.deps_empresa import acceso_por_sesion_o_legacy
+    acceso_por_sesion_o_legacy(slug, request, db, "reportes")
     data = _calcular_flujo_caja(db, slug)
     if data is None:
         return JSONResponse({"ok": False, "error": "empresa_no_encontrada"}, status_code=404)
@@ -396,7 +420,11 @@ def api_flujo_caja(slug: str, db: Session = Depends(get_db)):
 
 @router.get("/flujo-caja/{slug}", response_class=HTMLResponse)
 def vista_flujo_caja(request: Request, slug: str, db: Session = Depends(get_db)):
-    """Vista visual (HTML) del Flujo de Caja semanal."""
+    """Vista visual (HTML) del Flujo de Caja semanal (mismo acceso que el JSON)."""
+    from app.api.deps_empresa import acceso_html_o_redirigir
+    acceso = acceso_html_o_redirigir(slug, request, db, "reportes")
+    if not isinstance(acceso, Empresa):
+        return acceso  # redirección al login
     data = _calcular_flujo_caja(db, slug)
     if data is None:
         return HTMLResponse(_html_no_encontrado(slug), status_code=404)
@@ -426,13 +454,14 @@ def demo_pantalla_publica(slug: str, request: Request):
         "login", "logout", "register", "signup", "auth",
         "assets", "public", "templates", "testers",
         "videos", "qr", "caja", "sitemap.xml", "llms.txt",
+        "panel", "unirse",
     }
     if slug.lower() in RESERVADOS:
         raise HTTPException(status_code=404)
 
     db = SessionLocal()
     try:
-        empresa = _obtener_empresa_por_slug(db, slug)
+        empresa = _obtener_empresa_demo(db, slug)
         if empresa is None:
             return HTMLResponse(_html_no_encontrado(slug), status_code=404)
 

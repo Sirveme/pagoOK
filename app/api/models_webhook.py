@@ -1,5 +1,6 @@
 """Modelos SQLAlchemy del webhook de notificaciones."""
-from sqlalchemy import Column, Integer, String, Boolean, Text, ForeignKey, Numeric, DateTime, BigInteger
+from sqlalchemy import Column, Integer, String, Boolean, Text, ForeignKey, Numeric, DateTime, BigInteger, JSON
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.admin.db import Base
@@ -21,6 +22,13 @@ class Dispositivo(Base):
     manufacturer = Column(String(50))
     android_version = Column(String(20))
     app_version = Column(String(30))
+    # --- Multi-empresa (opcionales; las apps 1.5.x viejas no los envían) ---
+    consentimiento_version = Column(String(20))
+    consentimiento_fecha = Column(DateTime(timezone=True))
+    pais = Column(String(2))
+    bancos_declarados = Column(JSON().with_variant(JSONB(), "postgresql"))
+    nivel_equipo = Column(String(20))
+    egresos_activo = Column(Boolean)
 
     empresa = relationship("Empresa")
 

@@ -17,6 +17,7 @@ from app.admin.db import get_db
 from app.admin.models import Empresa
 from app.api.models_webhook import Dispositivo, NotificacionRaw, PagoDetectado
 from app.api.parser import parsear
+from app.api.deps_empresa import resolver_dispositivo
 
 logger = logging.getLogger("pagook")
 router = APIRouter(prefix="/api/v1", tags=["webhook"])
@@ -55,18 +56,9 @@ async def inbound(
         "sbn_key": "0|com.xxx|123|null|10001" // opcional, dedup
       }
     """
-    # 1) Validar token
-    if not x_device_token:
-        raise HTTPException(401, "Falta header X-Device-Token")
-
-    dispositivo = db.query(Dispositivo).filter(
-        Dispositivo.token == x_device_token,
-        Dispositivo.activo == True,
-    ).first()
-
-    if not dispositivo:
-        logger.warning(f"Token inválido o desactivado: {x_device_token[:20]}...")
-        raise HTTPException(401, "Token inválido o desactivado")
+    # 1) Validar token -> dispositivo -> empresa (nunca desde el cliente).
+    #    (Ya no se escribe parte del token en el log.)
+    dispositivo = resolver_dispositivo(db, x_device_token)
 
     from app.api.tokens_legacy import advertir_si_token_legacy
     advertir_si_token_legacy(x_device_token, "notificaciones/inbound", logger)
@@ -238,15 +230,7 @@ async def buscar_pagos(
       minutos: ventana de búsqueda hacia atrás (default 30)
       incluir_consumidos: si false (default), solo pagos no asignados a venta
     """
-    if not x_device_token:
-        raise HTTPException(401, "Falta header X-Device-Token")
-
-    dispositivo = db.query(Dispositivo).filter(
-        Dispositivo.token == x_device_token,
-        Dispositivo.activo == True,
-    ).first()
-    if not dispositivo:
-        raise HTTPException(401, "Token inválido")
+    dispositivo = resolver_dispositivo(db, x_device_token)
 
     desde = datetime.utcnow() - timedelta(minutes=minutos)
     q = db.query(PagoDetectado).filter(
@@ -290,13 +274,7 @@ async def pagos_recientes(
     db: Session = Depends(get_db),
 ):
     """Últimos N pagos detectados (consumidos o no)."""
-    if not x_device_token:
-        raise HTTPException(401, "Falta header X-Device-Token")
-    dispositivo = db.query(Dispositivo).filter(
-        Dispositivo.token == x_device_token, Dispositivo.activo == True
-    ).first()
-    if not dispositivo:
-        raise HTTPException(401, "Token inválido")
+    dispositivo = resolver_dispositivo(db, x_device_token)
 
     pagos = db.query(PagoDetectado).filter(
         PagoDetectado.empresa_id == dispositivo.empresa_id
@@ -325,13 +303,7 @@ async def consumir_pago(
     db: Session = Depends(get_db),
 ):
     """Marca un pago como consumido (asignado a una venta)."""
-    if not x_device_token:
-        raise HTTPException(401, "Falta header X-Device-Token")
-    dispositivo = db.query(Dispositivo).filter(
-        Dispositivo.token == x_device_token, Dispositivo.activo == True
-    ).first()
-    if not dispositivo:
-        raise HTTPException(401, "Token inválido")
+    dispositivo = resolver_dispositivo(db, x_device_token)
 
     pago = db.query(PagoDetectado).filter(
         PagoDetectado.id == pago_id,

@@ -22,6 +22,8 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from app.admin.db import get_db
+from app.admin.models import Empresa
+from app.services import cuenta_empresa
 from app.api.models_cuenta import CuentaApi
 from app.api.publica_v1 import cuenta_actual
 from app.services.conciliacion import (
@@ -92,7 +94,14 @@ def consultar(
     cuenta: CuentaApi = Depends(cuenta_actual),
     db: Session = Depends(get_db),
 ):
-    """¿Existe este pago? Responde nivel alta / media / sin_coincidencia."""
+    """¿Existe este pago? Responde nivel alta / media / sin_coincidencia.
+
+    402 cuenta_vencida si la cuenta de la empresa está vencida o suspendida
+    (la captura sigue guardando pagos; solo se bloquea la consulta).
+    """
+    empresa = db.get(Empresa, cuenta.empresa_id)
+    if empresa is not None and cuenta_empresa.esta_bloqueada(db, empresa):
+        raise HTTPException(status_code=402, detail="cuenta_vencida")
     return consultar_pago(
         db,
         # empresa_id SIEMPRE desde la credencial, nunca desde el cuerpo.

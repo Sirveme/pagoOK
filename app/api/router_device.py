@@ -28,7 +28,9 @@ from app.admin.db import get_db
 from app.admin.models import CodigoInvitacion, Empresa
 from app.api.models_device import DeviceEstadoActual
 from app.api.models_webhook import Dispositivo
+from app.api.deps_empresa import resolver_dispositivo
 from app.api.router_demo import _obtener_empresa_por_slug
+from app.services import cuenta_empresa
 from app.api.tokens_legacy import advertir_si_token_legacy
 
 logger = logging.getLogger("pagook")
@@ -93,6 +95,36 @@ def _epoch_ms_a_dt(valor) -> Optional[datetime]:
 
 def _ahora_utc() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _fecha_flexible(valor) -> Optional[datetime]:
+    """ISO 8601 o epoch en milisegundos -> datetime UTC. None si no se entiende."""
+    if valor is None or valor == "":
+        return None
+    if isinstance(valor, (int, float)) or (isinstance(valor, str) and valor.isdigit()):
+        return _epoch_ms_a_dt(valor)
+    try:
+        dt = datetime.fromisoformat(str(valor).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def guardar_campos_opcionales(disp: Dispositivo, data: dict) -> None:
+    """Campos nuevos de registro/heartbeat/vinculación. Solo se tocan los que
+    vienen; las versiones viejas de la app no los envían."""
+    if data.get("consentimiento_version") is not None:
+        disp.consentimiento_version = str(data["consentimiento_version"])[:20]
+    if data.get("consentimiento_fecha") is not None:
+        disp.consentimiento_fecha = _fecha_flexible(data["consentimiento_fecha"])
+    if data.get("pais") is not None:
+        disp.pais = str(data["pais"]).upper()[:2]
+    if isinstance(data.get("bancos_declarados"), list):
+        disp.bancos_declarados = [str(b)[:30] for b in data["bancos_declarados"]][:50]
+    if data.get("nivel_equipo") is not None:
+        disp.nivel_equipo = str(data["nivel_equipo"])[:20]
+    if data.get("egresos_activo") is not None:
+        disp.egresos_activo = bool(data["egresos_activo"])
 
 
 # =============================================================
@@ -191,6 +223,7 @@ async def registrar_dispositivo(request: Request, db: Session = Depends(get_db))
         app_version=str(data.get("app_version") or "")[:30] or None,
         activo=True,
     )
+    guardar_campos_opcionales(disp, data)
     db.add(disp)
     if inv is not None:
         inv.usos_actuales = (inv.usos_actuales or 0) + 1
@@ -211,16 +244,8 @@ async def heartbeat(
     x_device_token: Optional[str] = Header(default=None, alias="X-Device-Token"),
     db: Session = Depends(get_db),
 ):
-    # 1) Auth por token de dispositivo (mismo mecanismo que /api/v1/pagos/buscar).
-    if not x_device_token:
-        raise HTTPException(401, "Falta header X-Device-Token")
-    dispositivo = (
-        db.query(Dispositivo)
-        .filter(Dispositivo.token == x_device_token, Dispositivo.activo == True)  # noqa: E712
-        .first()
-    )
-    if not dispositivo:
-        raise HTTPException(401, "Token inválido o desactivado")
+    # 1) Auth por token de dispositivo -> empresa (nunca desde el cliente).
+    dispositivo = resolver_dispositivo(db, x_device_token)
 
     advertir_si_token_legacy(x_device_token, "heartbeat", logger)
 
@@ -275,6 +300,9 @@ async def heartbeat(
             fila.veces_alarma_disparada = (fila.veces_alarma_disparada or 0) + 1
         _campos_comunes(fila)
 
+    # Campos nuevos opcionales (consentimiento, país, bancos...): las apps
+    # viejas no los envían y no pasa nada.
+    guardar_campos_opcionales(dispositivo, data)
     db.commit()
 
     # 4) Log según estado.
@@ -287,8 +315,10 @@ async def heartbeat(
             f"pings_fallidos={data.get('pings_fallidos_consecutivos')}"
         )
 
-    # 5) Response.
-    return {"ok": True, "next_check_seconds": 60}
+    # 5) Response. `cuenta` es aditivo: las apps viejas lo ignoran.
+    empresa = db.get(Empresa, dispositivo.empresa_id)
+    cuenta = cuenta_empresa.info_cuenta(db, empresa) if empresa else None
+    return {"ok": True, "next_check_seconds": 60, "cuenta": cuenta}
 
 
 # =============================================================

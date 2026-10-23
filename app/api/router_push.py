@@ -11,6 +11,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.admin.db import get_db, VAPID_PUBLIC_KEY
+from app.api.deps_empresa import acceso_html_o_redirigir, acceso_por_sesion_o_legacy
 from app.admin.models import CodigoInvitacion, Empresa, PushSuscripcion
 
 router = APIRouter()
@@ -154,13 +155,10 @@ def panel_receptores(
     db: Session = Depends(get_db),
 ):
     """Panel admin del dueño: ver receptores + generar códigos."""
-    empresa = (
-        db.query(Empresa)
-        .filter(or_(Empresa.slug == slug, Empresa.id_fiscal == slug))
-        .first()
-    )
-    if not empresa:
-        raise HTTPException(404, "Empresa no encontrada")
+    # Sesión de la empresa con permiso de reportes (o perusistemas en modo legacy).
+    empresa = acceso_html_o_redirigir(slug, request, db, "reportes")
+    if not isinstance(empresa, Empresa):
+        return empresa  # redirección al login
 
     suscripciones = (
         db.query(PushSuscripcion)
@@ -192,19 +190,15 @@ def panel_receptores(
 @router.post("/{slug}/receptores/codigo-nuevo")
 def crear_codigo(
     slug: str,
+    request: Request,
     descripcion: str = Form(""),
     dias_validez: int = Form(7),
     max_usos: int = Form(50),
     db: Session = Depends(get_db),
 ):
     """Genera un código de invitación nuevo."""
-    empresa = (
-        db.query(Empresa)
-        .filter(or_(Empresa.slug == slug, Empresa.id_fiscal == slug))
-        .first()
-    )
-    if not empresa:
-        raise HTTPException(404, "Empresa no encontrada")
+    # Sesión de la empresa con permiso de reportes (o perusistemas en modo legacy).
+    empresa = acceso_por_sesion_o_legacy(slug, request, db, "reportes")
 
     prefijo = (empresa.slug or "PGK").upper()[:5]
     # Reintentar si hay colisión (improbable)
@@ -239,17 +233,13 @@ def crear_codigo(
 @router.post("/{slug}/receptores/codigo/{codigo_id}/desactivar")
 def desactivar_codigo(
     slug: str,
+    request: Request,
     codigo_id: int,
     db: Session = Depends(get_db),
 ):
     """Desactiva un código de invitación (no se puede usar para suscribir más)."""
-    empresa = (
-        db.query(Empresa)
-        .filter(or_(Empresa.slug == slug, Empresa.id_fiscal == slug))
-        .first()
-    )
-    if not empresa:
-        raise HTTPException(404, "Empresa no encontrada")
+    # Sesión de la empresa con permiso de reportes (o perusistemas en modo legacy).
+    empresa = acceso_por_sesion_o_legacy(slug, request, db, "reportes")
 
     codigo = (
         db.query(CodigoInvitacion)
@@ -270,17 +260,13 @@ def desactivar_codigo(
 @router.post("/{slug}/receptores/{suscripcion_id}/revocar")
 def revocar_receptor(
     slug: str,
+    request: Request,
     suscripcion_id: int,
     db: Session = Depends(get_db),
 ):
     """Revoca un receptor."""
-    empresa = (
-        db.query(Empresa)
-        .filter(or_(Empresa.slug == slug, Empresa.id_fiscal == slug))
-        .first()
-    )
-    if not empresa:
-        raise HTTPException(404, "Empresa no encontrada")
+    # Sesión de la empresa con permiso de reportes (o perusistemas en modo legacy).
+    empresa = acceso_por_sesion_o_legacy(slug, request, db, "reportes")
 
     sus = (
         db.query(PushSuscripcion)
@@ -299,18 +285,16 @@ def revocar_receptor(
 
 
 @router.post("/api/v1/push/test/{slug}")
-def push_test(slug: str, db: Session = Depends(get_db)):
-    """Envía un push de prueba a TODOS los receptores activos de la empresa."""
+def push_test(slug: str, request: Request, db: Session = Depends(get_db)):
+    """Envía un push de prueba a TODOS los receptores activos de la empresa.
+
+    Acceso: sesión de esa empresa con rol de dueño, o perusistemas mientras
+    LEGACY_PUBLICO_PERUSISTEMAS=true.
+    """
     from app.api.push_service import enviar_push_a_empresa
     from app.admin.db import VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_CLAIM_EMAIL
 
-    empresa = (
-        db.query(Empresa)
-        .filter(or_(Empresa.slug == slug, Empresa.id_fiscal == slug))
-        .first()
-    )
-    if not empresa:
-        raise HTTPException(404, "Empresa no encontrada")
+    empresa = acceso_por_sesion_o_legacy(slug, request, db, "administrar")
 
     resultado = enviar_push_a_empresa(
         db=db,

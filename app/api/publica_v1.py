@@ -18,7 +18,7 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query
-from sqlalchemy import update
+from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 
@@ -131,6 +131,19 @@ def _parse_monto(valor: str) -> Decimal:
         )
 
 
+def _usado_por_otro(cuenta_id: int):
+    """EXISTS: el pago ya está en pago_uso por otra cuenta o por el panel."""
+    from app.api.models_pago_uso import PagoUso
+    return (
+        select(PagoUso.id)
+        .where(
+            PagoUso.pago_id == PagoDetectado.id,
+            or_(PagoUso.cuenta_api_id.is_(None), PagoUso.cuenta_api_id != cuenta_id),
+        )
+        .exists()
+    )
+
+
 # =============================================================
 # GET /api/v1/pagos
 # =============================================================
@@ -157,6 +170,8 @@ def listar_pagos(
         | (PagoDetectado.reclamado_por == cuenta.id),
         # Nunca ofrecer pagos dudosos (sin verbo de ingreso: posibles promociones).
         PagoDetectado.tipo_incierto == False,  # noqa: E712
+        # Ni los ya usados por otro (p. ej. marcados desde el panel, sin cuenta_api).
+        ~_usado_por_otro(cuenta.id),
     )
 
     if monto is not None:
@@ -201,14 +216,15 @@ def reclamar_pago(
     except (ValueError, TypeError):
         raise HTTPException(status_code=404, detail="Pago no encontrado")
 
-    # Reclamo atómico: solo gana si reclamado_por seguía NULL.
-    # Dos consumidores simultáneos -> exactamente uno hace rowcount == 1.
+    # Reclamo atómico: solo gana si reclamado_por seguía NULL y nadie más lo
+    # usó (pago_uso). Dos consumidores simultáneos -> exactamente uno gana.
     res = db.execute(
         update(PagoDetectado)
         .where(
             PagoDetectado.id == pid,
             PagoDetectado.empresa_id == cuenta.empresa_id,
             PagoDetectado.reclamado_por.is_(None),
+            ~_usado_por_otro(cuenta.id),
         )
         .values(reclamado_por=cuenta.id, reclamado_en=func.now())
     )

@@ -25,6 +25,7 @@ from app.admin.db import get_db
 from app.admin.models import Empresa
 from app.api.models_internos import PersonaCuenta, TitularConfirmadoExterno
 from app.api.models_webhook import Dispositivo, PagoDetectado
+from app.api.deps_empresa import acceso_html_o_redirigir, acceso_por_sesion_o_legacy
 from app.api.router_demo import _obtener_empresa_por_slug, _serializar_pago
 from app.services.deteccion_interno import es_posible_interno, normalizar
 
@@ -38,15 +39,27 @@ LOTE_RECALCULO = 500
 # AUTH (mínima, reutiliza mecanismos existentes)
 # =============================================================
 
+def _vista_html(slug: str, request: Request, db: Session, permiso: str, tipo: str):
+    empresa = acceso_html_o_redirigir(slug, request, db, permiso)
+    if not isinstance(empresa, Empresa):
+        return empresa  # redirección al login
+    nombre = empresa.nombre_comercial or empresa.razon_social or slug
+    return HTMLResponse(_html_lista_movimientos(slug, nombre, tipo))
+
+
 def _verificar_acceso_dueno(slug: str, request: Request, db: Session) -> Empresa:
     """Resuelve la empresa por slug para las secciones del dueño.
 
-    TODO(seguridad): esta sección administra datos del dueño. Hoy sigue el mismo
-    patrón que el panel /{slug}/receptores (acceso por slug, sin login). Si se
-    provee X-Device-Token o X-API-Key se validan contra la empresa; si no se
-    provee ninguno, se permite el acceso (MVP) pero DEBE agregarse control de
-    acceso real antes de exponer públicamente.
+    Credenciales aceptadas (el slug solo se VALIDA contra ellas):
+      - X-Device-Token o X-API-Key de esa misma empresa (como antes), o
+      - sesión del panel de esa empresa con rol de dueño, o
+      - sin credencial: solo perusistemas mientras LEGACY_PUBLICO_PERUSISTEMAS=true.
     """
+    token = request.headers.get("x-device-token")
+    api_key = request.headers.get("x-api-key")
+    if not token and not api_key:
+        return acceso_por_sesion_o_legacy(slug, request, db, "administrar")
+
     empresa = _obtener_empresa_por_slug(db, slug)
     if empresa is None:
         raise HTTPException(404, "Empresa no encontrada")
@@ -76,7 +89,6 @@ def _verificar_acceso_dueno(slug: str, request: Request, db: Session) -> Empresa
         )
         if not cuenta:
             raise HTTPException(403, "API key no autorizada para esta empresa")
-    # else: sin credencial -> permitido en MVP (ver TODO arriba).
 
     return empresa
 
@@ -144,26 +156,24 @@ def _listar_movimientos(
 @router.get("/api/v1/{slug}/ingresos")
 def api_ingresos(
     slug: str,
+    request: Request,
     desde: Optional[str] = None, hasta: Optional[str] = None,
     metodo: Optional[str] = None, solo_negocio: bool = False, pagina: int = 1,
     db: Session = Depends(get_db),
 ):
-    empresa = _obtener_empresa_por_slug(db, slug)
-    if empresa is None:
-        return JSONResponse({"ok": False, "error": "empresa_no_encontrada"}, status_code=404)
+    empresa = acceso_por_sesion_o_legacy(slug, request, db, "ver_pagos")
     return _listar_movimientos(db, empresa.id, "ingreso", desde, hasta, metodo, solo_negocio, pagina)
 
 
 @router.get("/api/v1/{slug}/egresos")
 def api_egresos(
     slug: str,
+    request: Request,
     desde: Optional[str] = None, hasta: Optional[str] = None,
     metodo: Optional[str] = None, solo_negocio: bool = False, pagina: int = 1,
     db: Session = Depends(get_db),
 ):
-    empresa = _obtener_empresa_por_slug(db, slug)
-    if empresa is None:
-        return JSONResponse({"ok": False, "error": "empresa_no_encontrada"}, status_code=404)
+    empresa = acceso_por_sesion_o_legacy(slug, request, db, "reportes")
     return _listar_movimientos(db, empresa.id, "egreso", desde, hasta, metodo, solo_negocio, pagina)
 
 
@@ -173,7 +183,7 @@ def api_egresos(
 
 @router.post("/api/v1/{slug}/pagos/{pago_id}/confirmacion")
 def confirmar_interno(
-    slug: str, pago_id: int, payload: dict = Body(...),
+    slug: str, pago_id: int, request: Request, payload: dict = Body(...),
     db: Session = Depends(get_db),
 ):
     """El usuario confirma si un posible interno es cuenta propia o no.
@@ -187,12 +197,10 @@ def confirmar_interno(
     NOTA: NO se sobrescribe `tipo` (se preserva ingreso/egreso). La exclusión del
     negocio se hace por confirmacion_usuario en los cálculos de resumen.
 
-    TODO(seguridad): se invoca desde la vista pública (sin login). Evaluar auth
-    del dueño antes de abrir a producción amplia.
+    Acceso: sesión de la empresa con permiso de reportes (dueño o contador),
+    o perusistemas en modo legacy público.
     """
-    empresa = _obtener_empresa_por_slug(db, slug)
-    if empresa is None:
-        raise HTTPException(404, "Empresa no encontrada")
+    empresa = acceso_por_sesion_o_legacy(slug, request, db, "reportes")
 
     pago = (
         db.query(PagoDetectado)
@@ -531,21 +539,13 @@ cargar();
 
 
 @router.get("/{slug}/ingresos", response_class=HTMLResponse)
-def vista_ingresos(slug: str, db: Session = Depends(get_db)):
-    empresa = _obtener_empresa_por_slug(db, slug)
-    if empresa is None:
-        raise HTTPException(404, "Empresa no encontrada")
-    nombre = empresa.nombre_comercial or empresa.razon_social or slug
-    return HTMLResponse(_html_lista_movimientos(slug, nombre, "ingreso"))
+def vista_ingresos(slug: str, request: Request, db: Session = Depends(get_db)):
+    return _vista_html(slug, request, db, "ver_pagos", "ingreso")
 
 
 @router.get("/{slug}/egresos", response_class=HTMLResponse)
-def vista_egresos(slug: str, db: Session = Depends(get_db)):
-    empresa = _obtener_empresa_por_slug(db, slug)
-    if empresa is None:
-        raise HTTPException(404, "Empresa no encontrada")
-    nombre = empresa.nombre_comercial or empresa.razon_social or slug
-    return HTMLResponse(_html_lista_movimientos(slug, nombre, "egreso"))
+def vista_egresos(slug: str, request: Request, db: Session = Depends(get_db)):
+    return _vista_html(slug, request, db, "reportes", "egreso")
 
 
 def _html_config_cuentas(slug: str, nombre_empresa: str, cuentas: list[dict]) -> str:
