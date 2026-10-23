@@ -80,6 +80,11 @@ class PagoDetectado(Base):
     # El parser no pudo clasificar ingreso/egreso con certeza (guardado como
     # 'ingreso' por defecto, marcado para revisión).
     tipo_incierto = Column(Boolean, default=False, nullable=False, server_default="false")
+    # --- Egresos (zWeb-05). `tipo` ya es la dirección (ingreso | egreso) ---
+    # envio_billetera | transferencia_enviada | consumo_tarjeta | retiro_cajero |
+    # pago_servicio | cargo_recurrente | otro_egreso. NULL en ingresos.
+    tipo_egreso = Column(String(25))
+    tarjeta_ultimos4 = Column(String(4))  # nunca el número completo
 
 
 # Co-registro del destino del FK `reclamado_por -> cuenta_api.id`.

@@ -103,16 +103,22 @@ VERBOS_EGRESO = (
 def _clasificar_tipo(texto: str) -> tuple[str, bool]:
     """Devuelve (tipo, incierto) según los verbos presentes en el texto.
 
-    - Egreso si hay un verbo en primera persona activa ("Plineaste", "Pagaste").
     - Ingreso si hay un verbo en pasiva / recepción ("te ha plineado", "recibiste").
-    - Si no matchea ninguno: ('ingreso', True) — default seguro, marcado a revisión.
+      Se evalúa PRIMERO: ante la duda, no es egreso (zWeb-05).
+    - Egreso si hay un verbo en primera persona activa ("Plineaste", "Pagaste").
+    - Si no matchea ninguno: ('ingreso', True) — dudoso; parsear() lo descarta.
     """
+    if tiene_senal_ingreso(texto):
+        return "ingreso", False
     txt = (texto or "").lower()
     if any(v in txt for v in VERBOS_EGRESO):
         return "egreso", False
-    if any(v in txt for v in VERBOS_INGRESO):
-        return "ingreso", False
     return "ingreso", True
+
+
+def tiene_senal_ingreso(texto: str) -> bool:
+    txt = (texto or "").lower()
+    return any(v in txt for v in VERBOS_INGRESO)
 
 
 # =============================================================
@@ -401,7 +407,7 @@ def _parse_billetera_generica(
     if monto is None:
         return None
 
-    es_egreso = any(x in txt for x in patrones_egreso)
+    es_egreso = not tiene_senal_ingreso(texto) and any(x in txt for x in patrones_egreso)
     if es_egreso:
         tipo, tipo_incierto = "egreso", False
     else:
@@ -469,6 +475,8 @@ def parse_tarjeta(package: str, titulo: str, texto: str) -> dict | None:
       "Compra con tu tarjeta por S/ 50.00 en PLAZA VEA"
     """
     txt = (texto or "").lower()
+    if tiene_senal_ingreso(texto):
+        return None  # ante la duda, no es egreso: lo procesa el parser de ingresos
     señales = (
         "con tu tarjeta", "pago recurrente", "compra con tu tarjeta",
         "consumo con tu tarjeta", "tarjeta de débito", "tarjeta de debito",
@@ -538,7 +546,76 @@ def parsear(package: str, titulo: str, texto: str) -> dict | None:
         try:
             res = parser(package or "", titulo or "", texto)
             if res:
-                return None if res.get("tipo_incierto") else res
+                if res.get("tipo_incierto"):
+                    return None
+                if res.get("tipo") == "egreso":
+                    return _completar_egreso(res, titulo or "", texto)
+                return res  # ingresos: exactamente como antes
         except Exception:
             continue
     return None
+
+
+# =============================================================
+# EGRESOS (zWeb-05): tipo de egreso, tarjeta y descarte de avisos
+# =============================================================
+# Formatos VERIFICADOS con avisos reales (producción, mayo-oct 2026), todos de
+# Interbank (pe.com.interbank.mobilebanking):
+#   "Plineaste S/ 1.00 a <NOMBRE>"                                   -> envio_billetera
+#   "Realizaste un consumo de S/.50.00 en <COMERCIO> con tu Tarjeta de Crédito." -> consumo_tarjeta
+#   "Se realizó un pago recurrente de $26.19 en <COMERCIO> con tu Tarjeta de Débito." -> cargo_recurrente (USD)
+# Yape NO avisa al que paga (0 "Yapeaste" en 142 avisos de Yape): sin ejemplos.
+# BCP, BBVA, Scotiabank, Banco de la Nación: sin ejemplos reales de egreso; se
+# detectan solo por los verbos genéricos que ya existían (sin garantía).
+
+TIPOS_EGRESO = (
+    "envio_billetera", "transferencia_enviada", "consumo_tarjeta", "retiro_cajero",
+    "pago_servicio", "cargo_recurrente", "otro_egreso",
+)
+
+# Promociones, recordatorios y avisos de seguridad: nunca son egresos.
+_NO_TRANSACCIONAL = re.compile(
+    r"\b(aprovecha|gana|participa|sorteo|promo|descuento|cashback|oferta|"
+    r"vence|vencer|recuerda|evita|omite|inicio de sesi[oó]n|ingresaste a tu|"
+    r"tu clave|contrase[nñ]a|c[oó]digo de verificaci[oó]n|token)\b",
+    re.IGNORECASE,
+)
+
+
+def _clasificar_tipo_egreso(res: dict, texto: str) -> str:
+    t = (texto or "").lower()
+    if re.search(r"pago recurrente|cargo recurrente|d[eé]bito autom[aá]tico|suscripci[oó]n", t):
+        return "cargo_recurrente"
+    if re.search(r"\bretir(o|aste)\b", t) and re.search(r"cajero|atm|agente", t):
+        return "retiro_cajero"
+    if (re.search(r"\b(recarga|luz|agua|tel[eé]fono|internet|cable|servicio)\b", t)
+            and re.search(r"\bpag(o|aste)\b|recarg", t)):
+        return "pago_servicio"
+    if (res.get("metodo") in ("yape", "plin", "bim", "p51", "pix")
+            or re.search(r"\b(yapeaste|plineaste|tunkiaste)\b", t)):
+        return "envio_billetera"
+    if re.search(r"transferiste|transferencia (enviada|realizada)", t):
+        return "transferencia_enviada"
+    if res.get("metodo") == "tarjeta" or re.search(r"\b(consumo|compra)\b.*tarjeta|tarjeta.*\b(consumo|compra)\b", t):
+        return "consumo_tarjeta"
+    return "otro_egreso"
+
+
+def _ultimos4_tarjeta(texto: str) -> str | None:
+    """Últimos 4 dígitos SOLO si el banco ya los muestra enmascarados
+    ('****1234', 'terminada en 1234'). Nunca se guarda un número completo."""
+    m = re.search(r"(?:[*•xX]{2,}\s?|terminad[ao] en\s+)(\d{4})\b", texto or "", re.IGNORECASE)
+    return m.group(1) if m else None
+
+
+def _completar_egreso(res: dict, titulo: str, texto: str) -> dict | None:
+    """Egreso confirmado por verbo + monto legible. Descarta promociones y
+    avisos de seguridad; agrega tipo_egreso y últimos 4 de la tarjeta."""
+    if res.get("monto") is None or res["monto"] <= 0:
+        return None
+    if _NO_TRANSACCIONAL.search(f"{titulo} {texto}"):
+        return None
+    res = dict(res)
+    res["tipo_egreso"] = _clasificar_tipo_egreso(res, texto)
+    res["tarjeta_ultimos4"] = _ultimos4_tarjeta(texto)
+    return res

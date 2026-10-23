@@ -166,6 +166,7 @@ def listar_pagos(
     """
     q = db.query(PagoDetectado).filter(
         PagoDetectado.empresa_id == cuenta.empresa_id,
+        PagoDetectado.tipo == "ingreso",  # un egreso nunca es un pago disponible
         (PagoDetectado.reclamado_por.is_(None))
         | (PagoDetectado.reclamado_por == cuenta.id),
         # Nunca ofrecer pagos dudosos (sin verbo de ingreso: posibles promociones).
@@ -223,6 +224,7 @@ def reclamar_pago(
         .where(
             PagoDetectado.id == pid,
             PagoDetectado.empresa_id == cuenta.empresa_id,
+            PagoDetectado.tipo == "ingreso",
             PagoDetectado.reclamado_por.is_(None),
             ~_usado_por_otro(cuenta.id),
         )
@@ -241,6 +243,7 @@ def reclamar_pago(
         .filter(
             PagoDetectado.id == pid,
             PagoDetectado.empresa_id == cuenta.empresa_id,
+            PagoDetectado.tipo == "ingreso",
         )
         .first()
     )

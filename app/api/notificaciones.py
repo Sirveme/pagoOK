@@ -134,6 +134,8 @@ async def inbound(
                 posible_interno=posible_interno,
                 confirmacion_usuario=None,
                 tipo_incierto=bool(parsed.get("tipo_incierto", False)),
+                tipo_egreso=parsed.get("tipo_egreso"),
+                tarjeta_ultimos4=parsed.get("tarjeta_ultimos4"),
             )
             db.add(pago)
             db.flush()
@@ -235,6 +237,7 @@ async def buscar_pagos(
     desde = datetime.utcnow() - timedelta(minutes=minutos)
     q = db.query(PagoDetectado).filter(
         PagoDetectado.empresa_id == dispositivo.empresa_id,
+        PagoDetectado.tipo == "ingreso",  # la caja busca pagos recibidos, nunca egresos
         PagoDetectado.recibido_en >= desde,
     )
     if not incluir_consumidos:
@@ -277,7 +280,8 @@ async def pagos_recientes(
     dispositivo = resolver_dispositivo(db, x_device_token)
 
     pagos = db.query(PagoDetectado).filter(
-        PagoDetectado.empresa_id == dispositivo.empresa_id
+        PagoDetectado.empresa_id == dispositivo.empresa_id,
+        PagoDetectado.tipo == "ingreso",
     ).order_by(desc(PagoDetectado.recibido_en)).limit(min(limit, 50)).all()
 
     return {
@@ -308,6 +312,7 @@ async def consumir_pago(
     pago = db.query(PagoDetectado).filter(
         PagoDetectado.id == pago_id,
         PagoDetectado.empresa_id == dispositivo.empresa_id,
+        PagoDetectado.tipo == "ingreso",
     ).first()
     if not pago:
         raise HTTPException(404, "Pago no encontrado")

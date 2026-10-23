@@ -107,11 +107,22 @@ def _parse_iso_opcional(valor: Optional[str], campo: str) -> Optional[datetime]:
         raise HTTPException(400, f"Parámetro '{campo}' no es una fecha válida")
 
 
-def _listar_movimientos(
+ETIQUETA_TIPO_EGRESO = {
+    "envio_billetera": "Envío por billetera",
+    "transferencia_enviada": "Transferencia enviada",
+    "consumo_tarjeta": "Consumo con tarjeta",
+    "retiro_cajero": "Retiro en cajero",
+    "pago_servicio": "Pago de servicio",
+    "cargo_recurrente": "Cargo recurrente",
+    "otro_egreso": "Otro egreso",
+}
+
+
+def _query_movimientos(
     db: Session, empresa_id: int, tipo: str,
     desde: Optional[str], hasta: Optional[str],
-    metodo: Optional[str], solo_negocio: bool, pagina: int,
-) -> dict:
+    metodo: Optional[str], solo_negocio: bool, tipo_egreso: Optional[str] = None,
+):
     q = db.query(PagoDetectado).filter(
         PagoDetectado.empresa_id == empresa_id,
         PagoDetectado.tipo == tipo,
@@ -132,7 +143,29 @@ def _listar_movimientos(
                 & (PagoDetectado.confirmacion_usuario == "confirmado_interno")
             )
         )
+    if tipo == "egreso" and tipo_egreso:
+        q = q.filter(PagoDetectado.tipo_egreso == tipo_egreso)
+    return q
 
+
+def _totales_por_moneda(q) -> dict:
+    """Suma del rango COMPLETO filtrado (no solo la página), por moneda, sin convertir."""
+    from sqlalchemy import func as _f
+    filas = (
+        q.with_entities(PagoDetectado.moneda, _f.sum(PagoDetectado.monto), _f.count(PagoDetectado.id))
+        .group_by(PagoDetectado.moneda)
+        .all()
+    )
+    return {(m or "PEN"): {"total": f"{Decimal(str(t or 0)):.2f}", "cantidad": n} for m, t, n in filas}
+
+
+def _listar_movimientos(
+    db: Session, empresa_id: int, tipo: str,
+    desde: Optional[str], hasta: Optional[str],
+    metodo: Optional[str], solo_negocio: bool, pagina: int,
+    tipo_egreso: Optional[str] = None,
+) -> dict:
+    q = _query_movimientos(db, empresa_id, tipo, desde, hasta, metodo, solo_negocio, tipo_egreso)
     total = q.count()
     pagina = max(1, pagina)
     offset = (pagina - 1) * TAM_PAGINA
@@ -150,6 +183,7 @@ def _listar_movimientos(
         "total": total,
         "hay_siguiente": offset + len(filas) < total,
         "movimientos": [_serializar_pago(p) for p in filas],
+        "totales_por_moneda": _totales_por_moneda(q.order_by(None)),
     }
 
 
@@ -171,10 +205,46 @@ def api_egresos(
     request: Request,
     desde: Optional[str] = None, hasta: Optional[str] = None,
     metodo: Optional[str] = None, solo_negocio: bool = False, pagina: int = 1,
+    tipo_egreso: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
     empresa = acceso_por_sesion_o_legacy(slug, request, db, "reportes")
-    return _listar_movimientos(db, empresa.id, "egreso", desde, hasta, metodo, solo_negocio, pagina)
+    return _listar_movimientos(db, empresa.id, "egreso", desde, hasta, metodo, solo_negocio, pagina,
+                               tipo_egreso=tipo_egreso)
+
+
+@router.get("/api/v1/{slug}/egresos.csv")
+def api_egresos_csv(
+    slug: str,
+    request: Request,
+    desde: Optional[str] = None, hasta: Optional[str] = None,
+    metodo: Optional[str] = None, solo_negocio: bool = False,
+    tipo_egreso: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """CSV completo de egresos del rango. Solo dueño y contador CON SESIÓN
+    (no aplica el modo legacy público)."""
+    import csv
+    import io
+    from fastapi.responses import Response
+    from app.api.deps_empresa import sesion_opcional
+    from app.services.eventos import a_iso_lima
+
+    ctx = sesion_opcional(request, db)
+    if ctx is None:
+        raise HTTPException(401, "sesion_requerida")
+    empresa = acceso_por_sesion_o_legacy(slug, request, db, "reportes")
+    q = _query_movimientos(db, empresa.id, "egreso", desde, hasta, metodo, solo_negocio, tipo_egreso)
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["fecha_hora", "tipo_egreso", "metodo", "banco", "contraparte", "monto", "moneda",
+                "tarjeta_ultimos4", "cuenta_propia"])
+    for p in q.order_by(PagoDetectado.recibido_en).all():
+        w.writerow([a_iso_lima(p.recibido_en), p.tipo_egreso or "", p.metodo, p.banco or "", p.titular or "",
+                    f"{Decimal(str(p.monto)):.2f}", p.moneda or "PEN", p.tarjeta_ultimos4 or "",
+                    "si" if p.confirmacion_usuario == "confirmado_interno" else "no"])
+    return Response("\ufeff" + buf.getvalue(), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="egresos_{empresa.slug}.csv"'})
 
 
 # =============================================================
@@ -448,9 +518,20 @@ def _html_lista_movimientos(slug: str, nombre_empresa: str, tipo: str) -> str:
       <option value="transferencia">Transferencia</option>
       <option value="tarjeta">Tarjeta</option>
     </select>
+    <select id="tipo-egreso" style="display:none">
+      <option value="">Todos los tipos</option>
+      <option value="envio_billetera">Envío por billetera</option>
+      <option value="transferencia_enviada">Transferencia enviada</option>
+      <option value="consumo_tarjeta">Consumo con tarjeta</option>
+      <option value="retiro_cajero">Retiro en cajero</option>
+      <option value="pago_servicio">Pago de servicio</option>
+      <option value="cargo_recurrente">Cargo recurrente</option>
+      <option value="otro_egreso">Otro egreso</option>
+    </select>
     <label class="toggle"><input type="checkbox" id="solo-negocio"> Solo del negocio</label>
     <button class="btn-csv" id="csv">Descargar CSV</button>
   </div>
+  <div class="sub" id="totales"></div>
 
   <table>
     <thead><tr><th>Fecha</th><th>Hora</th><th>Método</th><th>__COL_NOMBRE__</th><th>Monto</th><th>Estado</th></tr></thead>
@@ -483,12 +564,23 @@ function rangoFechas(clave) {
 }
 function esc(s){ if(s==null) return ""; return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+function filtrosQS() {
+  const { desde, hasta } = rangoFechas(rango);
+  const tipoEgreso = ES_EGRESO ? document.getElementById("tipo-egreso").value : "";
+  return "desde="+encodeURIComponent(desde)+"&hasta="+encodeURIComponent(hasta)+
+         "&metodo="+document.getElementById("metodo").value+
+         "&solo_negocio="+document.getElementById("solo-negocio").checked+
+         (tipoEgreso ? "&tipo_egreso="+encodeURIComponent(tipoEgreso) : "");
+}
+if (ES_EGRESO) document.getElementById("tipo-egreso").style.display = "";
+
 async function cargar() {
   const { desde, hasta } = rangoFechas(rango);
   const metodo = document.getElementById("metodo").value;
   const soloNeg = document.getElementById("solo-negocio").checked;
+  const tipoEgreso = ES_EGRESO ? document.getElementById("tipo-egreso").value : "";
   // El endpoint es plural (/ingresos, /egresos); TIPO viene en singular.
-  const url = "/api/v1/" + SLUG + "/" + TIPO + "s?desde="+encodeURIComponent(desde)+"&hasta="+encodeURIComponent(hasta)+"&metodo="+metodo+"&solo_negocio="+soloNeg+"&pagina="+pagina;
+  const url = "/api/v1/" + SLUG + "/" + TIPO + "s?" + filtrosQS() + "&pagina="+pagina;
   const r = await fetch(url); const data = await r.json();
   if (!data.ok) { document.getElementById("tbody").innerHTML = '<tr><td colspan=6 class=vacio>No se pudo cargar.</td></tr>'; return; }
   ultimaData = data;
@@ -499,10 +591,16 @@ async function cargar() {
       const simbolo = p.moneda === "USD" ? "$" : "S/";
       const flecha = ES_EGRESO ? "→ " : "";
       const estado = p.necesita_revision ? '<span class="badge">🏠 ¿Tuyo?</span>' : (p.confirmacion_usuario==="confirmado_interno" ? "Cuenta propia" : "");
-      return "<tr><td>"+esc(p.fecha)+"</td><td>"+esc(p.hora)+"</td><td>"+esc(p.metodo_label)+"</td><td>"+flecha+esc(p.titular_corto)+"</td><td class=monto>"+simbolo+" "+esc(p.monto)+"</td><td>"+estado+"</td></tr>";
+      const medio = ES_EGRESO && p.tipo_egreso_label ? p.tipo_egreso_label + " · " + p.metodo_label : p.metodo_label;
+      const tarjeta = p.tarjeta_ultimos4 ? " (•••• " + esc(p.tarjeta_ultimos4) + ")" : "";
+      return "<tr><td>"+esc(p.fecha)+"</td><td>"+esc(p.hora)+"</td><td>"+esc(medio)+tarjeta+"</td><td>"+flecha+esc(p.titular_corto)+"</td><td class=monto>"+simbolo+" "+esc(p.monto)+"</td><td>"+estado+"</td></tr>";
     }).join("");
   }
   document.getElementById("sub").textContent = "Mostrando " + data.movimientos.length + " de " + data.total + " movimientos";
+  const tot = data.totales_por_moneda || {};
+  document.getElementById("totales").textContent = Object.keys(tot).length
+    ? "Total del rango: " + Object.keys(tot).map(m => (m === "USD" ? "$ " : "S/ ") + tot[m].total + " (" + tot[m].cantidad + ")").join("  ·  ")
+    : "";
   document.getElementById("pag-info").textContent = "Página " + data.pagina;
   document.getElementById("ant").disabled = data.pagina <= 1;
   document.getElementById("sig").disabled = !data.hay_siguiente;
@@ -516,7 +614,12 @@ document.getElementById("metodo").addEventListener("change", () => { pagina = 1;
 document.getElementById("solo-negocio").addEventListener("change", () => { pagina = 1; cargar(); });
 document.getElementById("ant").addEventListener("click", () => { if (pagina>1){ pagina--; cargar(); } });
 document.getElementById("sig").addEventListener("click", () => { if (ultimaData && ultimaData.hay_siguiente){ pagina++; cargar(); } });
+document.getElementById("tipo-egreso").addEventListener("change", () => { pagina = 1; cargar(); });
 document.getElementById("csv").addEventListener("click", () => {
+  if (ES_EGRESO) {  // CSV completo del rango desde el servidor (dueño y contador con sesión)
+    location.href = "/api/v1/" + SLUG + "/egresos.csv?" + filtrosQS();
+    return;
+  }
   if (!ultimaData || !ultimaData.movimientos.length) return;
   const filas = [["Fecha","Hora","Metodo","Nombre","Monto","Moneda"]];
   ultimaData.movimientos.forEach(p => filas.push([p.fecha,p.hora,p.metodo_label,(p.titular||""),p.monto,p.moneda]));

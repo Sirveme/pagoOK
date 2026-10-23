@@ -92,6 +92,9 @@ def _serializar_pago(pago: PagoDetectado) -> dict:
         "moneda": pago.moneda or "PEN",
         "titular": pago.titular or "(sin titular)",
         "titular_corto": pago.titular_corto or pago.titular or "—",
+        "tipo_egreso": getattr(pago, "tipo_egreso", None),
+        "tipo_egreso_label": _ETIQUETA_TIPO_EGRESO.get(getattr(pago, "tipo_egreso", None) or ""),
+        "tarjeta_ultimos4": getattr(pago, "tarjeta_ultimos4", None),
         "banco": pago.banco or "",
         "codigo_operacion": pago.codigo_operacion or "",
         "fecha": _fecha_local_str(pago.recibido_en),
@@ -104,6 +107,17 @@ def _serializar_pago(pago: PagoDetectado) -> dict:
         # Badge "¿Es tuyo?" solo si es sugerencia sin revisar
         "necesita_revision": posible_interno and confirmacion is None,
     }
+
+
+_ETIQUETA_TIPO_EGRESO = {
+    "envio_billetera": "Envío por billetera",
+    "transferencia_enviada": "Transferencia enviada",
+    "consumo_tarjeta": "Consumo con tarjeta",
+    "retiro_cajero": "Retiro en cajero",
+    "pago_servicio": "Pago de servicio",
+    "cargo_recurrente": "Cargo recurrente",
+    "otro_egreso": "Otro egreso",
+}
 
 
 def _obtener_empresa_por_slug(db, slug: str) -> Empresa | None:
@@ -454,7 +468,7 @@ def demo_pantalla_publica(slug: str, request: Request):
         "login", "logout", "register", "signup", "auth",
         "assets", "public", "templates", "testers",
         "videos", "qr", "caja", "sitemap.xml", "llms.txt",
-        "panel", "unirse",
+        "panel", "unirse", "privacidad", "privacidad.txt", "eliminar-cuenta",
     }
     if slug.lower() in RESERVADOS:
         raise HTTPException(status_code=404)

@@ -352,7 +352,7 @@ def reporte_csv(
                     s["moneda"], s["codigo_operacion"] or "",
                     "si" if p.confirmacion_usuario == "confirmado_interno" else "no"])
     nombre = f"pagook_{ctx.empresa.slug}_{d.isoformat()}_{h.isoformat()}.csv"
-    return Response("﻿" + buf.getvalue(), media_type="text/csv; charset=utf-8",
+    return Response("\ufeff" + buf.getvalue(), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{nombre}"'})
 
 
