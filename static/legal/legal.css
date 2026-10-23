@@ -1,0 +1,26 @@
+/* Páginas legales (/privacidad, /eliminar-cuenta). Usa las variables de
+   /static/panel/panel.css: tema oscuro, nunca blanco puro. */
+.legal { max-width: 760px; }
+.texto-legal { font-size: 16px; line-height: 1.65; color: var(--txt-suave); }
+.texto-legal h1 { font-size: 26px; color: var(--txt); margin: 18px 0 8px; line-height: 1.25; }
+.texto-legal h2 { font-size: 19px; color: var(--ambar-claro); margin: 30px 0 10px; scroll-margin-top: 12px; }
+.texto-legal h3 { font-size: 16px; color: var(--txt); margin: 20px 0 8px; scroll-margin-top: 12px; }
+.texto-legal p, .texto-legal ul, .texto-legal ol { margin: 0 0 12px; }
+.texto-legal ul, .texto-legal ol { padding-left: 22px; }
+.texto-legal li { margin-bottom: 6px; }
+.texto-legal strong { color: var(--txt); }
+.texto-legal em { color: var(--txt-mute); }
+.texto-legal table { display: block; overflow-x: auto; margin: 12px 0 18px; border: 1px solid var(--borde);
+                     border-radius: 10px; }
+.texto-legal th, .texto-legal td { min-width: 140px; vertical-align: top; font-size: 14px; }
+.texto-legal th { background: var(--card-2); color: var(--txt); text-transform: none; letter-spacing: 0; }
+.indice summary { cursor: pointer; font-weight: 700; color: var(--ambar-claro); }
+.indice ul { list-style: none; padding-left: 0; margin-top: 8px; }
+.indice ul ul { padding-left: 14px; }
+.indice li { margin: 4px 0; }
+.indice a { color: var(--txt-suave); text-decoration: none; font-size: 14px; }
+.indice a:hover { color: var(--ambar-claro); }
+textarea { width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--borde);
+           background: var(--bg-3); color: var(--txt); font-size: 15px; min-height: 80px; font-family: inherit; }
+.paso { display: flex; gap: 10px; align-items: flex-start; margin: 10px 0; color: var(--txt-suave); }
+.paso b { color: var(--txt); }
