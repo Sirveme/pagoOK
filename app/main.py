@@ -18,6 +18,8 @@ from app.api.router_internos import router as router_internos
 from app.api.router_device import router as router_device
 from app.api.router_webhook_ejemplo import router as router_webhook_ejemplo
 from app.api.publica_v1_consulta import router as router_consulta_pagos
+from app.api.router_vinculacion import router as router_vinculacion
+from app.api.router_panel import router as router_panel
 from app.middleware.security import SecurityScanBlockMiddleware
 
 logging.basicConfig(level=logging.INFO)
@@ -120,6 +122,13 @@ app.include_router(router_consulta_pagos)
 # Receptor de EJEMPLO del contrato de eventos (webhooks salientes firmados).
 # Ruta multi-segmento /api/v1/webhooks/receptor-ejemplo: no choca con /{slug}.
 app.include_router(router_webhook_ejemplo)
+
+# Multi-empresa (zWeb-04): vinculación por código, catálogo de bancos,
+# ampliación de prueba y panel con sesión (/panel, /unirse/{token}).
+# ANTES de router_push / router_internos / router_demo: "/panel" y "/unirse"
+# los capturaría el comodín /{slug}.
+app.include_router(router_vinculacion)
+app.include_router(router_panel)
 
 # router_push y router_internos ANTES de router_demo: sus rutas /{slug}/...
 # (receptores, ingresos, egresos, config) deben resolverse antes que el
