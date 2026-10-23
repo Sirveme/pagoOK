@@ -46,7 +46,7 @@ from typing import Callable
 from zoneinfo import ZoneInfo
 
 import httpx
-from sqlalchemy import or_
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.models_eventos import (
@@ -389,7 +389,24 @@ def entregar(db: Session, entrega: EntregaEvento, enviar: Enviador = enviar_http
 
 
 def _tomar_lote(db: Session, ahora: datetime, limite: int) -> list[int]:
-    """Reserva entregas vencidas (SKIP LOCKED + alquiler) y devuelve sus ids."""
+    """Reserva entregas vencidas (SKIP LOCKED + alquiler) y devuelve sus ids.
+
+    Las entregas de empresas con la cuenta vencida o suspendida NO se toman:
+    quedan en cola, sin gastar intentos, y salen solas cuando se active.
+    """
+    from app.admin.models import Empresa
+
+    empresas_bloqueadas = (
+        select(SuscripcionWebhook.id)
+        .join(Empresa, Empresa.id == SuscripcionWebhook.empresa_id)
+        .where(
+            Empresa.slug != "perusistemas",
+            or_(
+                Empresa.estado_cuenta.in_(("vencida", "suspendida")),
+                and_(Empresa.estado_cuenta == "prueba", Empresa.prueba_fin < ahora),
+            ),
+        )
+    )
     filas = (
         db.query(EntregaEvento)
         .filter(
@@ -397,10 +414,11 @@ def _tomar_lote(db: Session, ahora: datetime, limite: int) -> list[int]:
                 EntregaEvento.ultimo_estado == ESTADO_FALLIDO),
             EntregaEvento.proximo_reintento_en.isnot(None),
             EntregaEvento.proximo_reintento_en <= ahora,
+            EntregaEvento.suscripcion_id.notin_(empresas_bloqueadas),
         )
         .order_by(EntregaEvento.proximo_reintento_en)
         .limit(limite)
-        .with_for_update(skip_locked=True)
+        .with_for_update(skip_locked=True, of=EntregaEvento)
         .all()
     )
     for f in filas:

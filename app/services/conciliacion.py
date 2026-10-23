@@ -370,3 +370,48 @@ def marcar_usado(db: Session, *, cuenta, pago_id: int, referencia_externa: str,
         return _existente()
     db.refresh(uso)
     return {**_uso_dict(uso), "usado": True, "ya_estaba_usado": False}
+
+
+def marcar_usado_panel(db: Session, *, empresa_id: int, usuario_nombre: str, pago_id: int,
+                       referencia_externa: str) -> dict:
+    """Marcar como usado desde el PANEL (sesión de dueño o cajero).
+
+    No hay cuenta_api detrás: queda en pago_uso con cuenta_api_id NULL y
+    sistema "Panel PagoOK (<usuario>)". La API pública lo trata como no
+    disponible igual (consulta, listado y reclamo miran pago_uso).
+    Idempotente para la misma referencia desde el panel.
+    """
+    referencia_externa = referencia_externa.strip()
+    pago = db.query(PagoDetectado).filter(
+        PagoDetectado.id == pago_id, PagoDetectado.empresa_id == empresa_id,
+    ).first()
+    if pago is None:
+        raise PagoNoEncontrado()
+
+    def _existente() -> dict:
+        db.rollback()
+        u = db.query(PagoUso).filter(PagoUso.pago_id == pago_id).first()
+        if u is None:
+            raise PagoYaUsado("Pago ya reclamado por otro sistema")
+        if u.cuenta_api_id is None and u.referencia_externa == referencia_externa:
+            return {**_uso_dict(u), "usado": True, "ya_estaba_usado": True}
+        raise PagoYaUsado(
+            f"Pago ya usado por {u.sistema_que_uso} (referencia {u.referencia_externa})", _uso_dict(u),
+        )
+
+    if pago.reclamado_por is not None:
+        return _existente()
+    uso = PagoUso(
+        pago_id=pago_id,
+        empresa_id=empresa_id,
+        cuenta_api_id=None,
+        sistema_que_uso=f"Panel PagoOK ({usuario_nombre})"[:150],
+        referencia_externa=referencia_externa,
+    )
+    db.add(uso)
+    try:
+        db.commit()
+    except IntegrityError:
+        return _existente()
+    db.refresh(uso)
+    return {**_uso_dict(uso), "usado": True, "ya_estaba_usado": False}
