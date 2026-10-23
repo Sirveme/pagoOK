@@ -1,7 +1,13 @@
+from datetime import datetime as _datetime, timedelta, timezone as _timezone
+
 from sqlalchemy import Column, Integer, String, Boolean, Text, ForeignKey, Numeric, DateTime
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.admin.db import Base
+
+
+def _ahora_utc() -> _datetime:
+    return _datetime.now(_timezone.utc)
 
 
 class Pais(Base):
@@ -90,6 +96,15 @@ class Empresa(Base):
     # ¿Permite auto-registro de dispositivos sin código de invitación?
     # Default FALSE (seguro): sin esto, la empresa exige código.
     acepta_autoregistro = Column(Boolean, default=False, nullable=False, server_default="false")
+    # --- Multi-empresa (sql/multiempresa_2026-10.sql) ---
+    # `pais` del contrato = pais_codigo (ISO alfa-2). Tipo de id fiscal: RUC, RFC, NIT...
+    id_fiscal_tipo = Column(String(10))
+    # prueba | activa | vencida | suspendida. Una empresa NUEVA nace en prueba
+    # de 7 días; ver app/services/cuenta_empresa.py (vencimiento perezoso).
+    estado_cuenta = Column(String(12), nullable=False, default="prueba")
+    prueba_inicio = Column(DateTime(timezone=True), default=lambda: _ahora_utc())
+    prueba_fin = Column(DateTime(timezone=True), default=lambda: _ahora_utc() + timedelta(days=7))
+    prueba_ampliada = Column(Boolean, nullable=False, default=False)
     creada_en = Column(DateTime, server_default=func.now())
     actualizada_en = Column(DateTime, server_default=func.now())
 

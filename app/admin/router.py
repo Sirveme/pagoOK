@@ -5,7 +5,9 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from datetime import datetime
+import os
 import re
+import secrets
 
 from app.admin.db import get_db
 from app.admin.models import (
@@ -332,9 +334,44 @@ async def empresa_actualizar(
 # ALTA DE EMPRESAS BETA (sin dueño, para etapa beta)
 # =============================================================
 
+def _token_admin_valido(token: str | None) -> bool:
+    """Mismo token que /admin/dispositivos/estado (variable ADMIN_TOKEN)."""
+    admin_token = os.getenv("ADMIN_TOKEN", "").strip()
+    return bool(admin_token) and secrets.compare_digest(token or "", admin_token)
+
+
+def _html_login_admin_empresas() -> HTMLResponse:
+    return HTMLResponse("""<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Empresas nuevas · pagoOK</title>
+<style>
+  body { font-family:'Inter',system-ui,sans-serif; background:#faf6ef; color:#1c1f26; display:flex;
+         align-items:center; justify-content:center; min-height:100vh; margin:0; }
+  .caja { background:#fffdf8; border-radius:16px; padding:28px; box-shadow:0 2px 14px rgba(28,31,38,.1);
+          max-width:360px; width:90%; }
+  h1 { font-size:18px; color:#0f766e; margin:0 0 6px; }
+  p { font-size:13px; color:#4b5563; margin:0 0 16px; }
+  input { width:100%; box-sizing:border-box; border:1px solid #ddd; border-radius:8px; padding:10px 12px; font-size:14px; }
+  button { width:100%; margin-top:12px; background:#0f766e; color:#fef3d7; border:none; border-radius:8px;
+           padding:11px; font-weight:700; cursor:pointer; }
+</style></head>
+<body><div class="caja">
+  <h1>Empresas nuevas</h1>
+  <p>Ingresa el token de administrador para continuar.</p>
+  <form method="get" action="/admin/empresas/nuevas">
+    <input type="password" name="token" placeholder="Token de administrador" autofocus>
+    <button type="submit">Entrar</button>
+  </form>
+</div></body></html>""", status_code=401)
+
+
 @router.get("/empresas/nuevas", response_class=HTMLResponse)
-async def empresas_nuevas_form(request: Request, db: Session = Depends(get_db)):
-    """Formulario para crear una empresa nueva (etapa beta, sin dueño)."""
+async def empresas_nuevas_form(request: Request, token: str | None = None, db: Session = Depends(get_db)):
+    """Formulario para crear una empresa nueva (etapa beta, sin dueño).
+    Exige el token de administrador (ADMIN_TOKEN), como /admin/dispositivos/estado."""
+    if not _token_admin_valido(token):
+        return _html_login_admin_empresas()
     empresas = (
         db.query(Empresa)
         .order_by(Empresa.creada_en.desc())
@@ -343,13 +380,14 @@ async def empresas_nuevas_form(request: Request, db: Session = Depends(get_db)):
     )
     return templates.TemplateResponse(
         "admin/empresas_nuevas.html",
-        {"request": request, "empresas": empresas, "mensaje": None, "error": None},
+        {"request": request, "empresas": empresas, "mensaje": None, "error": None, "token": token},
     )
 
 
 @router.post("/empresas/nuevas", response_class=HTMLResponse)
 async def empresas_nuevas_crear(
     request: Request,
+    token: str = Form(""),
     ruc: str = Form(...),
     razon_social: str = Form(...),
     nombre_comercial: str = Form(""),
@@ -357,7 +395,9 @@ async def empresas_nuevas_crear(
     email: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    """Crea una empresa nueva (beta). Sin duenio_id."""
+    """Crea una empresa nueva (beta). Sin duenio_id. Exige el token de administrador."""
+    if not _token_admin_valido(token or request.headers.get("x-admin-token")):
+        return _html_login_admin_empresas()
     ruc = ruc.strip()
     razon_social = razon_social.strip().upper()
     nombre_comercial = nombre_comercial.strip().upper() or razon_social
@@ -376,7 +416,7 @@ async def empresas_nuevas_crear(
         empresas = db.query(Empresa).order_by(Empresa.creada_en.desc()).limit(20).all()
         return templates.TemplateResponse(
             "admin/empresas_nuevas.html",
-            {"request": request, "empresas": empresas, "error": error, "mensaje": None},
+            {"request": request, "empresas": empresas, "error": error, "mensaje": None, "token": token},
         )
 
     # Si no hay alias, usar el RUC como slug
@@ -406,7 +446,7 @@ async def empresas_nuevas_crear(
     empresas = db.query(Empresa).order_by(Empresa.creada_en.desc()).limit(20).all()
     return templates.TemplateResponse(
         "admin/empresas_nuevas.html",
-        {"request": request, "empresas": empresas, "mensaje": mensaje, "error": None},
+        {"request": request, "empresas": empresas, "mensaje": mensaje, "error": None, "token": token},
     )
 
 
