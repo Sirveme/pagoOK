@@ -1,0 +1,43 @@
+{% extends "panel/base.html" %}
+{% block titulo %}Ingresar{% endblock %}
+{% block publico %}
+<div class="centro">
+  <div class="logo" style="font-size:30px;text-align:center">pago<span class="ok">OK</span></div>
+  <p class="sub" style="text-align:center">Ingresa con tu celular. Te enviaremos un código por WhatsApp.</p>
+  <div class="tarjeta">
+    <div id="paso1">
+      <label for="celular">Tu celular</label>
+      <input id="celular" type="tel" inputmode="tel" placeholder="+51 987 654 321" autocomplete="tel">
+      <button class="btn" style="width:100%" onclick="pedirCodigo()">Enviarme el código</button>
+    </div>
+    <div id="paso2" class="oculto">
+      <p class="mute" id="msgEnviado"></p>
+      <label for="codigo">Código de 6 dígitos</label>
+      <input id="codigo" inputmode="numeric" maxlength="6" placeholder="123456" autocomplete="one-time-code">
+      <button class="btn" style="width:100%" onclick="verificar()">Ingresar</button>
+      <button class="btn sec" style="width:100%" onclick="volver()">Usar otro número</button>
+    </div>
+    <p class="resultado error" id="error"></p>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const $ = id => document.getElementById(id);
+async function pedirCodigo() {
+  $("error").textContent = "";
+  const r = await api("/panel/login/otp", { method: "POST", body: JSON.stringify({ celular: $("celular").value }) });
+  if (!r.ok) { $("error").textContent = errorDe(r); return; }
+  $("msgEnviado").textContent = r.datos.mensaje;
+  $("paso1").classList.add("oculto"); $("paso2").classList.remove("oculto"); $("codigo").focus();
+}
+async function verificar() {
+  $("error").textContent = "";
+  const r = await api("/panel/login/verificar", { method: "POST",
+    body: JSON.stringify({ celular: $("celular").value, codigo: $("codigo").value }) });
+  if (!r.ok) { $("error").textContent = errorDe(r); return; }
+  location.href = r.datos.redirigir;
+}
+function volver() { $("paso2").classList.add("oculto"); $("paso1").classList.remove("oculto"); }
+</script>
+{% endblock %}

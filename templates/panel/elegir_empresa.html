@@ -1,0 +1,23 @@
+{% extends "panel/base.html" %}
+{% block titulo %}Elegir empresa{% endblock %}
+{% block contenido %}
+<h1>¿Con qué empresa quieres trabajar?</h1>
+<p class="sub">Tienes acceso a varias empresas. Puedes cambiar cuando quieras desde el menú.</p>
+{% for e in empresas %}
+<div class="tarjeta fila" style="align-items:center">
+  <div><b>{{ e.nombre }}</b><div class="mute">{{ e.rol_etiqueta }}</div></div>
+  <div style="flex:0 0 auto">
+    {% if e.empresa_id == yo.empresa.id %}<span class="chip verde">Actual</span>
+    {% else %}<button class="btn" style="margin:0" onclick="elegir({{ e.empresa_id }})">Entrar</button>{% endif %}
+  </div>
+</div>
+{% endfor %}
+{% endblock %}
+{% block scripts %}
+<script>
+async function elegir(id) {
+  const r = await api("/panel/empresa", { method: "POST", body: JSON.stringify({ empresa_id: id }) });
+  if (r.ok) location.href = r.datos.redirigir; else alert(errorDe(r));
+}
+</script>
+{% endblock %}

@@ -1,0 +1,85 @@
+{% extends "panel/base.html" %}
+{% block titulo %}Inicio{% endblock %}
+{% block contenido %}
+<h1>Hola, {{ yo.usuario.nombre }}</h1>
+<p class="sub">{{ yo.empresa.razon_social }} · {{ yo.empresa.id_fiscal_tipo or 'ID' }} {{ yo.empresa.id_fiscal }}</p>
+
+<div class="tarjeta">
+  <h2>¿Llegó este pago?</h2>
+  <div class="fila">
+    <div><label for="monto">Monto (S/)</label><input id="monto" inputmode="decimal" placeholder="30.00"></div>
+    <div><label for="hora">Hora aproximada</label><input id="hora" type="datetime-local"></div>
+  </div>
+  <button class="btn" onclick="buscar()">Buscar</button>
+  <div class="resultado" id="resBuscar"></div>
+</div>
+
+{% if 'ver_pagos' in yo.permisos %}
+<div class="tarjeta">
+  <h2>Pagos de hoy</h2>
+  <p class="mute" id="resumenHoy">Cargando…</p>
+  <table><thead><tr><th>Hora</th><th>Pagador</th><th>Medio</th><th>Monto</th>
+    {% if 'marcar_usado' in yo.permisos %}<th></th>{% endif %}</tr></thead>
+    <tbody id="tablaHoy"></tbody></table>
+</div>
+{% endif %}
+
+{% if 'ver_pagos' in yo.permisos or 'reportes' in yo.permisos %}
+<div class="tarjeta">
+  <h2>Movimientos y reportes</h2>
+  {% if 'ver_pagos' in yo.permisos %}<a class="btn sec" href="/{{ yo.empresa.slug }}/ingresos">Ver ingresos</a>{% endif %}
+  {% if 'reportes' in yo.permisos %}
+    <a class="btn sec" href="/{{ yo.empresa.slug }}/egresos">Ver egresos</a>
+    <a class="btn sec" href="/api/v1/panel/reportes/movimientos.csv">Descargar CSV del mes</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PUEDE_VER = {{ 'true' if 'ver_pagos' in yo.permisos else 'false' }};
+const PUEDE_MARCAR = {{ 'true' if ('marcar_usado' in yo.permisos and not yo.solo_lectura) else 'false' }};
+const $ = id => document.getElementById(id);
+(function () {  // hora actual en el buscador
+  const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  $("hora").value = d.toISOString().slice(0, 16);
+})();
+function hhmm(iso) { return iso ? iso.slice(11, 16) : "—"; }
+
+async function buscar() {
+  const r = await api("/api/v1/panel/pagos/buscar", { method: "POST",
+    body: JSON.stringify({ monto: $("monto").value, fecha_hora: $("hora").value, ventana_minutos: 30 }) });
+  const caja = $("resBuscar");
+  if (!r.ok) { caja.innerHTML = '<span class="error">' + esc(errorDe(r)) + '</span>'; return; }
+  const d = r.datos;
+  const clase = d.nivel === "alta" ? "ok" : (d.nivel === "media" ? "" : "error");
+  let html = '<p class="' + clase + '"><b>' + esc(d.mensaje) + '</b></p>';
+  if (d.pago) html += '<p>' + esc(d.pago.contraparte || "—") + ' · ' + esc(d.pago.institucion) +
+                      ' · <span class="monto">S/ ' + esc(d.pago.monto) + '</span> · ' + hhmm(d.pago.fecha_hora) + '</p>';
+  if (d.candidatos && d.candidatos.length) html += '<p class="mute">' + d.candidatos.length + ' pagos posibles.</p>';
+  caja.innerHTML = html;
+}
+
+async function cargarHoy() {
+  if (!PUEDE_VER) return;
+  const r = await api("/api/v1/panel/pagos/hoy");
+  if (!r.ok) { $("resumenHoy").textContent = errorDe(r); return; }
+  $("resumenHoy").textContent = r.datos.cantidad + " pago(s) · Total S/ " + r.datos.total;
+  $("tablaHoy").innerHTML = r.datos.pagos.map(p =>
+    "<tr><td>" + hhmm(p.fecha_hora) + "</td><td>" + esc(p.contraparte || "—") + "</td><td>" + esc(p.institucion) +
+    "</td><td class='monto'>S/ " + esc(p.monto) + "</td>" +
+    (PUEDE_MARCAR ? "<td><button class='btn sec' style='margin:0;padding:5px 10px;font-size:13px' onclick='marcar(" + p.pago_id + ")'>Marcar usado</button></td>" : "") +
+    "</tr>").join("") || "<tr><td colspan='5' class='mute'>Todavía no hay pagos hoy.</td></tr>";
+}
+
+async function marcar(id) {
+  const ref = prompt("¿Para qué usas este pago? (ej. número de pedido o boleta)");
+  if (!ref) return;
+  const r = await api("/api/v1/panel/pagos/" + id + "/marcar-usado", { method: "POST",
+    body: JSON.stringify({ referencia_externa: ref }) });
+  alert(r.ok ? "Pago marcado como usado." : errorDe(r));
+}
+cargarHoy();
+</script>
+{% endblock %}

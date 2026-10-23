@@ -1,0 +1,51 @@
+{% extends "panel/base.html" %}
+{% block titulo %}Unirme{% endblock %}
+{% block publico %}
+<div class="centro">
+  <div class="logo" style="font-size:30px;text-align:center">pago<span class="ok">OK</span></div>
+  {% if not valida %}
+  <div class="tarjeta" style="margin-top:20px">
+    <h2>Este enlace ya no es válido</h2>
+    <p class="mute">Venció o ya fue usado. Pide a quien te invitó que te envíe uno nuevo.</p>
+  </div>
+  {% else %}
+  <p class="sub" style="text-align:center">Te invitaron a <b>{{ empresa_nombre }}</b> como <b>{{ rol_etiqueta }}</b>.</p>
+  <div class="tarjeta">
+    <div id="paso1">
+      <label for="nombre">Tu nombre</label>
+      <input id="nombre" autocomplete="name" placeholder="Nombre y apellido">
+      <label for="celular">Tu celular (WhatsApp)</label>
+      <input id="celular" type="tel" inputmode="tel" placeholder="+51 987 654 321" autocomplete="tel">
+      <button class="btn" style="width:100%" onclick="pedirCodigo()">Enviarme el código</button>
+    </div>
+    <div id="paso2" class="oculto">
+      <p class="mute">Te enviamos un código por WhatsApp.</p>
+      <label for="codigo">Código de 6 dígitos</label>
+      <input id="codigo" inputmode="numeric" maxlength="6" placeholder="123456" autocomplete="one-time-code">
+      <button class="btn" style="width:100%" onclick="verificar()">Unirme</button>
+    </div>
+    <p class="resultado error" id="error"></p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const TOKEN = {{ token | tojson }};
+const $ = id => document.getElementById(id);
+function datos() { return { nombre: $("nombre").value, celular: $("celular").value }; }
+async function pedirCodigo() {
+  $("error").textContent = "";
+  const r = await api("/unirse/" + encodeURIComponent(TOKEN) + "/otp", { method: "POST", body: JSON.stringify(datos()) });
+  if (!r.ok) { $("error").textContent = errorDe(r); return; }
+  $("paso1").classList.add("oculto"); $("paso2").classList.remove("oculto"); $("codigo").focus();
+}
+async function verificar() {
+  $("error").textContent = "";
+  const r = await api("/unirse/" + encodeURIComponent(TOKEN) + "/verificar", { method: "POST",
+    body: JSON.stringify(Object.assign(datos(), { codigo: $("codigo").value })) });
+  if (!r.ok) { $("error").textContent = errorDe(r); return; }
+  location.href = r.datos.redirigir;
+}
+</script>
+{% endblock %}

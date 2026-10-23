@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}Panel{% endblock %} · PagoOK</title>
+  <link rel="stylesheet" href="/static/panel/panel.css">
+</head>
+<body>
+{% if yo %}
+<header class="cabecera">
+  <div>
+    <div class="logo">pago<span class="ok">OK</span></div>
+    <div class="empresa">{{ yo.empresa.nombre }} · {{ yo.rol_etiqueta }}</div>
+  </div>
+  <nav class="nav">
+    <a href="/panel" class="{% if request.url.path == '/panel' %}activo{% endif %}">Inicio</a>
+    {% if 'administrar' in yo.permisos %}
+    <a href="/panel/dispositivos" class="{% if 'dispositivos' in request.url.path %}activo{% endif %}">Dispositivos</a>
+    <a href="/panel/equipo" class="{% if 'equipo' in request.url.path %}activo{% endif %}">Equipo</a>
+    {% endif %}
+    {% if yo.varias_empresas %}<a href="/panel/elegir-empresa">Cambiar empresa</a>{% endif %}
+    <button type="button" onclick="salir()">Salir</button>
+  </nav>
+</header>
+<div class="cont">
+  {% if yo.cuenta.estado == 'prueba' %}
+  <div class="aviso prueba">
+    Estás en periodo de prueba: te quedan <b>{{ yo.cuenta.dias_restantes }}</b> día(s).
+    {% if yo.cuenta.puede_ampliar and 'administrar' in yo.permisos %}
+      <button class="btn sec" style="margin:0 0 0 8px;padding:6px 12px" onclick="ampliarPrueba()">Ampliar 15 días</button>
+    {% endif %}
+  </div>
+  {% elif yo.cuenta.estado in ('vencida', 'suspendida') %}
+  <div class="aviso vencida">
+    {% if yo.cuenta.estado == 'vencida' %}Tu periodo de prueba terminó.{% else %}La cuenta está suspendida.{% endif %}
+    El panel está en <b>solo lectura</b>. Tus pagos se siguen guardando; escríbenos para activar tu cuenta.
+  </div>
+  {% endif %}
+  {% block contenido %}{% endblock %}
+</div>
+{% else %}
+<div class="cont">{% block publico %}{% endblock %}</div>
+{% endif %}
+<script>
+async function api(url, opciones) {
+  const o = Object.assign({ headers: { "Content-Type": "application/json" }, credentials: "same-origin" }, opciones || {});
+  const r = await fetch(url, o);
+  let datos = {};
+  try { datos = await r.json(); } catch (e) {}
+  if (r.status === 401) { location.href = "/panel/login"; }
+  return { ok: r.ok, status: r.status, datos };
+}
+function esc(s) { return s == null ? "" : String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function errorDe(r) {
+  const d = r.datos && r.datos.detail;
+  if (r.status === 402) return "Tu cuenta está en solo lectura (prueba vencida).";
+  if (r.status === 403) return "No tienes permiso para esta acción.";
+  if (r.status === 503) return "El envío de códigos por WhatsApp no está disponible. Avísanos.";
+  return typeof d === "string" ? d : "Ocurrió un error. Inténtalo de nuevo.";
+}
+async function salir() { await api("/panel/logout", { method: "POST" }); location.href = "/panel/login"; }
+async function ampliarPrueba() {
+  const r = await api("/api/v1/cuenta/ampliar-prueba", { method: "POST" });
+  alert(r.ok ? "Listo: tu prueba se amplió 15 días." : errorDe(r));
+  location.reload();
+}
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

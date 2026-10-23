@@ -1,0 +1,61 @@
+{% extends "panel/base.html" %}
+{% block titulo %}Equipo{% endblock %}
+{% block contenido %}
+<h1>Equipo</h1>
+<p class="sub">Las personas que pueden entrar al panel de {{ yo.empresa.nombre }} y lo que puede hacer cada una.</p>
+
+<div class="tarjeta">
+  <h2>Invitar a alguien</h2>
+  <label for="rol">Rol</label>
+  <select id="rol">
+    {% for valor, etiqueta in roles %}<option value="{{ valor }}" {% if valor == 'cajero' %}selected{% endif %}>{{ etiqueta }}</option>{% endfor %}
+  </select>
+  <p class="mute" style="margin-top:8px">Cajero: ve y marca pagos. Almacén: solo confirma si un pago existe.
+     Contador: pagos y reportes. Dueño: todo.</p>
+  <button class="btn" onclick="invitar()" {% if yo.solo_lectura %}disabled{% endif %}>Crear enlace de invitación</button>
+  <div id="cajaInv" class="oculto">
+    <p class="mute" style="margin-top:12px">Envía este enlace a la persona. Vale 24 horas y sirve una sola vez.</p>
+    <div class="enlace" id="enlace"></div>
+    <div class="qr" id="qr"></div>
+  </div>
+  <p class="resultado error" id="error"></p>
+</div>
+
+<div class="tarjeta">
+  <h2>Miembros</h2>
+  <table><thead><tr><th>Nombre</th><th>Celular</th><th>Rol</th><th></th></tr></thead>
+    <tbody id="tabla"><tr><td colspan="4" class="mute">Cargando…</td></tr></tbody></table>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+async function invitar() {
+  $("error").textContent = "";
+  const r = await api("/api/v1/panel/invitaciones", { method: "POST", body: JSON.stringify({ rol: $("rol").value }) });
+  if (!r.ok) { $("error").textContent = errorDe(r); return; }
+  $("enlace").textContent = r.datos.url;
+  $("qr").innerHTML = "";
+  if (window.QRCode) new QRCode($("qr"), { text: r.datos.url, width: 200, height: 200,
+                                           colorDark: "#1a0303", colorLight: "#fef3d7" });
+  $("cajaInv").classList.remove("oculto");
+}
+async function quitar(id, nombre) {
+  if (!confirm("¿Quitar el acceso a " + nombre + "? Su sesión se cerrará en el acto.")) return;
+  const r = await api("/api/v1/panel/equipo/" + id, { method: "DELETE" });
+  if (!r.ok) { alert(errorDe(r)); return; }
+  cargar();
+}
+async function cargar() {
+  const r = await api("/api/v1/panel/equipo");
+  if (!r.ok) { $("tabla").innerHTML = "<tr><td colspan='4'>" + esc(errorDe(r)) + "</td></tr>"; return; }
+  $("tabla").innerHTML = r.datos.miembros.map(m =>
+    "<tr><td>" + esc(m.nombre) + (m.es_yo ? " <span class='chip'>tú</span>" : "") + "</td><td>" + esc(m.celular) +
+    "</td><td>" + esc(m.rol_etiqueta) + "</td><td>" +
+    (m.es_yo ? "" : "<button class='btn peligro' onclick='quitar(" + m.usuario_id + ", " + JSON.stringify(esc(m.nombre)) + ")'>Quitar acceso</button>") +
+    "</td></tr>").join("");
+}
+cargar();
+</script>
+{% endblock %}

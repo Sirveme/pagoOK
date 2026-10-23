@@ -1,0 +1,53 @@
+{% extends "panel/base.html" %}
+{% block titulo %}Dispositivos{% endblock %}
+{% block contenido %}
+<h1>Dispositivos</h1>
+<p class="sub">Los celulares que capturan los pagos de {{ yo.empresa.nombre }}.</p>
+
+<div class="tarjeta">
+  <h2>Vincular un celular</h2>
+  <p class="mute">Abre la app PagoOK en el celular, toca «Vincular» y escanea el código QR o escribe el código.
+     Vence en 10 minutos y sirve una sola vez.</p>
+  <button class="btn" id="btnCodigo" onclick="generarCodigo()" {% if yo.solo_lectura %}disabled{% endif %}>Vincular un celular</button>
+  <div id="cajaCodigo" class="oculto">
+    <div class="codigo" id="codigo"></div>
+    <div class="qr" id="qr"></div>
+    <p class="mute" style="text-align:center" id="vence"></p>
+  </div>
+  <p class="resultado error" id="error"></p>
+</div>
+
+<div class="tarjeta">
+  <h2>Celulares vinculados</h2>
+  <table><thead><tr><th>Equipo</th><th>Estado</th><th>Último reporte</th><th>App</th></tr></thead>
+    <tbody id="tabla"><tr><td colspan="4" class="mute">Cargando…</td></tr></tbody></table>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+async function generarCodigo() {
+  $("error").textContent = "";
+  const r = await api("/api/v1/panel/dispositivos/codigo", { method: "POST" });
+  if (!r.ok) { $("error").textContent = errorDe(r); return; }
+  $("codigo").textContent = r.datos.codigo;
+  $("vence").textContent = "Vence a las " + r.datos.expira_en.slice(11, 16);
+  $("qr").innerHTML = "";
+  if (window.QRCode) new QRCode($("qr"), { text: r.datos.url_qr, width: 200, height: 200,
+                                           colorDark: "#1a0303", colorLight: "#fef3d7" });
+  $("cajaCodigo").classList.remove("oculto");
+}
+async function cargar() {
+  const r = await api("/api/v1/panel/dispositivos");
+  if (!r.ok) { $("tabla").innerHTML = "<tr><td colspan='4'>" + esc(errorDe(r)) + "</td></tr>"; return; }
+  $("tabla").innerHTML = r.datos.dispositivos.map(d =>
+    "<tr><td>" + esc(d.nombre) + (d.activo ? "" : " <span class='chip'>desactivado</span>") + "</td>" +
+    "<td><span class='chip " + esc(d.estado || "") + "'>" + esc(d.estado || "sin datos") + "</span></td>" +
+    "<td>" + esc(d.ultimo_heartbeat ? d.ultimo_heartbeat.replace("T", " ").slice(0, 16) : "—") + "</td>" +
+    "<td>" + esc(d.app_version || "—") + "</td></tr>").join("") ||
+    "<tr><td colspan='4' class='mute'>Aún no hay celulares vinculados.</td></tr>";
+}
+cargar();
+</script>
+{% endblock %}
