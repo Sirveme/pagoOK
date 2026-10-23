@@ -1020,11 +1020,11 @@
 <!-- ═══════════ EMPRESAS QUE YA USAN ═══════════ -->
 <section class="empresas-section container">
     <div class="seccion-titulo">EMPRESAS QUE YA LO USAN</div>
-    <h2 class="seccion-subtitulo">Toca cualquiera para ver sus pagos en vivo</h2>
+    <h2 class="seccion-subtitulo">Toca la demo para ver sus pagos en vivo</h2>
 
     <div class="grilla">
         {% for emp in empresas %}
-        <a href="/{{ emp.url_slug }}" class="empresa-card">
+        {% if emp.es_demo %}<a href="/{{ emp.url_slug }}" class="empresa-card">{% else %}<div class="empresa-card">{% endif %}
             <div class="empresa-logo">
                 {% if emp.logo_url %}
                     <img src="{{ emp.logo_url }}" alt="{{ emp.nombre_comercial }}">
@@ -1046,7 +1046,7 @@
             <div class="empresa-pagos">
                 <span class="num">{{ emp.total_pagos }}</span> pagos detectados
             </div>
-        </a>
+        {% if emp.es_demo %}</a>{% else %}</div>{% endif %}
         {% else %}
         <div style="grid-column: 1/-1; text-align: center; color: var(--gris-texto); padding: 40px;">
             Aún no hay empresas registradas.
