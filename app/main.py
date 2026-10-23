@@ -20,6 +20,7 @@ from app.api.router_webhook_ejemplo import router as router_webhook_ejemplo
 from app.api.publica_v1_consulta import router as router_consulta_pagos
 from app.api.router_vinculacion import router as router_vinculacion
 from app.api.router_panel import router as router_panel
+from app.api.router_privacidad import router as router_privacidad
 from app.middleware.security import SecurityScanBlockMiddleware
 
 logging.basicConfig(level=logging.INFO)
@@ -129,6 +130,9 @@ app.include_router(router_webhook_ejemplo)
 # los capturaría el comodín /{slug}.
 app.include_router(router_vinculacion)
 app.include_router(router_panel)
+# /privacidad, /privacidad.txt, /eliminar-cuenta, /panel/eliminar, /admin/eliminaciones
+# (también ANTES del comodín /{slug}).
+app.include_router(router_privacidad)
 
 # router_push y router_internos ANTES de router_demo: sus rutas /{slug}/...
 # (receptores, ingresos, egresos, config) deben resolverse antes que el
