@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Eliminar mi cuenta y mis datos · PagoOK</title>
+  <meta name="description" content="Descarga y elimina tu cuenta de PagoOK y todos tus datos.">
+  <link rel="stylesheet" href="/static/panel/panel.css">
+  <link rel="stylesheet" href="/static/legal/legal.css">
+</head>
+<body>
+<header class="cabecera">
+  <a href="/" class="logo" style="text-decoration:none;color:var(--txt)">pago<span class="ok">OK</span></a>
+  <nav class="nav">
+    <a href="/privacidad">Privacidad</a>
+    <a href="/eliminar-cuenta" class="activo">Eliminar mis datos</a>
+  </nav>
+</header>
+<main class="cont legal">
+  <div id="eliminado" class="aviso prueba oculto"><b>Tus datos fueron eliminados.</b> La sesión se cerró.</div>
+  <h1>Eliminar mi cuenta y mis datos</h1>
+  <p class="sub">Puedes descargar una copia de tus datos y luego eliminarlos de PagoOK, aunque ya no tengas la app.</p>
+
+  <div class="tarjeta">
+    <h2>Qué se elimina</h2>
+    <ul class="texto-legal" style="padding-left:20px">
+      <li>Los datos de tu empresa en PagoOK.</li>
+      <li>Todos los pagos recibidos y los pagos que realizaste (ingresos y egresos).</li>
+      <li>El texto de las notificaciones capturadas.</li>
+      <li>Los celulares vinculados: dejan de funcionar al instante.</li>
+      <li>Tu equipo (miembros e invitaciones), las sesiones abiertas y las credenciales de conexión (API keys y webhooks).</li>
+    </ul>
+    <h2 style="margin-top:14px">Qué no se elimina</h2>
+    <ul class="texto-legal" style="padding-left:20px">
+      <li>Un registro mínimo de que la eliminación ocurrió (fecha y cantidad de registros borrados), sin nombres ni datos de pagos, para poder demostrar que cumplimos tu pedido.</li>
+      <li>Los datos que ya enviaste a sistemas que tú conectaste (por ejemplo, tu facturador). Pídeselos a cada uno.</li>
+    </ul>
+    <h2 style="margin-top:14px">En cuánto tiempo</h2>
+    <p class="texto-legal">Si entras con tu celular, la eliminación es <b>inmediata</b>. Si nos escribes con el formulario, te contactamos en un máximo de <b>15 días</b> para confirmar tu identidad y eliminar tus datos.</p>
+  </div>
+
+  <div class="tarjeta">
+    <h2>Si eres el dueño y puedes entrar</h2>
+    <p class="mute">Entras con tu celular (código por WhatsApp), descargas tus datos y los eliminas en el momento.</p>
+    <a class="btn" href="/panel/login?siguiente=/panel/eliminar">Entrar para descargar y eliminar</a>
+  </div>
+
+  <div class="tarjeta">
+    <h2>Si no puedes entrar (por ejemplo, perdiste el celular)</h2>
+    <div id="form">
+      <div class="fila">
+        <div><label for="pais">País</label>
+          <select id="pais">{% for c, n in paises %}<option value="{{ c }}">{{ n }}</option>{% endfor %}</select></div>
+        <div><label for="id_fiscal">RUC o identificador fiscal</label><input id="id_fiscal" inputmode="numeric"></div>
+      </div>
+      <label for="nombre">Tu nombre</label><input id="nombre" autocomplete="name">
+      <label for="contacto">Celular o correo para contactarte</label><input id="contacto" autocomplete="tel">
+      <label for="motivo">Motivo (opcional)</label><textarea id="motivo"></textarea>
+      <button class="btn" onclick="enviar()">Enviar solicitud</button>
+    </div>
+    <p class="resultado" id="resultado"></p>
+  </div>
+  <p class="mute">Lee la <a href="/privacidad">política de privacidad</a>{% if version %} (versión {{ version }}){% endif %}.</p>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+if (new URLSearchParams(location.search).get("ok") === "1") $("eliminado").classList.remove("oculto");
+async function enviar() {
+  const datos = { pais: $("pais").value, id_fiscal: $("id_fiscal").value, nombre: $("nombre").value,
+                  contacto: $("contacto").value, motivo: $("motivo").value };
+  const r = await fetch("/eliminar-cuenta/solicitud", { method: "POST", headers: { "Content-Type": "application/json" },
+                                                         body: JSON.stringify(datos) });
+  let d = {}; try { d = await r.json(); } catch (e) {}
+  if (r.ok) { $("form").classList.add("oculto"); $("resultado").className = "resultado ok"; $("resultado").textContent = d.mensaje; }
+  else { $("resultado").className = "resultado error"; $("resultado").textContent = d.detail || "No se pudo enviar. Inténtalo de nuevo."; }
+}
+</script>
+</body>
+</html>

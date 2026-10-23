@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ titulo }} · PagoOK</title>
+  <meta name="description" content="Qué datos trata PagoOK, para qué, y cómo descargarlos o eliminarlos.">
+  <link rel="stylesheet" href="/static/panel/panel.css">
+  <link rel="stylesheet" href="/static/legal/legal.css">
+</head>
+<body>
+<header class="cabecera">
+  <a href="/" class="logo" style="text-decoration:none;color:var(--txt)">pago<span class="ok">OK</span></a>
+  <nav class="nav">
+    <a href="/privacidad" class="activo">Privacidad</a>
+    <a href="/eliminar-cuenta">Eliminar mis datos</a>
+  </nav>
+</header>
+<main class="cont legal">
+  {% if version %}<p class="mute">Versión {{ version }} · <a href="/privacidad.txt">Ver en texto plano</a></p>{% endif %}
+  <details class="indice tarjeta" open>
+    <summary>Índice</summary>
+    {{ indice | safe }}
+  </details>
+  <article class="texto-legal">
+    {{ contenido | safe }}
+  </article>
+  <p class="mute" style="margin:28px 0">
+    ¿Quieres descargar o eliminar tus datos? <a href="/eliminar-cuenta">Hazlo aquí</a>.
+  </p>
+</main>
+</body>
+</html>
