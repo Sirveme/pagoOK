@@ -34,6 +34,14 @@
   {% endif %}
 </div>
 {% endif %}
+
+{% if 'administrar' in yo.permisos %}
+<div class="tarjeta">
+  <h2>Tus datos</h2>
+  <p class="mute">Descarga una copia de todos los datos de la empresa o elimínalos de PagoOK.</p>
+  <a class="btn sec" href="/panel/eliminar">Descargar o eliminar mis datos</a>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}

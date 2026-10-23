@@ -36,7 +36,9 @@ async function verificar() {
   const r = await api("/panel/login/verificar", { method: "POST",
     body: JSON.stringify({ celular: $("celular").value, codigo: $("codigo").value }) });
   if (!r.ok) { $("error").textContent = errorDe(r); return; }
-  location.href = r.datos.redirigir;
+  // ?siguiente=/panel/... (solo rutas del panel, nunca externas)
+  const sig = new URLSearchParams(location.search).get("siguiente") || "";
+  location.href = (/^\/panel(\/[a-z-]*)?$/.test(sig) && !r.datos.requiere_elegir) ? sig : r.datos.redirigir;
 }
 function volver() { $("paso2").classList.add("oculto"); $("paso1").classList.remove("oculto"); }
 </script>

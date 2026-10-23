@@ -1,0 +1,57 @@
+{% extends "panel/base.html" %}
+{% block titulo %}Eliminar cuenta{% endblock %}
+{% block contenido %}
+<h1>Descargar y eliminar tus datos</h1>
+<p class="sub">{{ yo.empresa.razon_social }} · {{ yo.empresa.id_fiscal_tipo or 'ID' }} {{ yo.empresa.id_fiscal }}</p>
+
+{% if not permitida %}
+<div class="aviso vencida">Esta empresa es de demostración o la principal de PagoOK y no se puede eliminar desde aquí.</div>
+{% else %}
+<div id="zona">
+  <div class="tarjeta">
+    <h2>1. Descarga tus datos</h2>
+    <p class="mute">Un archivo ZIP con la empresa, los celulares, los ingresos, los egresos, tu equipo y las credenciales API
+       (solo nombre y fecha; nunca las claves). Se abre en Excel.</p>
+    <a class="btn" href="/api/v1/panel/exportar" onclick="setTimeout(() => marcarDescarga(true), 800)">Descargar mis datos</a>
+    <label style="margin-top:14px"><input type="checkbox" id="sinDescarga" style="width:auto" onchange="actualizar()">
+      No necesito descargar mis datos</label>
+  </div>
+
+  <div class="tarjeta">
+    <h2>2. Elimina todo</h2>
+    <p class="mute">Se borran los pagos, egresos, notificaciones, celulares (dejan de funcionar), webhooks, API keys,
+       tu equipo y las sesiones. <b>No se puede deshacer.</b></p>
+    <label for="frase">Para confirmar, escribe exactamente: <b>{{ frase }}</b></label>
+    <input id="frase" autocomplete="off" oninput="actualizar()">
+    <button class="btn" id="btnEliminar" style="background:var(--rojo)" disabled onclick="eliminar()">Eliminar mis datos</button>
+    <p class="resultado error" id="error"></p>
+  </div>
+</div>
+<div id="fin" class="tarjeta oculto">
+  <h2>Tus datos fueron eliminados.</h2>
+  <p class="mute">La sesión se cerró. Gracias por haber usado PagoOK.</p>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+const FRASE = {{ frase | tojson }};
+let descargado = false;
+const $ = id => document.getElementById(id);
+function marcarDescarga(v) { descargado = v; actualizar(); }
+function actualizar() {
+  if (!$("btnEliminar")) return;
+  const habilitado = (descargado || $("sinDescarga").checked) && $("frase").value === FRASE;
+  $("btnEliminar").disabled = !habilitado;
+}
+async function eliminar() {
+  if (!confirm("Última confirmación: se borrará todo y no se puede deshacer. ¿Continuar?")) return;
+  $("error").textContent = "";
+  const r = await api("/api/v1/panel/eliminar", { method: "POST", body: JSON.stringify({
+    frase: $("frase").value, descarga: $("sinDescarga").checked ? "no_necesito" : "descargado" }) });
+  if (!r.ok) { $("error").textContent = errorDe(r); return; }
+  $("zona").classList.add("oculto"); $("fin").classList.remove("oculto");
+  document.querySelectorAll(".cabecera .nav a, .cabecera .nav button").forEach(e => e.remove());
+}
+</script>
+{% endblock %}
