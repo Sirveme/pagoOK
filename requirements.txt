@@ -22,3 +22,7 @@ cryptography>=41.0.0
 py-vapid>=1.9.1
 # Política de privacidad (/privacidad): Markdown -> HTML
 markdown==3.7
+
+# Canal de correo bancario: verificación DKIM de los correos de los bancos
+dkimpy==1.1.8
+dnspython==2.7.0

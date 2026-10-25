@@ -38,7 +38,9 @@ logger = logging.getLogger("pagook")
 router = APIRouter(tags=["privacidad"])
 templates = Jinja2Templates(directory="templates")
 
-RUTA_POLITICA = Path("docs/legal/privacidad.md")
+# Relativa al repo, no al directorio de trabajo del proceso (Railway puede arrancar en otro).
+RAIZ_REPO = Path(__file__).resolve().parents[2]
+RUTA_POLITICA = RAIZ_REPO / "docs" / "legal" / "privacidad.md"
 MAX_SOLICITUDES_IP_DIA = 5
 MENSAJE_SOLICITUD = ("Recibimos tu solicitud. Te contactaremos en un máximo de 15 días para confirmar "
                      "tu identidad y eliminar tus datos.")
@@ -53,22 +55,41 @@ PAISES_FORM = [("PE", "Perú"), ("BO", "Bolivia"), ("CO", "Colombia"), ("EC", "E
 _cache_politica: dict = {}
 
 
+class PoliticaNoDisponible(Exception):
+    pass
+
+
+def _md_a_html(fuente: str) -> tuple[str, str]:
+    """(html, índice). Sin la librería markdown, texto escapado en párrafos:
+    la página sigue disponible y el log dice qué falta."""
+    try:
+        import markdown
+    except ImportError:
+        logger.error("Privacidad: falta la dependencia 'markdown' (requirements.txt); se muestra texto plano")
+        from html import escape
+        bloques = [b for b in re.split(r"\n\s*\n", _a_texto_plano(fuente)) if b.strip()]
+        return "".join(f"<p>{escape(b).replace(chr(10), '<br>')}</p>" for b in bloques), ""
+    md = markdown.Markdown(extensions=["tables", "sane_lists", "toc"],
+                           extension_configs={"toc": {"toc_depth": "2-3", "permalink": False}})
+    return md.convert(fuente), md.toc
+
+
 def _leer_politica() -> dict:
     """Lee y renderiza la política una vez (se recarga si el archivo cambia).
     El texto NO se modifica: es el de docs/legal/privacidad.md tal cual."""
-    import markdown
-
-    mtime = RUTA_POLITICA.stat().st_mtime
+    try:
+        mtime = RUTA_POLITICA.stat().st_mtime
+    except OSError:
+        logger.error(f"Privacidad: no existe {RUTA_POLITICA} (¿se subió docs/legal/privacidad.md?)")
+        raise PoliticaNoDisponible()
     if _cache_politica.get("mtime") == mtime:
         return _cache_politica
     fuente = RUTA_POLITICA.read_text(encoding="utf-8")
     m = re.search(r"Versi[oó]n\s+(\d{4}-\d{2}-v\d+)", fuente)
-    md = markdown.Markdown(extensions=["tables", "sane_lists", "toc"],
-                           extension_configs={"toc": {"toc_depth": "2-3", "permalink": False}})
-    html = md.convert(fuente)
+    html, toc = _md_a_html(fuente)
     titulo = re.search(r"^#\s+(.+)$", fuente, re.MULTILINE)
     _cache_politica.update({
-        "mtime": mtime, "fuente": fuente, "html": html, "toc": md.toc,
+        "mtime": mtime, "fuente": fuente, "html": html, "toc": toc,
         "version": m.group(1) if m else None,
         "titulo": titulo.group(1).strip() if titulo else "Política de Privacidad",
     })
@@ -76,7 +97,17 @@ def _leer_politica() -> dict:
 
 
 def version_politica() -> str | None:
-    return _leer_politica()["version"]
+    try:
+        return _leer_politica()["version"]
+    except PoliticaNoDisponible:
+        return None
+
+
+def _politica_o_503() -> dict:
+    try:
+        return _leer_politica()
+    except PoliticaNoDisponible:
+        raise HTTPException(503, "La política de privacidad no está disponible en este momento.")
 
 
 def _a_texto_plano(fuente: str) -> str:
@@ -99,7 +130,7 @@ def _a_texto_plano(fuente: str) -> str:
 
 @router.get("/privacidad", response_class=HTMLResponse)
 def pagina_privacidad(request: Request):
-    p = _leer_politica()
+    p = _politica_o_503()
     return templates.TemplateResponse("legal/privacidad.html", {
         "request": request, "contenido": p["html"], "indice": p["toc"], "version": p["version"],
         "titulo": p["titulo"],
@@ -108,7 +139,7 @@ def pagina_privacidad(request: Request):
 
 @router.get("/privacidad.txt", response_class=PlainTextResponse)
 def privacidad_txt():
-    return PlainTextResponse(_a_texto_plano(_leer_politica()["fuente"]))
+    return PlainTextResponse(_a_texto_plano(_politica_o_503()["fuente"]))
 
 
 @router.get("/api/v1/privacidad/version")

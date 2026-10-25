@@ -84,7 +84,11 @@ class PagoDetectado(Base):
     # envio_billetera | transferencia_enviada | consumo_tarjeta | retiro_cajero |
     # pago_servicio | cargo_recurrente | otro_egreso. NULL en ingresos.
     tipo_egreso = Column(String(25))
-    tarjeta_ultimos4 = Column(String(4))  # nunca el número completo
+    tarjeta_ultimos4 = Column(String(4))  # nunca el número completo (tarjeta o cuenta)
+    # --- Canal de correo (zWeb-06) ---
+    # notificacion (celular) | correo (alerta del banco reenviada por el cliente)
+    origen = Column(String(12), nullable=False, default="notificacion", server_default="notificacion")
+    destino = Column(String(40))  # a dónde se envió (Yape, Interbank, Plin...), si el aviso lo dice
 
 
 # Co-registro del destino del FK `reclamado_por -> cuenta_api.id`.

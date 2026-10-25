@@ -18,6 +18,7 @@
     {% if 'administrar' in yo.permisos %}
     <a href="/panel/dispositivos" class="{% if 'dispositivos' in request.url.path %}activo{% endif %}">Dispositivos</a>
     <a href="/panel/equipo" class="{% if 'equipo' in request.url.path %}activo{% endif %}">Equipo</a>
+    <a href="/panel/correo" class="{% if '/panel/correo' in request.url.path %}activo{% endif %}">Correo del banco</a>
     {% endif %}
     {% if yo.varias_empresas %}<a href="/panel/elegir-empresa">Cambiar empresa</a>{% endif %}
     <button type="button" onclick="salir()">Salir</button>

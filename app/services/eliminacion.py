@@ -60,8 +60,11 @@ def _slugs_demo() -> set[str]:
 
 
 def eliminacion_permitida(empresa: Empresa) -> bool:
+    """Nunca perusistemas, ni las de SLUGS_DEMO, ni la demo del revisor de Play."""
+    import os
     slug = (empresa.slug or "").lower()
-    return not (cuenta_empresa.es_principal(empresa) or slug in _slugs_demo())
+    revision = os.getenv("EMPRESA_REVISION_PLAY", "demo-revision").strip().lower()
+    return not (cuenta_empresa.es_principal(empresa) or slug in _slugs_demo() or slug == revision)
 
 
 def hash_id_fiscal(pais: str, id_fiscal: str) -> str:
@@ -207,7 +210,14 @@ def eliminar_empresa(db: Session, empresa: Empresa, canal: str,
         persona_ids.add(empresa.duenio_id)
     id_fiscal_hash = hash_id_fiscal(empresa.pais_codigo, empresa.id_fiscal)
 
-    # 1) Pagos y su uso, cola de webhooks
+    # 1) Correos del banco (antes que los pagos: correo_raw.pago_id los referencia)
+    from app.api.models_correo import CorreoEmpresa, CorreoRaw, SolicitudBanco
+    c["correo_raw"] = _borrar(db.query(CorreoRaw).filter(CorreoRaw.empresa_id == eid))
+    c["correo_empresa"] = _borrar(db.query(CorreoEmpresa).filter(CorreoEmpresa.empresa_id == eid))
+    # Los pedidos de bancos se conservan (son estadística), sin el vínculo a la empresa.
+    db.query(SolicitudBanco).filter(SolicitudBanco.empresa_id == eid).update(
+        {SolicitudBanco.empresa_id: None, SolicitudBanco.dispositivo_id: None}, synchronize_session=False)
+    # 2) Pagos y su uso, cola de webhooks
     c["pago_uso"] = _borrar(db.query(PagoUso).filter(PagoUso.empresa_id == eid))
     c["entrega_evento"] = _borrar(db.query(EntregaEvento).filter(EntregaEvento.suscripcion_id.in_(susc_ids))) if susc_ids else 0
     c["suscripcion_webhook"] = _borrar(db.query(SuscripcionWebhook).filter(SuscripcionWebhook.empresa_id == eid))

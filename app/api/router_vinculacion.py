@@ -11,6 +11,7 @@ igual en router_device.py y asigna la empresa como hoy (perusistemas).
 from __future__ import annotations
 
 import logging
+import os
 import secrets
 import threading
 import time
@@ -65,6 +66,27 @@ def _ahora() -> datetime:
     return datetime.now(timezone.utc)
 
 
+SLUG_REVISION_POR_DEFECTO = "demo-revision"
+
+
+def empresa_de_revision_play(db: Session, codigo_normalizado: str) -> Empresa | None:
+    """Empresa demo si el código es el de revisión de Google Play; si no, None.
+    CODIGO_REVISION_PLAY vacío = desactivado. Nunca devuelve perusistemas."""
+    import hmac
+
+    secreto = normalizar_codigo_vinculacion(os.getenv("CODIGO_REVISION_PLAY", ""))
+    if len(secreto) < 6 or not codigo_normalizado:
+        return None
+    if not hmac.compare_digest(codigo_normalizado.encode(), secreto.encode()):
+        return None
+    slug = os.getenv("EMPRESA_REVISION_PLAY", SLUG_REVISION_POR_DEFECTO).strip().lower()
+    empresa = db.query(Empresa).filter(Empresa.slug == slug).first()
+    if empresa is None or cuenta_empresa.es_principal(empresa):
+        logger.error(f"Código de revisión de Play activo pero la empresa demo {slug!r} no existe o no es válida")
+        return None
+    return empresa
+
+
 def datos_empresa_publicos(empresa: Empresa) -> dict:
     return {
         "razon_social": empresa.razon_social,
@@ -94,7 +116,12 @@ async def vincular_dispositivo(request: Request, db: Session = Depends(get_db)):
     codigo = normalizar_codigo_vinculacion(data.get("codigo"))
     ahora = _ahora()
     cv = None
-    if len(codigo) == 6:
+    # Revisor de Google Play: código fijo (CODIGO_REVISION_PLAY), no vence, se
+    # usa varias veces y SIEMPRE cae en la empresa demo de revisión.
+    empresa_revision = empresa_de_revision_play(db, codigo)
+    if empresa_revision is not None:
+        empresa = empresa_revision
+    elif len(codigo) == 6:
         cv = (
             db.query(CodigoVinculacion)
             .filter(CodigoVinculacion.codigo_hash == hash_codigo(codigo, "vinculacion"))
@@ -102,23 +129,23 @@ async def vincular_dispositivo(request: Request, db: Session = Depends(get_db)):
         )
     if cv is not None:
         expira = cv.expira_en if cv.expira_en.tzinfo else cv.expira_en.replace(tzinfo=timezone.utc)
-    if cv is None or cv.usado_en is not None or expira < ahora:
+    if empresa_revision is None and (cv is None or cv.usado_en is not None or expira < ahora):
         # 400 genérico: no se revela si era inválido, vencido o ya usado.
         _registrar_fallo(ip)
         raise HTTPException(400, MENSAJE_CODIGO_INVALIDO)
 
-    # Consumo atómico del código: dos celulares con el mismo código -> solo uno gana.
-    res = db.execute(
-        update(CodigoVinculacion)
-        .where(CodigoVinculacion.id == cv.id, CodigoVinculacion.usado_en.is_(None))
-        .values(usado_en=ahora)
-    )
-    if res.rowcount != 1:
-        db.rollback()
-        _registrar_fallo(ip)
-        raise HTTPException(400, MENSAJE_CODIGO_INVALIDO)
-
-    empresa = db.get(Empresa, cv.empresa_id)
+    if cv is not None:
+        # Consumo atómico del código: dos celulares con el mismo código -> solo uno gana.
+        res = db.execute(
+            update(CodigoVinculacion)
+            .where(CodigoVinculacion.id == cv.id, CodigoVinculacion.usado_en.is_(None))
+            .values(usado_en=ahora)
+        )
+        if res.rowcount != 1:
+            db.rollback()
+            _registrar_fallo(ip)
+            raise HTTPException(400, MENSAJE_CODIGO_INVALIDO)
+        empresa = db.get(Empresa, cv.empresa_id)
     instalacion_id = (str(data.get("instalacion_id") or "")).strip()[:64] or None
 
     # Misma instalación ya vinculada a esta empresa: se reutiliza el dispositivo.
@@ -147,7 +174,8 @@ async def vincular_dispositivo(request: Request, db: Session = Depends(get_db)):
         db.add(disp)
     guardar_campos_opcionales(disp, data)
     db.flush()
-    cv.dispositivo_id = disp.id
+    if cv is not None:
+        cv.dispositivo_id = disp.id
     db.commit()
     logger.info(f"Dispositivo vinculado id={disp.id} empresa={empresa.id} por código")
     return {
@@ -184,8 +212,12 @@ def bancos_config(pais: str = "PE", db: Session = Depends(get_db)):
             .filter(BancoConfig.pais == clave, BancoConfig.activo == True)  # noqa: E712
             .all()
         )
-        filas.sort(key=lambda b: (0 if b.tipo == "billetera" else 1, b.orden or 0, b.nombre))
-        bancos = [{"clave": b.clave, "nombre": b.nombre, "tipo": b.tipo} for b in filas]
+        orden_tipo = {"billetera": 0, "banco": 1, "caja": 2}
+        filas.sort(key=lambda b: (orden_tipo.get(b.tipo, 3), b.orden or 0, b.nombre))
+        # paquetes_android y guia_alertas: campos nuevos (zWeb-06); la app 1.5.x los ignora.
+        bancos = [{"clave": b.clave, "nombre": b.nombre, "tipo": b.tipo,
+                   "paquetes_android": b.paquetes_android or [], "guia_alertas": b.guia_alertas}
+                  for b in filas]
         with _lock_cache:
             _cache_bancos[clave] = (time.time() + TTL_CACHE_BANCOS, bancos)
     # País sin bancos -> lista vacía con 200 (nunca 404).

@@ -553,8 +553,8 @@ def _html_lista_movimientos(slug: str, nombre_empresa: str, tipo: str) -> str:
   <div class="sub" id="totales"></div>
 
   <table>
-    <thead><tr><th>Fecha</th><th>Hora</th><th>Método</th><th>__COL_NOMBRE__</th><th>Monto</th><th>Estado</th></tr></thead>
-    <tbody id="tbody"><tr><td colspan="6" class="vacio">Cargando...</td></tr></tbody>
+    <thead><tr><th>Fecha</th><th>Hora</th><th>Método</th><th>__COL_NOMBRE__</th><th>Monto</th><th>Origen</th><th>Estado</th></tr></thead>
+    <tbody id="tbody"><tr><td colspan="7" class="vacio">Cargando...</td></tr></tbody>
   </table>
 
   <div class="pag">
@@ -622,10 +622,10 @@ async function cargar() {
   // El endpoint es plural (/ingresos, /egresos); TIPO viene en singular.
   const url = "/api/v1/" + SLUG + "/" + TIPO + "s?" + filtrosQS() + "&pagina="+pagina;
   const r = await fetch(url); const data = await r.json();
-  if (!data.ok) { document.getElementById("tbody").innerHTML = '<tr><td colspan=6 class=vacio>No se pudo cargar.</td></tr>'; return; }
+  if (!data.ok) { document.getElementById("tbody").innerHTML = '<tr><td colspan=7 class=vacio>No se pudo cargar.</td></tr>'; return; }
   ultimaData = data;
   const tb = document.getElementById("tbody");
-  if (data.movimientos.length === 0) { tb.innerHTML = '<tr><td colspan=6 class=vacio>No hay '+(ES_EGRESO?"egresos":"ingresos")+' en este rango.</td></tr>'; }
+  if (data.movimientos.length === 0) { tb.innerHTML = '<tr><td colspan=7 class=vacio>No hay '+(ES_EGRESO?"egresos":"ingresos")+' en este rango.</td></tr>'; }
   else {
     tb.innerHTML = data.movimientos.map(p => {
       const simbolo = p.moneda === "USD" ? "$" : "S/";
@@ -633,7 +633,7 @@ async function cargar() {
       const estado = p.necesita_revision ? '<span class="badge">🏠 ¿Tuyo?</span>' : (p.confirmacion_usuario==="confirmado_interno" ? "Cuenta propia" : "");
       const medio = ES_EGRESO && p.tipo_egreso_label ? p.tipo_egreso_label + " · " + p.metodo_label : p.metodo_label;
       const tarjeta = p.tarjeta_ultimos4 ? " (•••• " + esc(p.tarjeta_ultimos4) + ")" : "";
-      return "<tr><td>"+esc(p.fecha)+"</td><td>"+esc(p.hora)+"</td><td>"+esc(medio)+tarjeta+"</td><td>"+flecha+esc(p.titular_corto)+"</td><td class=monto>"+simbolo+" "+esc(p.monto)+"</td><td>"+estado+"</td></tr>";
+      return "<tr><td>"+esc(p.fecha)+"</td><td>"+esc(p.hora)+"</td><td>"+esc(medio)+tarjeta+"</td><td>"+flecha+esc(p.titular_corto)+"</td><td class=monto>"+simbolo+" "+esc(p.monto)+"</td><td title='"+(p.origen==="correo"?"Correo del banco":"Aviso del celular")+"'>"+(p.origen==="correo"?"✉️ correo":"📱 celular")+"</td><td>"+estado+"</td></tr>";
     }).join("");
   }
   document.getElementById("sub").textContent = "Mostrando " + data.movimientos.length + " de " + data.total + " movimientos";

@@ -107,7 +107,21 @@ async def inbound(
     pago = None
     try:
         parsed = parsear(package, titulo, texto)
+        # zWeb-06: si la misma operación ya llegó por CORREO del banco (±3 min,
+        # mismo tipo, monto y moneda), la notificación se vincula a ese registro
+        # y no se crea otro. `pago` queda en None: sin push ni webhook repetidos.
+        previo_correo = None
         if parsed:
+            from app.services.correo_entrante import vincular_notificacion_con_correo
+            previo_correo = vincular_notificacion_con_correo(
+                db, dispositivo.empresa_id, parsed, datetime.utcnow())
+        if parsed and previo_correo is not None:
+            previo_correo.notificacion_raw_id = raw.id
+            raw.estado_parseo = "parseada"
+            raw.metodo_detectado = parsed["metodo"]
+            pago_creado = previo_correo.id
+            logger.info(f"Notificación vinculada al registro {previo_correo.id} que llegó antes por correo")
+        elif parsed:
             # Detección de cuenta propia AL RECIBIR (solo sugerencia; el `tipo`
             # sigue siendo ingreso/egreso hasta que el usuario confirme).
             from app.services.deteccion_interno import es_posible_interno

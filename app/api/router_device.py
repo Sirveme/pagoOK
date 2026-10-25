@@ -13,6 +13,7 @@ Español neutro peruano en textos visibles.
 from __future__ import annotations
 
 import logging
+import re
 import os
 import secrets
 import threading
@@ -131,6 +132,25 @@ def guardar_campos_opcionales(disp: Dispositivo, data: dict) -> None:
 # AUTO-REGISTRO DE DISPOSITIVOS
 # =============================================================
 
+VERSION_MINIMA_SIN_REGISTRO_LEGACY = (1, 6, 0)
+VERSION_CODE_MINIMO_SIN_REGISTRO_LEGACY = 6000
+
+
+def es_app_1_6_o_mayor(data: dict) -> bool:
+    """True si la app es 1.6.0 o mayor. Usa `version_code` si viene (>= 6000);
+    si no, el `app_version` (versionName, ej. "1.6.0", "1.5.1", "1.4-beta-fix3")."""
+    vc = data.get("version_code")
+    if vc is not None:
+        try:
+            return int(vc) >= VERSION_CODE_MINIMO_SIN_REGISTRO_LEGACY
+        except (TypeError, ValueError):
+            pass
+    numeros = [int(n) for n in re.findall(r"\d+", str(data.get("app_version") or "").split("-")[0])[:3]]
+    if not numeros:
+        return False  # sin versión: se trata como app vieja (comportamiento de siempre)
+    return tuple(numeros + [0] * (3 - len(numeros))) >= VERSION_MINIMA_SIN_REGISTRO_LEGACY
+
+
 def _respuesta_registro(disp: Dispositivo, empresa: Empresa) -> dict:
     return {
         "token": disp.token,
@@ -190,6 +210,14 @@ async def registrar_dispositivo(request: Request, db: Session = Depends(get_db))
     # 3) Validar código de invitación (o auto-registro abierto).
     codigo = (data.get("codigo_invitacion") or "").strip().upper()
     inv = None
+    # zWeb-06: desde la app 1.6.0 (versionCode 6000) el celular se vincula con
+    # el código del panel (/api/v1/dispositivos/vincular). El registro SIN
+    # código, que cae en perusistemas, queda solo para las apps 1.5.x: así un
+    # celular nuevo que acepta el consentimiento y se reinicia antes de
+    # vincular no termina enviando sus pagos a perusistemas.
+    if not codigo and es_app_1_6_o_mayor(data):
+        raise HTTPException(403, "Esta versión de PagoOK se vincula con el código de tu panel. "
+                                 "Abre la app y toca «Vincular».")
     if codigo:
         inv = (
             db.query(CodigoInvitacion)

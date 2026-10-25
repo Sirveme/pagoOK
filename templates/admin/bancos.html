@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bancos y billeteras · PagoOK</title>
+  <link rel="stylesheet" href="/static/panel/panel.css">
+  <style>
+    .form-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0 12px; }
+    td input, td select { padding: 6px 8px; font-size: 13px; }
+    .inactivo { opacity: .5; }
+    pre.texto { white-space: pre-wrap; font-size: 12px; color: var(--txt-suave); max-height: 160px; overflow: auto; }
+  </style>
+</head>
+<body>
+<div class="cont" style="max-width:1100px">
+  <h1>Bancos y billeteras</h1>
+  <p class="sub">El "cerebro dinámico": la app consulta este catálogo, así que agregar un banco aquí no requiere
+     publicar una actualización. No se borra nada: se desactiva.</p>
+
+  <div class="tarjeta fila">
+    <div><label>País</label><input id="f-pais" value="PE" maxlength="2"></div>
+    <div><label>Tipo</label><select id="f-tipo"><option value="">Todos</option>
+      {% for t in tipos %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select></div>
+    <div><label>Estado</label><select id="f-estado"><option value="">Todos</option>
+      <option value="activo">Activos</option><option value="inactivo">Inactivos</option></select></div>
+    <div style="flex:0 0 auto;align-self:flex-end"><button class="btn" onclick="cargar()">Ver</button></div>
+  </div>
+
+  <div class="tarjeta">
+    <h2>Catálogo</h2>
+    <table><thead><tr><th>Nombre</th><th>Tipo</th><th>Apps (nombre técnico)</th><th>Dominios de correo</th>
+      <th>Guía de alertas</th><th>Orden</th><th></th></tr></thead><tbody id="tabla"></tbody></table>
+    <p class="mute">Separa varias apps o dominios con comas. App: formato <code>xx.yy.zz</code>. Dominio: ej. <code>bcp.com.pe</code>.</p>
+  </div>
+
+  <div class="tarjeta">
+    <h2>Agregar banco o billetera</h2>
+    <div class="form-grid">
+      <div><label>Clave</label><input id="n-clave" placeholder="caja_sullana"></div>
+      <div><label>Nombre</label><input id="n-nombre" placeholder="Caja Sullana"></div>
+      <div><label>Tipo</label><select id="n-tipo">{% for t in tipos %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select></div>
+      <div><label>Apps (nombre técnico)</label><input id="n-paquetes" placeholder="pe.com.ejemplo.app"></div>
+      <div><label>Dominios de correo</label><input id="n-dominios" placeholder="ejemplo.com.pe"></div>
+      <div><label>Orden</label><input id="n-orden" value="0" inputmode="numeric"></div>
+    </div>
+    <label>Guía de alertas (cómo activarlas en ese banco)</label><input id="n-guia">
+    <button class="btn" onclick="crear()">Agregar</button>
+    <p class="resultado error" id="error"></p>
+  </div>
+
+  <div class="tarjeta">
+    <h2>Solicitudes de bancos</h2>
+    <table><thead><tr><th>País</th><th>Banco pedido</th><th>Pedidos</th><th>Último</th></tr></thead>
+      <tbody id="solicitudes"></tbody></table>
+  </div>
+
+  <div class="tarjeta">
+    <h2>Correos por revisar</h2>
+    <p class="mute">"Sin formato": llegó un correo del banco que todavía no sabemos leer (sirve para agregar el formato).
+       "Rechazado": no tenía una firma válida, o la firma es de un dominio que aún no está en la lista del banco
+       (si es el dominio real del banco, agrégalo arriba y toca Reprocesar).</p>
+    <select id="c-estado" onchange="cargarCorreos()"><option value="sin_formato">Sin formato</option>
+      <option value="rechazado">Rechazados</option><option value="descartado">Descartados</option></select>
+    <div id="correos"></div>
+  </div>
+</div>
+<script>
+const TOKEN = {{ token | tojson }};
+const $ = id => document.getElementById(id);
+function esc(s) { return s == null ? "" : String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+async function api(url, opciones) {
+  const o = Object.assign({ headers: { "Content-Type": "application/json", "X-Admin-Token": TOKEN } }, opciones || {});
+  const r = await fetch(url, o); let d = {}; try { d = await r.json(); } catch (e) {}
+  return { ok: r.ok, datos: d };
+}
+async function cargar() {
+  const qs = "?pais=" + encodeURIComponent($("f-pais").value) + "&tipo=" + $("f-tipo").value + "&estado=" + $("f-estado").value;
+  const r = await api("/api/v1/admin/bancos" + qs);
+  $("tabla").innerHTML = (r.datos.bancos || []).map(b =>
+    "<tr class='" + (b.activo ? "" : "inactivo") + "' data-id='" + b.id + "'>" +
+    "<td><b>" + esc(b.nombre) + "</b><div class='mute'>" + esc(b.clave) + "</div></td><td>" + esc(b.tipo) + "</td>" +
+    "<td><input data-k='paquetes_android' value='" + esc(b.paquetes_android.join(", ")) + "'></td>" +
+    "<td><input data-k='dominios_correo' value='" + esc(b.dominios_correo.join(", ")) + "'></td>" +
+    "<td><input data-k='guia_alertas' value='" + esc(b.guia_alertas || "") + "'></td>" +
+    "<td><input data-k='orden' value='" + b.orden + "' style='width:60px'></td>" +
+    "<td><button class='btn sec' style='margin:0' onclick='guardar(" + b.id + ")'>Guardar</button> " +
+    "<button class='btn peligro' onclick='activar(" + b.id + "," + !b.activo + ")'>" + (b.activo ? "Desactivar" : "Activar") + "</button></td></tr>"
+  ).join("") || "<tr><td colspan=7 class=mute>Sin bancos para este filtro.</td></tr>";
+}
+async function guardar(id) {
+  const fila = document.querySelector("tr[data-id='" + id + "']"), datos = {};
+  fila.querySelectorAll("input[data-k]").forEach(i => datos[i.dataset.k] = i.value);
+  const r = await api("/api/v1/admin/bancos/" + id, { method: "PUT", body: JSON.stringify(datos) });
+  alert(r.ok ? "Guardado." : (r.datos.detail || "No se pudo guardar")); cargar();
+}
+async function activar(id, activo) {
+  const r = await api("/api/v1/admin/bancos/" + id, { method: "PUT", body: JSON.stringify({ activo }) });
+  if (!r.ok) alert(r.datos.detail); cargar();
+}
+async function crear() {
+  const datos = { pais: $("f-pais").value, clave: $("n-clave").value, nombre: $("n-nombre").value, tipo: $("n-tipo").value,
+                  paquetes_android: $("n-paquetes").value, dominios_correo: $("n-dominios").value,
+                  guia_alertas: $("n-guia").value, orden: $("n-orden").value };
+  const r = await api("/api/v1/admin/bancos", { method: "POST", body: JSON.stringify(datos) });
+  $("error").textContent = r.ok ? "" : (r.datos.detail || "No se pudo agregar");
+  if (r.ok) cargar();
+}
+async function cargarSolicitudes() {
+  const r = await api("/api/v1/admin/bancos/solicitudes");
+  $("solicitudes").innerHTML = (r.datos.solicitudes || []).map(s =>
+    "<tr><td>" + esc(s.pais) + "</td><td>" + esc(s.nombre) + "</td><td><b>" + s.pedidos + "</b></td><td>" +
+    esc((s.ultimo || "").slice(0, 16).replace("T", " ")) + "</td></tr>").join("") ||
+    "<tr><td colspan=4 class=mute>Sin solicitudes.</td></tr>";
+}
+async function cargarCorreos() {
+  const r = await api("/api/v1/admin/correos?estado=" + $("c-estado").value);
+  $("correos").innerHTML = (r.datos.correos || []).map(c =>
+    "<div class='tarjeta'><b>" + esc(c.asunto || "(sin asunto)") + "</b><div class='mute'>" + esc(c.fecha) + " · " +
+    esc(c.empresa || "—") + " · de " + esc(c.remitente) + " · DKIM: " + esc(c.dkim_dominios || "ninguna") + "</div>" +
+    "<div class='mute'>" + esc(c.motivo || "") + "</div><pre class='texto'>" + esc(c.texto) + "</pre>" +
+    (c.se_puede_reprocesar ? "<button class='btn sec' onclick='reprocesar(" + c.id + ")'>Reprocesar</button>" : "") +
+    "</div>").join("") || "<p class='mute'>No hay correos en este estado.</p>";
+}
+async function reprocesar(id) {
+  const r = await api("/api/v1/admin/correos/" + id + "/reprocesar", { method: "POST" });
+  alert(r.ok ? "Resultado: " + r.datos.estado + (r.datos.motivo ? " — " + r.datos.motivo : "") : (r.datos.detail || "Error"));
+  cargarCorreos();
+}
+cargar(); cargarSolicitudes(); cargarCorreos();
+</script>
+</body>
+</html>

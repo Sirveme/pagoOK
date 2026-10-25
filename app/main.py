@@ -21,6 +21,7 @@ from app.api.publica_v1_consulta import router as router_consulta_pagos
 from app.api.router_vinculacion import router as router_vinculacion
 from app.api.router_panel import router as router_panel
 from app.api.router_privacidad import router as router_privacidad
+from app.api.router_correo import router as router_correo
 from app.middleware.security import SecurityScanBlockMiddleware
 
 logging.basicConfig(level=logging.INFO)
@@ -133,6 +134,8 @@ app.include_router(router_panel)
 # /privacidad, /privacidad.txt, /eliminar-cuenta, /panel/eliminar, /admin/eliminaciones
 # (también ANTES del comodín /{slug}).
 app.include_router(router_privacidad)
+# Canal de correo bancario + /admin/bancos (zWeb-06), también antes de /{slug}.
+app.include_router(router_correo)
 
 # router_push y router_internos ANTES de router_demo: sus rutas /{slug}/...
 # (receptores, ingresos, egresos, config) deben resolverse antes que el

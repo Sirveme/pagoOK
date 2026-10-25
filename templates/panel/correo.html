@@ -1,0 +1,87 @@
+{% extends "panel/base.html" %}
+{% block titulo %}Correo del banco{% endblock %}
+{% block contenido %}
+<h1>Correo del banco</h1>
+<p class="sub">Hay pagos que el celular no avisa (por ejemplo, los que haces desde Yape), pero tu banco sí te los
+   manda por correo. Reenvía esos correos a tu dirección de PagoOK y aparecerán en tus egresos.</p>
+
+{% if estado.codigo_gmail %}
+<div class="aviso prueba">
+  Gmail pide confirmar el reenvío. Tu código es <b style="font-size:20px;letter-spacing:2px">{{ estado.codigo_gmail }}</b>.
+  Cópialo en Gmail (Configuración → Reenvío) para terminar.
+</div>
+{% endif %}
+
+<div class="tarjeta">
+  <h2>Tu dirección</h2>
+  <div class="enlace" id="direccion">{{ estado.direccion }}</div>
+  <button class="btn" onclick="copiar()">Copiar dirección</button>
+  <button class="btn sec" onclick="regenerar()">Cambiar dirección</button>
+  <p class="mute" style="margin-top:8px">Si cambias la dirección, la anterior deja de funcionar y tendrás que
+     actualizar el reenvío en tu correo.</p>
+  <p class="resultado" id="msg"></p>
+</div>
+
+<div class="tarjeta">
+  <h2>Cómo reenviar desde Gmail</h2>
+  <ol class="mute" style="padding-left:20px;line-height:1.7">
+    <li>En Gmail (desde la computadora) entra a <b>Configuración</b> (el engranaje) → <b>Ver toda la configuración</b> →
+        pestaña <b>Reenvío y correo POP/IMAP</b>.</li>
+    <li>Toca <b>Agregar una dirección de reenvío</b>, pega tu dirección de PagoOK y acepta.</li>
+    <li>Gmail nos manda un código de confirmación: en unos segundos aparecerá <b>arriba de esta página</b>.
+        Cópialo en Gmail y toca <b>Verificar</b>. No actives el reenvío de todo tu correo.</li>
+    <li>Ahora crea un filtro: en la barra de búsqueda de Gmail toca el ícono de opciones, escribe en <b>De</b>
+        la dirección desde la que te llegan las alertas del banco
+        {% if estado.bancos_con_correo %}(por ejemplo:
+          {% for b in estado.bancos_con_correo %}<b>@{{ b.dominios[0] }}</b> para {{ b.nombre }}{% if not loop.last %}, {% endif %}{% endfor %})
+        {% else %}(míralo en un correo de alerta de tu banco){% endif %}
+        y toca <b>Crear filtro</b>.</li>
+    <li>Marca <b>Reenviarlo a</b>, elige tu dirección de PagoOK y toca <b>Crear filtro</b>. Listo.</li>
+  </ol>
+</div>
+
+<div class="tarjeta">
+  <h2>Cómo reenviar desde Outlook</h2>
+  <ol class="mute" style="padding-left:20px;line-height:1.7">
+    <li>En Outlook entra a <b>Configuración</b> → <b>Correo</b> → <b>Reglas</b> → <b>Agregar nueva regla</b>.</li>
+    <li>Condición: <b>De</b> → la dirección desde la que te llegan las alertas de tu banco.</li>
+    <li>Acción: <b>Redirigir a</b> → tu dirección de PagoOK. Usa <b>Redirigir</b>, no "Reenviar":
+        así el correo llega tal como lo mandó el banco y podemos comprobar que es auténtico.</li>
+    <li>Guarda la regla.</li>
+  </ol>
+</div>
+
+<div class="tarjeta">
+  <h2>Últimos correos recibidos</h2>
+  <table><thead><tr><th>Fecha</th><th>De</th><th>Asunto</th><th>Estado</th></tr></thead>
+    <tbody>
+    {% for c in estado.correos %}
+      <tr><td>{{ (c.fecha or '')[:16] | replace('T', ' ') }}</td><td>{{ c.remitente or '—' }}</td>
+          <td>{{ c.asunto or '—' }}</td>
+          <td><span class="chip {{ {'procesado':'verde','sin_formato':'amarillo','rechazado':'rojo'}.get(c.estado, '') }}">{{
+            {'procesado':'procesado','sin_formato':'sin formato','rechazado':'rechazado','descartado':'descartado',
+             'confirmacion_gmail':'confirmación de Gmail'}.get(c.estado, c.estado) }}</span>
+            {% if c.motivo and c.estado != 'procesado' %}<div class="mute">{{ c.motivo }}</div>{% endif %}</td></tr>
+    {% else %}
+      <tr><td colspan="4" class="mute">Todavía no llegó ningún correo.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function copiar() {
+  const t = document.getElementById("direccion").textContent.trim();
+  try { await navigator.clipboard.writeText(t); document.getElementById("msg").textContent = "Dirección copiada."; }
+  catch (e) { document.getElementById("msg").textContent = t; }
+}
+async function regenerar() {
+  if (!confirm("¿Cambiar la dirección? La anterior dejará de funcionar.")) return;
+  const r = await api("/api/v1/panel/correo/regenerar", { method: "POST" });
+  if (r.ok) { document.getElementById("direccion").textContent = r.datos.direccion;
+              document.getElementById("msg").textContent = "Nueva dirección lista. Actualiza el reenvío en tu correo."; }
+  else alert(errorDe(r));
+}
+</script>
+{% endblock %}

@@ -95,6 +95,8 @@ def _serializar_pago(pago: PagoDetectado) -> dict:
         "tipo_egreso": getattr(pago, "tipo_egreso", None),
         "tipo_egreso_label": _ETIQUETA_TIPO_EGRESO.get(getattr(pago, "tipo_egreso", None) or ""),
         "tarjeta_ultimos4": getattr(pago, "tarjeta_ultimos4", None),
+        "origen": getattr(pago, "origen", None) or "notificacion",   # notificacion | correo
+        "destino": getattr(pago, "destino", None),
         "banco": pago.banco or "",
         "codigo_operacion": pago.codigo_operacion or "",
         "fecha": _fecha_local_str(pago.recibido_en),

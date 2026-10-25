@@ -6,14 +6,16 @@ Códigos, tokens y OTP se guardan SIEMPRE hasheados (ver app/services/secretos.p
 No se guarda DNI ni ningún documento de identidad del usuario.
 """
 from sqlalchemy import (
-    Boolean, Column, DateTime, ForeignKey, Integer, String, UniqueConstraint,
+    JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.admin.db import Base
 
 ROLES = ("dueno", "cajero", "almacen", "contador")
+_JSON = JSON().with_variant(JSONB(), "postgresql")
 
 
 class Usuario(Base):
@@ -96,6 +98,11 @@ class BancoConfig(Base):
     pais = Column(String(2), nullable=False)
     clave = Column(String(30), nullable=False)
     nombre = Column(String(80), nullable=False)
-    tipo = Column(String(10), nullable=False)  # billetera | banco
+    tipo = Column(String(10), nullable=False)  # billetera | banco | caja
     activo = Column(Boolean, nullable=False, default=True)
     orden = Column(Integer, nullable=False, default=0)
+    # --- zWeb-06: "cerebro dinámico" (se editan en /admin/bancos) ---
+    paquetes_android = Column(_JSON, nullable=False, default=list)   # ej. ["com.bcp.innovacxion.yapeapp"]
+    dominios_correo = Column(_JSON, nullable=False, default=list)    # ej. ["bcp.com.pe"]
+    guia_alertas = Column(Text)
+    color = Column(String(9))

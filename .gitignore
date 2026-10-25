@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+.env.production
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+# Signing keys / secrets (no commitear)
+*.jks
+google-services.json
+
+# Secretos y datos personales (no commitear)
+API_KEY_FACTURALO.md
+logs-railway.txt
+celulares-problematicos.txt
+clientes_pagook.md
+tokens.txt
+
+# Videos pesados (no versionar binarios grandes)
+VIDEOS/*.mp4
+
+#Cualquier clave
+api-key.txt
+
+# Todo lo que no va a Railway (NO arrastrar a GitHub al subir por web)
+no-deploy/
+logcat-*.txt
+*.bak_*
+.claude/settings.local.json
