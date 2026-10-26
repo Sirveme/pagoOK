@@ -38,7 +38,12 @@ logger = logging.getLogger("pagook")
 router = APIRouter(tags=["device-heartbeat"])
 
 ESTADOS_VALIDOS = {"verde", "amarillo", "rojo"}
-UMBRAL_SIN_HEARTBEAT_MIN = 5
+# Conexión según el último heartbeat. Con la pantalla apagada (modo de reposo
+# de Android) el dispositivo 17 envía uno cada ~5 min, aunque se le pida 60 s
+# (medido en producción, 2026-10-26): 20 min = 3-4 heartbeats perdidos.
+UMBRAL_AMARILLO_MIN = 20
+UMBRAL_ROJO_MIN = 45
+DIAS_INACTIVO = 7
 
 # Rate limit del auto-registro: máx 10 requests por IP en 60 s (en memoria).
 LIMITE_REGISTRO = 10
@@ -361,65 +366,117 @@ def _minutos_desde(uh: Optional[datetime]) -> Optional[float]:
     return (_ahora_utc() - uh).total_seconds() / 60.0
 
 
-_ORDEN_ESTADO = {"rojo": 1, "amarillo": 2, "verde": 3}
+_GRAVEDAD = {"verde": 0, "amarillo": 1, "rojo": 2}
+
+
+def estado_conexion(minutos: Optional[float]) -> str:
+    """Color por antigüedad del último heartbeat (sin heartbeat -> rojo)."""
+    if minutos is None or minutos > UMBRAL_ROJO_MIN:
+        return "rojo"
+    if minutos >= UMBRAL_AMARILLO_MIN:
+        return "amarillo"
+    return "verde"
+
+
+def _estado_unico(minutos: Optional[float], reportado: Optional[str]) -> tuple[str, str]:
+    """Un solo estado por equipo: el peor entre la conexión y lo que el propio
+    equipo reportó en su último heartbeat. Devuelve (estado, motivo)."""
+    conexion = estado_conexion(minutos)
+    if minutos is None:
+        return "rojo", "Nunca envió un heartbeat"
+    if conexion != "verde":
+        return conexion, "Sin heartbeat reciente"
+    if reportado in ("amarillo", "rojo"):
+        return reportado, "El equipo reporta un problema de captura"
+    return "verde", "Conectado"
 
 
 def _obtener_dispositivos(db: Session) -> dict:
-    """Arma la lista de dispositivos con su estado + el resumen agregado."""
+    """Equipos no archivados con su estado único, el resumen y las empresas
+    sin equipos activos.
+
+    - Activo: heartbeat en los últimos DIAS_INACTIVO días (o registrado hace
+      menos de eso y todavía sin heartbeat). verde + amarillo + rojo = total.
+    - Inactivo: el resto. Viene con `inactivo=True`; la página lo oculta por
+      defecto y se puede archivar (Dispositivo.activo = False, sin borrar).
+    Orden: empresa y, dentro de cada una, último heartbeat (más reciente primero).
+    """
+    ahora = _ahora_utc()
     filas = (
         db.query(Dispositivo, Empresa, DeviceEstadoActual)
         .join(Empresa, Empresa.id == Dispositivo.empresa_id)
         .outerjoin(DeviceEstadoActual, DeviceEstadoActual.dispositivo_id == Dispositivo.id)
-        .filter(Dispositivo.activo == True)  # noqa: E712  (solo dispositivos activos)
+        .filter(Dispositivo.activo == True)  # noqa: E712  (los archivados no aparecen)
         .all()
     )
 
     dispositivos = []
-    resumen = {"total": 0, "verde": 0, "amarillo": 0, "rojo": 0, "sin_heartbeat_reciente": 0}
+    resumen = {"total": 0, "verde": 0, "amarillo": 0, "rojo": 0, "inactivos": 0}
+    activos_por_empresa: dict[int, int] = {}
+    inactivos_por_empresa: dict[int, int] = {}
 
     for disp, emp, dea in filas:
-        estado = dea.estado if dea else None
-        uh = dea.ultimo_heartbeat if dea else None
+        uh = _a_utc(dea.ultimo_heartbeat) if dea else None
         minutos = _minutos_desde(uh)
-        sin_reciente = minutos is None or minutos > UMBRAL_SIN_HEARTBEAT_MIN
+        referencia = uh or _a_utc(disp.creado_en)
+        inactivo = referencia is None or (ahora - referencia).total_seconds() > DIAS_INACTIVO * 86400
+        estado, motivo = _estado_unico(minutos, dea.estado if dea else None)
 
         dispositivos.append({
             "dispositivo_id": disp.id,
+            "empresa_id": emp.id,
             "empresa": emp.nombre_comercial or emp.razon_social,
+            "nombre": disp.nombre,
             "estado": estado,
+            "motivo": motivo,
+            "estado_reportado": dea.estado if dea else None,
+            "inactivo": inactivo,
             "manufacturer": dea.manufacturer if dea else None,
             "modelo": dea.modelo if dea else None,
             "android_version": dea.android_version if dea else None,
-            "app_version": dea.app_version if dea else None,
-            "ultimo_heartbeat": uh.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ") if uh else None,
+            "app_version": (dea.app_version if dea else None) or disp.app_version,
+            "ultimo_heartbeat": uh.strftime("%Y-%m-%dT%H:%M:%SZ") if uh else None,
             "minutos_desde_ultimo_heartbeat": int(minutos) if minutos is not None else None,
             "veces_zombie_total": (dea.veces_zombie_total if dea else 0) or 0,
             "veces_alarma_disparada": (dea.veces_alarma_disparada if dea else 0) or 0,
             "pings_fallidos_consecutivos": (dea.pings_fallidos_consecutivos if dea else 0) or 0,
-            "sin_heartbeat_reciente": sin_reciente,
+            "_orden": (-uh.timestamp()) if uh else float("inf"),
         })
 
-        resumen["total"] += 1
-        if estado in ("verde", "amarillo", "rojo"):
+        if inactivo:
+            resumen["inactivos"] += 1
+            inactivos_por_empresa[emp.id] = inactivos_por_empresa.get(emp.id, 0) + 1
+        else:
+            resumen["total"] += 1
             resumen[estado] += 1
-        if sin_reciente:
-            resumen["sin_heartbeat_reciente"] += 1
+            activos_por_empresa[emp.id] = activos_por_empresa.get(emp.id, 0) + 1
 
-    dispositivos.sort(
-        key=lambda d: (
-            _ORDEN_ESTADO.get(d["estado"], 4),
-            -(1e18 if d["ultimo_heartbeat"] is None else _clave_fecha(d["ultimo_heartbeat"])),
-        )
-    )
-    return {"dispositivos": dispositivos, "resumen": resumen}
+    dispositivos.sort(key=lambda d: ((d["empresa"] or "").casefold(), d["empresa_id"], d["_orden"]))
+    for d in dispositivos:
+        del d["_orden"]
+
+    empresas_sin_equipos = [
+        {"empresa_id": e.id, "empresa": e.nombre_comercial or e.razon_social, "slug": e.slug,
+         "equipos_inactivos": inactivos_por_empresa.get(e.id, 0)}
+        for e in db.query(Empresa).all() if not activos_por_empresa.get(e.id)
+    ]
+    empresas_sin_equipos.sort(key=lambda e: (e["empresa"] or "").casefold())
+    return {
+        "dispositivos": dispositivos, "resumen": resumen, "empresas_sin_equipos": empresas_sin_equipos,
+        "umbrales": {"amarillo_min": UMBRAL_AMARILLO_MIN, "rojo_min": UMBRAL_ROJO_MIN,
+                     "inactivo_dias": DIAS_INACTIVO},
+    }
 
 
-def _clave_fecha(iso: str) -> float:
-    """Convierte 'YYYY-MM-DDTHH:MM:SSZ' a epoch para ordenar (desc)."""
-    try:
-        return datetime.strptime(iso, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp()
-    except (ValueError, TypeError):
-        return 0.0
+def _a_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    if dt is None:
+        return None
+    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+
+
+def _token_admin_valido(token: Optional[str]) -> bool:
+    admin_token = os.getenv("ADMIN_TOKEN", "").strip()
+    return bool(admin_token) and secrets.compare_digest((token or "").encode(), admin_token.encode())
 
 
 # =============================================================
@@ -431,10 +488,32 @@ def admin_dispositivos_json(
     x_admin_token: Optional[str] = Header(default=None, alias="X-Admin-Token"),
     db: Session = Depends(get_db),
 ):
-    admin_token = os.getenv("ADMIN_TOKEN", "").strip()
-    if not admin_token or x_admin_token != admin_token:
+    if not _token_admin_valido(x_admin_token):
         raise HTTPException(401, "No autorizado")
     return _obtener_dispositivos(db)
+
+
+@router.post("/api/v1/admin/dispositivos/{dispositivo_id}/archivar")
+def admin_archivar_dispositivo(
+    dispositivo_id: int,
+    x_admin_token: Optional[str] = Header(default=None, alias="X-Admin-Token"),
+    db: Session = Depends(get_db),
+):
+    """Archiva un equipo inactivo: Dispositivo.activo = False (no se borra nada;
+    su token deja de funcionar). Se revierte desde /admin/dispositivos de la
+    empresa. Solo equipos sin heartbeat hace más de DIAS_INACTIVO días."""
+    if not _token_admin_valido(x_admin_token):
+        raise HTTPException(401, "No autorizado")
+    disp = db.get(Dispositivo, dispositivo_id)
+    if disp is None or not disp.activo:
+        raise HTTPException(404, "Equipo no encontrado o ya archivado")
+    fila = next((d for d in _obtener_dispositivos(db)["dispositivos"] if d["dispositivo_id"] == disp.id), None)
+    if fila is None or not fila["inactivo"]:
+        raise HTTPException(409, f"Solo se archivan equipos sin heartbeat hace más de {DIAS_INACTIVO} días")
+    disp.activo = False
+    db.commit()
+    logger.info(f"Dispositivo {disp.id} (empresa {disp.empresa_id}) archivado desde el panel de estado")
+    return {"ok": True, "dispositivo_id": disp.id}
 
 
 # =============================================================
@@ -447,8 +526,7 @@ def admin_dispositivos_html(
     db: Session = Depends(get_db),
 ):
     # MVP: token por query string. TODO(seguridad): migrar a cookie firmada.
-    admin_token = os.getenv("ADMIN_TOKEN", "").strip()
-    if not admin_token or token != admin_token:
+    if not _token_admin_valido(token):
         return HTMLResponse(_html_login())
     datos = _obtener_dispositivos(db)
     return HTMLResponse(_html_dashboard(datos, token))
@@ -505,63 +583,102 @@ def _html_dashboard(datos: dict, token: str) -> str:
   th { background:#f7f3ea; color:var(--suave); font-weight:600; }
   tr.rojo { background:#fee2e2; }
   tr.amarillo { background:#fef3c7; }
-  tr.sin { background:#f3f4f6; color:#6b7280; }
-  .badge-estado { font-weight:700; text-transform:capitalize; }
-  .badge-sin { background:#9ca3af; color:#fff; border-radius:999px; padding:2px 8px; font-size:11px; }
+  tr.inactivo { background:#f3f4f6; color:#6b7280; }
+  td.empresa { font-weight:600; }
+  .badge { border-radius:999px; padding:2px 9px; font-size:11px; font-weight:700; text-transform:capitalize; }
+  .b-verde { background:#16a34a; color:#fff; } .b-amarillo { background:#ca8a04; color:#fff; }
+  .b-rojo { background:#dc2626; color:#fff; } .b-inactivo { background:#9ca3af; color:#fff; }
+  .motivo { display:block; font-size:11px; color:var(--suave); margin-top:2px; }
+  .barra { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+  .barra button, td button { border:1px solid #cbd5e1; background:#fff; border-radius:8px; padding:6px 12px; font-size:13px; cursor:pointer; }
+  td button { padding:3px 9px; font-size:12px; }
+  .umbrales { font-size:12px; color:var(--suave); }
+  h2 { font-size:15px; color:var(--jade); margin:22px 0 8px; }
+  .tabla-scroll { overflow-x:auto; }
+  .sin-equipos { background:#fff; border-radius:12px; padding:4px 0; box-shadow:0 1px 8px rgba(28,31,38,.06); }
+  .sin-equipos li { list-style:none; padding:8px 14px; font-size:13px; border-bottom:1px solid #f0ece3; }
+  .sin-equipos li:last-child { border-bottom:none; }
+  .sin-equipos small { color:var(--suave); }
+  .vacio { font-size:13px; color:var(--suave); padding:10px 0; }
   .actualizado { font-size:12px; color:var(--suave); margin-top:12px; text-align:center; }
 </style></head>
 <body><div class="cont">
   <h1>Estado de dispositivos</h1>
   <div class="resumen" id="resumen"></div>
-  <table>
+  <div class="barra">
+    <span class="umbrales" id="umbrales"></span>
+    <button type="button" id="btn-inactivos">Mostrar inactivos</button>
+  </div>
+  <div class="tabla-scroll"><table>
     <thead><tr>
       <th>Empresa</th><th>Equipo</th><th>Android</th><th>App</th>
-      <th>Estado</th><th>Último heartbeat</th><th>Zombies</th><th>Alarmas</th>
+      <th>Estado</th><th>Último heartbeat</th><th>Zombies</th><th>Alarmas</th><th></th>
     </tr></thead>
     <tbody id="tbody"></tbody>
-  </table>
+  </table></div>
+  <h2>Empresas sin equipos</h2>
+  <div id="sin-equipos"></div>
   <div class="actualizado" id="actualizado"></div>
 </div>
 <script>
 const TOKEN = __TOKEN_JSON__;
 let datos = __DATOS_JSON__;
+let verInactivos = false;
 
-function esc(s){ if(s==null) return "—"; return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function relativo(min) {
-  if (min == null) return "sin datos";
+  if (min == null) return "Nunca";
   if (min < 1) return "hace segundos";
   if (min < 60) return "hace " + min + " min";
   const h = Math.floor(min/60);
-  return "hace " + h + " h";
+  if (h < 48) return "hace " + h + " h";
+  return "hace " + Math.floor(h/24) + " días";
+}
+function equipo(d) {
+  const partes = [d.manufacturer, d.modelo].filter(Boolean);
+  return esc(partes.length ? partes.join(" ") : (d.nombre || "Equipo " + d.dispositivo_id));
 }
 function pintar() {
-  const r = datos.resumen;
+  const r = datos.resumen, u = datos.umbrales;
   document.getElementById("resumen").innerHTML =
-    '<span class="chip c-total">'+r.total+' equipos</span>' +
+    '<span class="chip c-total">'+r.total+' equipos activos</span>' +
     '<span class="chip c-verde">'+r.verde+' verdes</span>' +
     '<span class="chip c-amarillo">'+r.amarillo+' amarillos</span>' +
     '<span class="chip c-rojo">'+r.rojo+' rojos</span>' +
-    '<span class="chip c-sin">'+r.sin_heartbeat_reciente+' sin conexión</span>';
-  document.getElementById("tbody").innerHTML = datos.dispositivos.map(d => {
-    let clase = "";
-    if (d.sin_heartbeat_reciente) clase = "sin";
-    else if (d.estado === "rojo") clase = "rojo";
-    else if (d.estado === "amarillo") clase = "amarillo";
-    const equipo = esc(d.manufacturer) + " " + esc(d.modelo);
-    const estadoTxt = d.sin_heartbeat_reciente
-      ? '<span class="badge-sin">Sin conexión ' + relativo(d.minutos_desde_ultimo_heartbeat) + '</span>'
-      : '<span class="badge-estado">' + esc(d.estado || "—") + '</span>';
+    '<span class="chip c-sin">'+r.inactivos+' inactivos</span>';
+  document.getElementById("umbrales").textContent =
+    "Verde: heartbeat hace menos de "+u.amarillo_min+" min · amarillo: "+u.amarillo_min+"–"+u.rojo_min+
+    " min · rojo: más de "+u.rojo_min+" min · inactivo: más de "+u.inactivo_dias+" días";
+  const btn = document.getElementById("btn-inactivos");
+  btn.textContent = (verInactivos ? "Ocultar inactivos" : "Mostrar inactivos") + " (" + r.inactivos + ")";
+  const filas = datos.dispositivos.filter(d => verInactivos || !d.inactivo);
+  let anterior = null;
+  document.getElementById("tbody").innerHTML = filas.length ? filas.map(d => {
+    const clase = d.inactivo ? "inactivo" : (d.estado === "verde" ? "" : d.estado);
+    const badge = d.inactivo
+      ? '<span class="badge b-inactivo">Inactivo</span>'
+      : '<span class="badge b-'+d.estado+'">'+esc(d.estado)+'</span><span class="motivo">'+esc(d.motivo)+'</span>';
+    const empresa = d.empresa_id === anterior ? "" : esc(d.empresa);
+    anterior = d.empresa_id;
+    const accion = d.inactivo ? '<button type="button" onclick="archivar('+d.dispositivo_id+')">Archivar</button>' : "";
     return "<tr class='"+clase+"'>" +
-      "<td>"+esc(d.empresa)+"</td>" +
-      "<td>"+equipo+"</td>" +
-      "<td>"+esc(d.android_version)+"</td>" +
-      "<td>"+esc(d.app_version)+"</td>" +
-      "<td>"+estadoTxt+"</td>" +
+      "<td class='empresa'>"+empresa+"</td>" +
+      "<td>"+equipo(d)+"</td>" +
+      "<td>"+esc(d.android_version || "")+"</td>" +
+      "<td>"+esc(d.app_version || "")+"</td>" +
+      "<td>"+badge+"</td>" +
       "<td>"+relativo(d.minutos_desde_ultimo_heartbeat)+"</td>" +
       "<td>"+d.veces_zombie_total+"</td>" +
       "<td>"+d.veces_alarma_disparada+"</td>" +
+      "<td>"+accion+"</td>" +
     "</tr>";
-  }).join("");
+  }).join("") : "<tr><td colspan='9' class='vacio'>No hay equipos activos.</td></tr>";
+  const sin = datos.empresas_sin_equipos;
+  document.getElementById("sin-equipos").innerHTML = sin.length
+    ? '<ul class="sin-equipos">' + sin.map(e => "<li>"+esc(e.empresa)+" <small>("+esc(e.slug)+")"+
+        (e.equipos_inactivos ? " · "+e.equipos_inactivos+" equipo(s) inactivo(s)" : " · ningún equipo registrado")+
+        "</small></li>").join("") + "</ul>"
+    : '<p class="vacio">Todas las empresas tienen al menos un equipo activo.</p>';
   document.getElementById("actualizado").textContent = "Actualizado " + new Date().toLocaleTimeString("es-PE");
 }
 async function refrescar() {
@@ -570,6 +687,13 @@ async function refrescar() {
     if (r.ok) { datos = await r.json(); pintar(); }
   } catch (e) {}
 }
+async function archivar(id) {
+  if (!confirm("¿Archivar este equipo? Su token deja de funcionar; no se borra nada y se puede reactivar desde el panel de dispositivos de la empresa.")) return;
+  const r = await fetch("/api/v1/admin/dispositivos/" + id + "/archivar", { method: "POST", headers: { "X-Admin-Token": TOKEN } });
+  if (!r.ok) { alert("No se pudo archivar: " + ((await r.json().catch(() => ({}))).detail || r.status)); return; }
+  refrescar();
+}
+document.getElementById("btn-inactivos").addEventListener("click", () => { verInactivos = !verInactivos; pintar(); });
 pintar();
 setInterval(refrescar, 30000);
 </script>
