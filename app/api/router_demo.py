@@ -471,6 +471,7 @@ def demo_pantalla_publica(slug: str, request: Request):
         "assets", "public", "templates", "testers",
         "videos", "qr", "caja", "sitemap.xml", "llms.txt",
         "panel", "unirse", "privacidad", "privacidad.txt", "eliminar-cuenta",
+        "propuestas",
     }
     if slug.lower() in RESERVADOS:
         raise HTTPException(status_code=404)

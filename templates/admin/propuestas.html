@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Propuestas · PagoOK</title>
+  <link rel="stylesheet" href="/static/panel/panel.css">
+</head>
+<body>
+<div class="cont">
+  <h1>Propuestas</h1>
+  <p class="sub">Cuántas veces se abrió cada propuesta. «Conexiones distintas» cuenta redes o equipos diferentes:
+     si sube, la compartieron. «Vistas previas» son las veces que WhatsApp u otra app armó la tarjeta del
+     enlace al pegarlo en un chat (no son lecturas).</p>
+  <table>
+    <thead><tr><th>Propuesta</th><th>Aperturas</th><th>Conexiones distintas</th><th>Vistas previas</th>
+      <th>Última apertura</th></tr></thead>
+    <tbody>
+    {% for f in filas %}
+      <tr>
+        <td>
+          <b>{{ f.titulo or f.codigo }}</b>{% if f.cliente %}<div class="mute">{{ f.cliente }}</div>{% endif %}
+          {% if f.publicada %}
+            <div class="mute"><a href="/propuestas/{{ f.codigo }}" target="_blank" rel="noopener">{{ url_publica }}/propuestas/{{ f.codigo }}</a></div>
+            {% if not f.titulo %}<div class="error">Falta el archivo docs/propuestas/{{ f.archivo }}</div>{% endif %}
+          {% else %}<div class="mute">{{ f.codigo }} · despublicada (ya no está en indice.yml)</div>{% endif %}
+        </td>
+        <td>{{ f.aperturas }}</td>
+        <td>{{ f.conexiones }}</td>
+        <td>{{ f.vistas_previas }}</td>
+        <td>{{ f.ultima }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5" class="mute">No hay propuestas en docs/propuestas/indice.yml.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <h2 style="margin-top:28px">Últimas visitas</h2>
+  <table>
+    <thead><tr><th>Fecha y hora (Lima)</th><th>Propuesta</th><th>Dispositivo</th><th>Conexión</th></tr></thead>
+    <tbody>
+    {% for v in recientes %}
+      <tr>
+        <td>{{ v.hora }}</td>
+        <td>{{ v.codigo }}</td>
+        <td>{% if v.vista_previa %}<span class="mute">{{ v.ua }}</span>{% else %}{{ v.ua }}{% endif %}</td>
+        <td class="mute" style="font-family:monospace">{{ v.conexion }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="4" class="mute">Todavía nadie abrió una propuesta.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+</body>
+</html>

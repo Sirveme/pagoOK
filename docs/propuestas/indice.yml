@@ -1,0 +1,9 @@
+# Propuestas comerciales publicadas en /propuestas/<codigo>.
+#
+# código -> archivo (dentro de docs/propuestas/). El código lleva 6 caracteres
+# aleatorios para que la URL no se adivine. Un código que no está aquí da 404.
+# Para despublicar una propuesta, borra su línea.
+#
+# Nuevo código:  python -c "import secrets,string; a=string.ascii_lowercase+string.digits; print(''.join(secrets.choice(a) for _ in range(6)))"
+
+clinica-san-juan-68bzsa: clinica-san-juan.md

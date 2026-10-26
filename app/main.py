@@ -22,6 +22,7 @@ from app.api.router_vinculacion import router as router_vinculacion
 from app.api.router_panel import router as router_panel
 from app.api.router_privacidad import router as router_privacidad
 from app.api.router_correo import router as router_correo
+from app.api.router_propuestas import router as router_propuestas
 from app.middleware.security import SecurityScanBlockMiddleware
 
 logging.basicConfig(level=logging.INFO)
@@ -136,6 +137,8 @@ app.include_router(router_panel)
 app.include_router(router_privacidad)
 # Canal de correo bancario + /admin/bancos (zWeb-06), también antes de /{slug}.
 app.include_router(router_correo)
+# Propuestas comerciales /propuestas/{codigo} + /admin/propuestas (zWeb-07).
+app.include_router(router_propuestas)
 
 # router_push y router_internos ANTES de router_demo: sus rutas /{slug}/...
 # (receptores, ingresos, egresos, config) deben resolverse antes que el

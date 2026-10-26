@@ -22,6 +22,8 @@ cryptography>=41.0.0
 py-vapid>=1.9.1
 # Política de privacidad (/privacidad): Markdown -> HTML
 markdown==3.7
+# Propuestas (/propuestas): indice.yml y encabezado YAML (ya llega con uvicorn[standard])
+PyYAML>=6.0
 
 # Canal de correo bancario: verificación DKIM de los correos de los bancos
 dkimpy==1.1.8

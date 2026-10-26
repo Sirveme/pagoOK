@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{{ p.titulo }} · Perú Sistemas Pro</title>
+  <meta name="description" content="{{ p.descripcion }}">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="PagoOK · Perú Sistemas Pro">
+  <meta property="og:title" content="{{ p.titulo }}">
+  <meta property="og:description" content="{{ p.descripcion }}">
+  <meta property="og:url" content="{{ url }}">
+  <meta property="og:image" content="{{ imagen }}">
+  <meta property="og:image:width" content="512">
+  <meta property="og:image:height" content="512">
+  <meta property="og:locale" content="es_PE">
+  <meta name="twitter:card" content="summary">
+  <meta name="theme-color" content="#1a0303">
+  <link rel="icon" href="/static/img/pagook-icon-192.png">
+  <link rel="stylesheet" href="/static/propuestas/propuesta.css">
+</head>
+<body>
+<div class="acciones">
+  <button type="button" class="btn btn-primario" onclick="window.print()">Descargar PDF</button>
+  <a class="btn btn-wa" href="{{ whatsapp }}" target="_blank" rel="noopener">Compartir por WhatsApp</a>
+</div>
+
+<main class="hoja">
+  <header class="membrete">
+    <div class="marca">
+      <img src="/static/img/logo_pagook.png" alt="PagoOK" width="137" height="34">
+      <div class="emisor">Perú Sistemas Pro E.I.R.L.</div>
+    </div>
+    <dl class="datos">
+      {% if p.cliente %}<div><dt>Cliente</dt><dd>{{ p.cliente }}</dd></div>{% endif %}
+      {% if p.fecha %}<div><dt>Fecha</dt><dd>{{ p.fecha }}</dd></div>{% endif %}
+    </dl>
+  </header>
+
+  <div class="etiqueta">Propuesta comercial</div>
+  <article class="documento">
+    {{ p.html | safe }}
+  </article>
+
+  <footer class="pie">
+    <div class="pie-emisor">Perú Sistemas Pro E.I.R.L.</div>
+    <div class="pie-contacto">
+      <a href="https://wa.me/51967317946">WhatsApp 967 317 946</a>
+      <span aria-hidden="true">·</span>
+      <a href="mailto:info@perusistemas.pro">info@perusistemas.pro</a>
+    </div>
+  </footer>
+</main>
+</body>
+</html>
