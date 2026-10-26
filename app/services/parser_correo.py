@@ -5,8 +5,9 @@ SOLO formatos vistos en correos reales (no se inventan). Hoy: BCP.
        -> envio_billetera si Empresa empieza con PLIN- o YAPE-; si no, consumo_tarjeta
   c)   "Realizaste un yapeo a celular de S/ X desde tu ..."   -> envio_billetera
   d)   "Operación realizada: Pago de servicios"                -> pago_servicio
-Sin ejemplos reales todavía: Tarjeta de Crédito BCP, ingresos por correo
-("Recibiste una transferencia"), y cualquier otro banco.
+Interbank: "Constancia de transferencia" (Transferencia inmediata) -> transferencia_enviada
+Sin ejemplos reales todavía: Tarjeta de Crédito BCP, otros correos de Interbank,
+ingresos por correo ("Recibiste una transferencia"), y cualquier otro banco.
 
 Reglas: fechas en hora de Lima -> UTC naive; solo los últimos 4 dígitos de
 tarjetas y cuentas; "Número de operación" -> codigo_operacion; S/ -> PEN,
@@ -26,15 +27,20 @@ TZ_LIMA = ZoneInfo("America/Lima")
 MESES = {
     "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6, "julio": 7,
     "agosto": 8, "septiembre": 9, "setiembre": 9, "octubre": 10, "noviembre": 11, "diciembre": 12,
+    # Abreviados (Interbank: "25 Oct 2026 08:48 PM")
+    "ene": 1, "feb": 2, "mar": 3, "abr": 4, "may": 5, "jun": 6, "jul": 7,
+    "ago": 8, "sep": 9, "set": 9, "oct": 10, "nov": 11, "dic": 12,
 }
 
-# "24 de octubre de 2026 - 08:16 AM"  |  "Martes, 20 Octubre 2026 - 11:51 A. M."
+# "24 de octubre de 2026 - 08:16 AM"  |  "Martes, 20 Octubre 2026 - 11:51 A. M."  |  "25 Oct 2026 08:48 PM"
 _RE_FECHA = re.compile(
-    r"(\d{1,2})\s+(?:de\s+)?([a-záéíóú]+)\s+(?:de\s+)?(\d{4})\s*-\s*(\d{1,2}):(\d{2})\s*([ap])\.?\s*m\.?",
+    r"(\d{1,2})\s+(?:de\s+)?([a-záéíóú]+)\.?\s+(?:de\s+)?(\d{4})\s*(?:-\s*)?(\d{1,2}):(\d{2})\s*([ap])\.?\s*m\.?",
     re.IGNORECASE,
 )
 _RE_MONTO = re.compile(r"(US\$|S/\.?|\$)\s*([\d.,]+)")
 _RE_ULTIMOS4 = re.compile(r"^[*•xX\s]{2,}(\d{4})$")
+# Cuenta enmascarada con dígitos visibles al inicio y al final: "740 ********716"
+_RE_CUENTA_ENMASCARADA = re.compile(r"^[\d\s]*[*•xX]{2,}\s*(\d{2,})$")
 
 # Promociones y avisos de seguridad: se descartan si no encajan en un formato.
 _NO_TRANSACCIONAL = re.compile(
@@ -68,6 +74,16 @@ def ultimos4_despues(ls: list[str], indice: int) -> str | None:
         m = _RE_ULTIMOS4.match(l)
         if m:
             return m.group(1)
+    return None
+
+
+def cuenta_despues(ls: list[str], indice: int) -> str | None:
+    """Hasta 4 dígitos finales VISIBLES de la cuenta enmascarada en las 2
+    líneas siguientes ('740 ********716' -> '716'; nunca los del inicio)."""
+    for l in ls[indice + 1: indice + 3] if indice >= 0 else []:
+        m = _RE_CUENTA_ENMASCARADA.match(l)
+        if m:
+            return m.group(1)[-4:]
     return None
 
 
@@ -165,8 +181,36 @@ def _bcp_servicio(ls: list[str]) -> dict | None:
     }
 
 
+# =============================================================
+# INTERBANK (servicioalcliente@netinterbank.com.pe)
+# =============================================================
+
+def _interbank_transferencia(ls: list[str]) -> dict | None:
+    """'Constancia de transferencia' / Tipo de operación 'Transferencia inmediata'."""
+    tipo_op, _ = campo(ls, "Tipo de operación")
+    if (not any(l.lower() == "constancia de transferencia" for l in ls)
+            or not (tipo_op or "").lower().startswith("transferencia")):
+        return None
+    monto, moneda = monto_y_moneda(campo(ls, "Monto y moneda")[0])
+    comision, _ = monto_y_moneda(campo(ls, "Comisión")[0])
+    _, i_cargo = campo(ls, "Cuenta a cargo")
+    destinatario, i_destino = campo(ls, "Cuenta destino")
+    cuenta_destino = cuenta_despues(ls, i_destino)
+    return {
+        "tipo_egreso": "transferencia_enviada", "metodo": "transferencia", "monto": monto, "moneda": moneda,
+        "comision": comision, "contraparte": destinatario,
+        "destino": f"Cuenta ****{cuenta_destino}" if cuenta_destino else None,
+        "codigo_operacion": campo(ls, "Código de operación")[0],
+        "fecha_utc": fecha_lima_a_utc(campo(ls, "Fecha y hora")[0]),
+        "ultimos4": cuenta_despues(ls, i_cargo),
+    }
+
+
 # Por banco: formatos de EGRESO verificados con correos reales.
-FORMATOS_EGRESO = {"bcp": [_bcp_consumo, _bcp_yapeo, _bcp_servicio]}
+FORMATOS_EGRESO = {
+    "bcp": [_bcp_consumo, _bcp_yapeo, _bcp_servicio],
+    "interbank": [_interbank_transferencia],
+}
 # Ingresos por correo ("Recibiste una transferencia"): se agregan aquí cuando
 # haya ejemplos reales. Misma firma; el resultado lleva tipo='ingreso'.
 FORMATOS_INGRESO: dict[str, list] = {}

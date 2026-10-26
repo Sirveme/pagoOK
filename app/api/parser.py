@@ -376,6 +376,42 @@ def parse_interbank(package: str, titulo: str, texto: str) -> dict | None:
     )
 
 
+# Aviso real de la app de Interbank (25/10/2026, transferencia inmediata enviada;
+# llega sin título):
+#   "TRAN S/ 10.00\nA ****534\n(25/10 08:48:33)"
+# La hora del aviso va en 12 h sin AM/PM: no se usa (vale la de llegada).
+_RE_INTERBANK_TRAN = re.compile(
+    r"^\s*TRAN\s+(S/\.?|US\$|\$)\s*([\d.,]+)\s+A\s+([*•]{2,}\d{2,4})\b",
+)
+
+
+def parse_interbank_tran(package: str, titulo: str, texto: str) -> dict | None:
+    """Transferencia enviada desde la app de Interbank. Solo con el paquete de
+    Interbank y el formato exacto "TRAN <monto> A ****<dígitos>"; cualquier señal
+    de ingreso lo descarta (ante la duda, no es egreso)."""
+    if "interbank" not in (package or "").lower() or tiene_senal_ingreso(texto):
+        return None
+    m = _RE_INTERBANK_TRAN.match(texto or "")
+    if not m:
+        return None
+    simbolo, cifra, cuenta = m.groups()
+    monto = _normalizar_monto(cifra)
+    if monto is None:
+        return None
+    return {
+        "metodo": "transferencia",
+        "monto": monto,
+        "moneda": "PEN" if simbolo.startswith("S/") else "USD",
+        "titular": cuenta,
+        "titular_corto": cuenta,
+        "codigo_operacion": None,
+        "banco": "Interbank",
+        "tipo": "egreso",
+        "tipo_incierto": False,
+        "tipo_egreso": "transferencia_enviada",
+    }
+
+
 def parse_scotiabank(package: str, titulo: str, texto: str) -> dict | None:
     return _parse_banco_generico(
         package, titulo, texto,
@@ -521,6 +557,7 @@ def parse_tarjeta(package: str, titulo: str, texto: str) -> dict | None:
 PARSERS = [
     parse_yape,
     parse_plin,
+    parse_interbank_tran,  # antes del genérico de Interbank, que lo dejaría incierto
     parse_tarjeta,   # antes de los bancos: captura compras/pagos con tarjeta (USD)
     parse_bim,
     parse_p51,
@@ -564,6 +601,7 @@ def parsear(package: str, titulo: str, texto: str) -> dict | None:
 #   "Plineaste S/ 1.00 a <NOMBRE>"                                   -> envio_billetera
 #   "Realizaste un consumo de S/.50.00 en <COMERCIO> con tu Tarjeta de Crédito." -> consumo_tarjeta
 #   "Se realizó un pago recurrente de $26.19 en <COMERCIO> con tu Tarjeta de Débito." -> cargo_recurrente (USD)
+#   "TRAN S/ 10.00 A ****534 (25/10 08:48:33)"                        -> transferencia_enviada
 # Yape NO avisa al que paga (0 "Yapeaste" en 142 avisos de Yape): sin ejemplos.
 # BCP, BBVA, Scotiabank, Banco de la Nación: sin ejemplos reales de egreso; se
 # detectan solo por los verbos genéricos que ya existían (sin garantía).
@@ -616,6 +654,6 @@ def _completar_egreso(res: dict, titulo: str, texto: str) -> dict | None:
     if _NO_TRANSACCIONAL.search(f"{titulo} {texto}"):
         return None
     res = dict(res)
-    res["tipo_egreso"] = _clasificar_tipo_egreso(res, texto)
+    res["tipo_egreso"] = res.get("tipo_egreso") or _clasificar_tipo_egreso(res, texto)
     res["tarjeta_ultimos4"] = _ultimos4_tarjeta(texto)
     return res
