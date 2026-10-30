@@ -22,6 +22,28 @@ from app.api.deps_empresa import resolver_dispositivo
 logger = logging.getLogger("pagook")
 router = APIRouter(prefix="/api/v1", tags=["webhook"])
 
+# La hora del celular se acepta solo si está dentro de esta diferencia del servidor.
+UMBRAL_CELULAR = timedelta(minutes=5)
+
+
+def recibido_en_para(ts_celular_ms, servidor: datetime) -> datetime:
+    """Hora que se guarda en `pago_detectado.recibido_en` (UTC naive).
+
+    Usa la hora del CELULAR (`timestamp_celular`, epoch ms) solo si es RAZONABLE:
+    no posterior al servidor y con menos de 5 min de diferencia. Así se quita el
+    retraso de red (el aviso real llega segundos después) sin confiar en un reloj
+    adelantado ni en un aviso que Yape entregó tarde desde su cola (ahí el celular
+    marca la hora de ENTREGA, no la del pago). En esos casos, la hora del servidor.
+    """
+    if ts_celular_ms:
+        try:
+            cel = datetime.utcfromtimestamp(float(ts_celular_ms) / 1000)
+        except (TypeError, ValueError, OverflowError, OSError):
+            cel = None
+        if cel is not None and cel <= servidor and (servidor - cel) < UMBRAL_CELULAR:
+            return cel
+    return servidor
+
 
 # =============================================================
 # HEALTH CHECK (para que el celular pruebe conectividad)
@@ -99,7 +121,8 @@ async def inbound(
     db.flush()
 
     # 5) Actualizar dispositivo (ping + contador)
-    dispositivo.ultimo_ping = datetime.utcnow()
+    recibido_servidor = datetime.utcnow()
+    dispositivo.ultimo_ping = recibido_servidor
     dispositivo.total_notificaciones = (dispositivo.total_notificaciones or 0) + 1
 
     # 6) Parsear
@@ -150,6 +173,8 @@ async def inbound(
                 tipo_incierto=bool(parsed.get("tipo_incierto", False)),
                 tipo_egreso=parsed.get("tipo_egreso"),
                 tarjeta_ultimos4=parsed.get("tarjeta_ultimos4"),
+                # Hora del pago: la del celular si es razonable; si no, la del servidor.
+                recibido_en=recibido_en_para(ts_celular, recibido_servidor),
             )
             db.add(pago)
             db.flush()

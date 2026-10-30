@@ -60,9 +60,12 @@ def _limpiar_titular(t: str) -> str:
     return t.strip()
 
 
-# Caracteres permitidos en nombres: ASCII + acentos peruanos + ñ + asterisco
-# El asterisco aparece en notif Yape como mascara de seguridad: "Angela Rob*"
-NOMBRE_CHARS = r"A-Za-zÁÉÍÓÚáéíóúÑñ"
+# Caracteres permitidos en nombres: ASCII + acentos peruanos + ñ + asterisco +
+# guion y apóstrofo. El asterisco aparece en notif Yape como máscara de seguridad
+# ("Angela Rob*"); el guion y el apóstrofo en apellidos reales ("Pedro De-*",
+# "O'Brien"). El guion va PRIMERO para que no forme un rango dentro de la clase
+# [NOMBRE_CHARS ...]; se incluyen el apóstrofo recto (') y el tipográfico (’).
+NOMBRE_CHARS = r"\-A-Za-zÁÉÍÓÚáéíóúÑñ'’"
 NOMBRE_INICIO = r"[A-ZÁÉÍÓÚÑ]"  # debe empezar con mayúscula
 
 

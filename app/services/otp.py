@@ -24,7 +24,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.api.models_multiempresa import Otp
-from app.services.secretos import enmascarar_celular, generar_otp, hash_codigo
+from app.services.secretos import generar_otp, hash_codigo
 
 logger = logging.getLogger("pagook")
 
@@ -50,6 +50,58 @@ def entorno() -> str:
 
 def es_desarrollo() -> bool:
     return entorno() == "desarrollo"
+
+
+# =============================================================
+# CLIENTE WHATSAPP (Meta) — compartido por el OTP y por otros avisos
+# =============================================================
+# Un solo cliente y una sola configuración (WA_ACCESS_TOKEN, WA_PHONE_NUMBER_ID,
+# GRAPH_API_VERSION). Lo reutiliza también la alerta de celular desconectado
+# (app/services/alerta_dispositivos.py) para no duplicar el POST ni el token.
+
+def config_meta() -> tuple[str, str, str]:
+    """(token, phone_number_id, version) desde el entorno, como el OTP."""
+    return (
+        os.getenv("WA_ACCESS_TOKEN", "").strip(),
+        os.getenv("WA_PHONE_NUMBER_ID", "").strip(),
+        os.getenv("GRAPH_API_VERSION", "v23.0").strip() or "v23.0",
+    )
+
+
+def whatsapp_disponible() -> bool:
+    """Hay token y phone id para enviar por WhatsApp (sin exigir una plantilla concreta)."""
+    token, phone_id, _ = config_meta()
+    return bool(token and phone_id)
+
+
+def enviar_plantilla_whatsapp(celular_e164: str, plantilla: str, idioma: str,
+                              componentes: list[dict]) -> bool:
+    """POST genérico de una plantilla aprobada a la Cloud API de Meta.
+
+    Reutilizado por el OTP y por las alertas de dispositivos. Devuelve True solo
+    si Meta aceptó el envío; nunca registra el código ni el celular en claro.
+    """
+    token, phone_number_id, version = config_meta()
+    if not (token and phone_number_id and plantilla and celular_e164):
+        return False
+    cuerpo = {
+        "messaging_product": "whatsapp",
+        "recipient_type": "individual",
+        "to": celular_e164.lstrip("+"),
+        "type": "template",
+        "template": {"name": plantilla, "language": {"code": idioma}, "components": componentes},
+    }
+    url = f"https://graph.facebook.com/{version}/{phone_number_id}/messages"
+    try:
+        r = httpx.post(url, json=cuerpo, timeout=10, headers={"Authorization": f"Bearer {token}"})
+    except httpx.HTTPError as exc:
+        logger.error(f"WhatsApp: error de red ({type(exc).__name__})")
+        return False
+    if 200 <= r.status_code < 300:
+        return True
+    # El cuerpo de error de Meta no contiene el código (solo el error).
+    logger.error(f"WhatsApp: HTTP {r.status_code}: {r.text[:300]}")
+    return False
 
 
 # =============================================================
@@ -98,30 +150,8 @@ class WhatsAppEnviador(EnviadorOTP):
                 "type": "button", "sub_type": "url", "index": "0",
                 "parameters": [{"type": "text", "text": codigo}],
             })
-        cuerpo = {
-            "messaging_product": "whatsapp",
-            "recipient_type": "individual",
-            "to": celular_e164.lstrip("+"),
-            "type": "template",
-            "template": {
-                "name": self.plantilla,
-                "language": {"code": self.idioma},
-                "components": componentes,
-            },
-        }
-        url = f"https://graph.facebook.com/{self.version}/{self.phone_number_id}/messages"
-        try:
-            r = httpx.post(url, json=cuerpo, timeout=10,
-                           headers={"Authorization": f"Bearer {self.token}"})
-        except httpx.HTTPError as exc:
-            logger.error(f"WhatsApp OTP: error de red enviando a {enmascarar_celular(celular_e164)}: "
-                         f"{type(exc).__name__}")
-            return False
-        if 200 <= r.status_code < 300:
-            return True
-        # El cuerpo de error de Meta no contiene el código (solo el error).
-        logger.error(f"WhatsApp OTP: HTTP {r.status_code} para {enmascarar_celular(celular_e164)}: {r.text[:300]}")
-        return False
+        # Mismo cliente/configuración que el resto de avisos por WhatsApp.
+        return enviar_plantilla_whatsapp(celular_e164, self.plantilla, self.idioma, componentes)
 
 
 _enviador_forzado: EnviadorOTP | None = None

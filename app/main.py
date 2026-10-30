@@ -51,6 +51,12 @@ async def lifespan(app: FastAPI):
         iniciar_worker_eventos()
     except Exception as exc:
         logger.warning(f"No se pudo iniciar el worker de webhooks: {exc}")
+    # Aviso al dueño si su celular deja de conectarse (best-effort; dormido sin WhatsApp).
+    try:
+        from app.services.alerta_dispositivos import iniciar_alertas_background
+        iniciar_alertas_background()
+    except Exception as exc:
+        logger.warning(f"No se pudo iniciar las alertas de dispositivos: {exc}")
     yield
     logger.info("pagoOK apagando")
 

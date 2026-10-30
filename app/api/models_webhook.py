@@ -17,6 +17,10 @@ class Dispositivo(Base):
     ultimo_ping = Column(DateTime)
     total_notificaciones = Column(Integer, default=0)
     creado_en = Column(DateTime, server_default=func.now())
+    # Aviso de caída por WhatsApp: cuándo se avisó que el celular dejó de
+    # conectar. NULL = sin caída avisada; se limpia al volver a conectarse.
+    # Garantiza "un solo aviso por caída" y persiste entre reinicios.
+    alerta_caida_en = Column(DateTime)
     # Auto-registro (aditivo): identidad de la instalación + telemetría básica.
     instalacion_id = Column(String(64))
     manufacturer = Column(String(50))
