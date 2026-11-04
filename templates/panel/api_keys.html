@@ -1,0 +1,102 @@
+{% extends "panel/base.html" %}
+{% block titulo %}Clave API{% endblock %}
+{% block contenido %}
+<h1>Clave API</h1>
+<p class="sub">{{ yo.empresa.razon_social }} · {{ yo.empresa.id_fiscal_tipo or 'ID' }} {{ yo.empresa.id_fiscal }}</p>
+
+<div class="tarjeta">
+  <h2>Tus claves</h2>
+  <p class="mute">Con esta clave, el sistema de tu empresa consulta los pagos por la API. Trátala como una
+     contraseña. Si se expuso o la perdiste, <b>regenérala</b>: la anterior deja de funcionar al instante.</p>
+  <div id="lista" class="mute">Cargando…</div>
+</div>
+
+<div class="tarjeta">
+  <h2>Generar una clave nueva</h2>
+  <div class="fila">
+    <div style="flex:1"><label for="nombre">Nombre (para reconocerla)</label>
+      <input id="nombre" placeholder="Sistema de MITA" maxlength="150"></div>
+  </div>
+  <button class="btn" id="btn-crear" onclick="crear()">Generar clave</button>
+</div>
+
+<!-- La clave recién generada se muestra UNA sola vez aquí -->
+<div class="tarjeta" id="caja-clave" style="display:none; border:1px solid var(--jade,#0f766e)">
+  <h2>Tu clave nueva</h2>
+  <p class="mute">Cópiala y guárdala ahora. Por seguridad <b>no se vuelve a mostrar</b>.</p>
+  <div class="enlace" id="clave" style="word-break:break-all; font-family:monospace"></div>
+  <button class="btn" onclick="copiar()">Copiar</button>
+  <span class="ok" id="copiada" style="margin-left:8px"></span>
+</div>
+
+<div id="msg" class="mute" style="margin-top:10px"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SOLO_LECTURA = {{ 'true' if yo.solo_lectura else 'false' }};
+const $ = id => document.getElementById(id);
+
+function mostrarClave(datos) {
+  $("clave").textContent = datos.api_key;
+  $("copiada").textContent = "";
+  $("caja-clave").style.display = "";
+  $("caja-clave").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+async function copiar() {
+  const t = $("clave").textContent.trim();
+  try { await navigator.clipboard.writeText(t); $("copiada").textContent = "Copiada."; }
+  catch (e) { $("copiada").textContent = "Selecciónala y copia con Ctrl+C."; }
+}
+
+async function cargar() {
+  const r = await api("/api/v1/panel/api-keys");
+  if (!r.ok) { $("lista").textContent = errorDe(r); return; }
+  const keys = r.datos.api_keys || [];
+  if (!keys.length) { $("lista").innerHTML = '<p class="mute">Todavía no tienes ninguna clave. Genera una abajo.</p>'; return; }
+  $("lista").innerHTML = keys.map(k => {
+    const estado = k.activa ? "" : ' · <span class="error">inactiva</span>';
+    const acciones = (k.activa && !SOLO_LECTURA)
+      ? `<button class="btn sec" onclick="regenerar(${k.id})">Regenerar</button>
+         <button class="btn sec" onclick="desactivar(${k.id})">Desactivar</button>`
+      : "";
+    return `<div class="fila-key" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid #f0ece3">
+        <div style="flex:1;min-width:180px"><b>${esc(k.nombre)}</b>
+          <div class="mute" style="font-family:monospace">${esc(k.prefijo || "")}…${estado}</div></div>
+        ${acciones}
+      </div>`;
+  }).join("");
+}
+
+async function crear() {
+  const nombre = $("nombre").value.trim();
+  if (!nombre) { $("msg").textContent = "Ponle un nombre a la clave."; return; }
+  $("btn-crear").disabled = true;
+  const r = await api("/api/v1/panel/api-keys", { method: "POST", body: JSON.stringify({ nombre }) });
+  $("btn-crear").disabled = false;
+  if (!r.ok) { $("msg").innerHTML = '<span class="error">' + esc(errorDe(r)) + '</span>'; return; }
+  $("msg").textContent = ""; $("nombre").value = "";
+  mostrarClave(r.datos);
+  cargar();
+}
+
+async function regenerar(id) {
+  if (!confirm("¿Regenerar esta clave? La anterior dejará de funcionar al instante y tendrás que actualizarla en tu sistema.")) return;
+  const r = await api("/api/v1/panel/api-keys/" + id + "/rotar", { method: "POST" });
+  if (!r.ok) { $("msg").innerHTML = '<span class="error">' + esc(errorDe(r)) + '</span>'; return; }
+  $("msg").textContent = "";
+  mostrarClave(r.datos);
+  cargar();
+}
+
+async function desactivar(id) {
+  if (!confirm("¿Desactivar esta clave? El sistema que la use dejará de poder consultar.")) return;
+  const r = await api("/api/v1/panel/api-keys/" + id, { method: "DELETE" });
+  if (!r.ok) { $("msg").innerHTML = '<span class="error">' + esc(errorDe(r)) + '</span>'; return; }
+  cargar();
+}
+
+cargar();
+</script>
+{% endblock %}

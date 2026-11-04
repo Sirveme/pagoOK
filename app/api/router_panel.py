@@ -7,7 +7,7 @@ Ingreso:
   POST /panel/logout
 
 Páginas: /panel, /panel/login, /panel/elegir-empresa, /panel/dispositivos,
-         /panel/equipo, /unirse/{token}
+         /panel/equipo, /panel/api-keys, /unirse/{token}
 
 API del panel (cookie de sesión; permisos por rol en el backend):
   GET    /api/v1/panel/yo
@@ -21,6 +21,7 @@ API del panel (cookie de sesión; permisos por rol en el backend):
   GET    /api/v1/panel/equipo                    administrar
   DELETE /api/v1/panel/equipo/{usuario_id}       administrar
   GET/POST/DELETE /api/v1/panel/api-keys         administrar
+  POST   /api/v1/panel/api-keys/{id}/rotar       administrar
 
 Con la cuenta vencida o suspendida el panel es de SOLO LECTURA (402 en las
 acciones que cambian datos; quitar acceso y cerrar sesión siguen permitidos).
@@ -476,6 +477,28 @@ def panel_crear_api_key(
             "aviso": "Guárdala ahora: no se volverá a mostrar."}
 
 
+@router.post("/api/v1/panel/api-keys/{cuenta_id}/rotar")
+def panel_rotar_api_key(
+    cuenta_id: int,
+    ctx: SesionCtx = Depends(requiere("administrar")),
+    db: Session = Depends(get_db),
+):
+    """Regenera la clave de una cuenta API existente (misma cuenta, clave nueva).
+    La anterior deja de servir al instante; la nueva se muestra una sola vez.
+    El filtro por empresa_id impide tocar las claves de otra empresa."""
+    exigir_cuenta_activa(ctx)
+    c = db.query(CuentaApi).filter(CuentaApi.id == cuenta_id, CuentaApi.empresa_id == ctx.empresa.id).first()
+    if c is None:
+        raise HTTPException(404, "API key no encontrada")
+    clave = generar_api_key()
+    c.api_key_hash = hash_api_key(clave)
+    c.prefijo = prefijo_visible(clave)
+    c.activa = True
+    db.commit()
+    return {"id": c.id, "nombre": c.nombre, "api_key": clave,
+            "aviso": "Guárdala ahora: no se volverá a mostrar."}
+
+
 @router.delete("/api/v1/panel/api-keys/{cuenta_id}")
 def panel_desactivar_api_key(
     cuenta_id: int,
@@ -612,6 +635,16 @@ def pagina_equipo(request: Request, db: Session = Depends(get_db)):
     if not ctx.puede("administrar"):
         return RedirectResponse("/panel", status_code=303)
     return _pagina(request, "equipo.html", ctx, db, roles=[(r, ETIQUETA_ROL[r]) for r in ROLES])
+
+
+@router.get("/panel/api-keys", response_class=HTMLResponse)
+def pagina_api_keys(request: Request, db: Session = Depends(get_db)):
+    ctx = sesion_opcional(request, db)
+    if ctx is None:
+        return RedirectResponse("/panel/login", status_code=303)
+    if not ctx.puede("administrar"):
+        return RedirectResponse("/panel", status_code=303)
+    return _pagina(request, "api_keys.html", ctx, db)
 
 
 @router.get("/unirse/{token}", response_class=HTMLResponse)

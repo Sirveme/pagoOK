@@ -107,8 +107,9 @@ class Base_(unittest.TestCase):
         self.disp_psp = Dispositivo(empresa_id=self.psp.id, token="tok_psp", nombre="Motorola", activo=True)
         db.add_all([self.disp_a, self.disp_b, self.disp_psp])
         self.key_a, self.key_b = generar_api_key(), generar_api_key()
-        db.add_all([CuentaApi(empresa_id=self.a.id, nombre="Sis A", api_key_hash=hash_api_key(self.key_a), activa=True),
-                    CuentaApi(empresa_id=self.b.id, nombre="Sis B", api_key_hash=hash_api_key(self.key_b), activa=True)])
+        self.cuenta_a = CuentaApi(empresa_id=self.a.id, nombre="Sis A", api_key_hash=hash_api_key(self.key_a), activa=True)
+        self.cuenta_b = CuentaApi(empresa_id=self.b.id, nombre="Sis B", api_key_hash=hash_api_key(self.key_b), activa=True)
+        db.add_all([self.cuenta_a, self.cuenta_b])
         hoy = datetime.utcnow().replace(microsecond=0) - timedelta(minutes=5)
         self.pago_a = PagoDetectado(empresa_id=self.a.id, metodo="yape", monto=Decimal("40.00"),
                                     titular="Juan Perez", recibido_en=hoy, tipo="ingreso")
@@ -189,6 +190,32 @@ class TestAislamiento(Base_):
                                 json={"referencia_externa": "X"}).status_code, 404)
         self.assertEqual(c.post(f"/api/v1/pagos/{self.pago_b.id}/reclamar", headers=h).status_code, 404)
         self.assertEqual([p["id"] for p in c.get("/api/v1/pagos", headers=h).json()["pagos"]], [str(self.pago_a.id)])
+
+    def test_regenerar_api_key_invalida_la_anterior_y_no_toca_otra_empresa(self):
+        c = self.login("+51911111111")  # dueño de A
+        antes = self.db.get(CuentaApi, self.cuenta_a.id).api_key_hash
+        r = c.post(f"/api/v1/panel/api-keys/{self.cuenta_a.id}/rotar")
+        self.assertEqual(r.status_code, 200, r.text)
+        nueva = r.json()["api_key"]
+        self.assertTrue(nueva.startswith("pk_live_"))
+        self.db.expire_all()
+        fila = self.db.get(CuentaApi, self.cuenta_a.id)
+        self.assertNotEqual(antes, fila.api_key_hash)
+        self.assertEqual(fila.api_key_hash, hash_api_key(nueva))
+        self.assertTrue(fila.activa)
+        # La clave anterior deja de servir al instante; la nueva sí consulta los pagos de A.
+        pub = self.cliente()
+        self.assertEqual(pub.get("/api/v1/pagos", headers={"X-API-Key": self.key_a}).status_code, 401)
+        self.assertEqual(pub.get("/api/v1/pagos", headers={"X-API-Key": nueva}).status_code, 200)
+        # No puede regenerar la clave de otra empresa, y la de B queda intacta.
+        self.assertEqual(c.post(f"/api/v1/panel/api-keys/{self.cuenta_b.id}/rotar").status_code, 404)
+        self.assertEqual(self.db.get(CuentaApi, self.cuenta_b.id).api_key_hash, hash_api_key(self.key_b))
+
+    def test_pagina_api_keys_renderiza_para_dueno_y_cierra_al_cajero(self):
+        self.miembro(self.a, "cajero", "+51933333333")
+        self.assertEqual(self.login("+51911111111").get("/panel/api-keys").status_code, 200)
+        r = self.login("+51933333333").get("/panel/api-keys", follow_redirects=False)
+        self.assertEqual((r.status_code, r.headers["location"]), (303, "/panel"))
 
     def test_dispositivo_de_a_solo_ve_y_guarda_en_a(self):
         c = self.cliente()
@@ -335,6 +362,7 @@ class TestPermisos(Base_):
             "equipo": lambda c: c.get("/api/v1/panel/equipo"),
             "invitar": lambda c: c.post("/api/v1/panel/invitaciones", json={"rol": "cajero"}),
             "api_keys": lambda c: c.get("/api/v1/panel/api-keys"),
+            "rotar": lambda c: c.post(f"/api/v1/panel/api-keys/{self.cuenta_a.id}/rotar"),
         }
         esperado = {  # dueño, cajero, almacén, contador
             "ver_pagos": (200, 200, 403, 200),
@@ -345,6 +373,7 @@ class TestPermisos(Base_):
             "equipo": (200, 403, 403, 403),
             "invitar": (200, 403, 403, 403),
             "api_keys": (200, 403, 403, 403),
+            "rotar": (200, 403, 403, 403),
         }
         for accion, fn in acciones.items():
             obtenido = tuple(fn(clientes[r]).status_code for r in ("dueno", "cajero", "almacen", "contador"))
