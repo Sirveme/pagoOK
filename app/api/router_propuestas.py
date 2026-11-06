@@ -27,6 +27,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.admin import superadmin
 from app.admin.db import get_db
 from app.api.models_propuestas import PropuestaVisita
 from app.api.router_privacidad import _ip, _md_a_html
@@ -212,14 +213,10 @@ def _hora_lima(dt: datetime | None) -> str:
 
 
 @router.get("/admin/propuestas", response_class=HTMLResponse)
-def admin_propuestas(request: Request, token: str | None = None, db: Session = Depends(get_db)):
-    from app.admin.router import _html_login_admin_empresas, _token_admin_valido
-
-    if not _token_admin_valido(token):
-        respuesta = _html_login_admin_empresas()
-        cuerpo = respuesta.body.decode("utf-8").replace("/admin/empresas/nuevas", "/admin/propuestas") \
-                                               .replace("Empresas nuevas", "Propuestas")
-        return HTMLResponse(cuerpo, status_code=401)
+def admin_propuestas(request: Request, db: Session = Depends(get_db)):
+    # Sesión de superadmin por cookie firmada (el token ya NO viaja en la URL).
+    if not superadmin.sesion_valida(request):
+        return HTMLResponse(superadmin.html_login("/admin/propuestas", "Propuestas"), status_code=401)
 
     personas = PropuestaVisita.vista_previa.is_(False)
     previas = PropuestaVisita.vista_previa.is_(True)

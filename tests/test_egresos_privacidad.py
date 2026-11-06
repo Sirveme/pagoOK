@@ -323,12 +323,16 @@ class TestSolicitudEliminacion(Base_):
         self.assertEqual((s.estado, s.id_fiscal), ("pendiente", "20100000001"))
         self.assertNotIn("testclient", s.ip_hash)             # nunca la IP en claro
 
-    def test_admin_ve_solicitudes_solo_con_token(self):
-        self.cliente().post("/eliminar-cuenta/solicitud",
-                            json={"pais": "PE", "id_fiscal": "20100000001", "nombre": "Ana", "contacto": "a@b.pe"})
+    def test_admin_ve_solicitudes_solo_con_sesion(self):
+        c = self.cliente()
+        c.post("/eliminar-cuenta/solicitud",
+               json={"pais": "PE", "id_fiscal": "20100000001", "nombre": "Ana", "contacto": "a@b.pe"})
         with mock.patch.dict(os.environ, {"ADMIN_TOKEN": "adm"}):
-            self.assertEqual(self.cliente().get("/admin/eliminaciones").status_code, 401)
-            r = self.cliente().get("/admin/eliminaciones?token=adm")
+            # El token ya NO abre por la URL: solo el login.
+            self.assertEqual(c.get("/admin/eliminaciones").status_code, 401)
+            self.assertEqual(c.get("/admin/eliminaciones?token=adm").status_code, 401)
+            # Entrar por POST deja la cookie de sesión -> abre el panel.
+            r = c.post("/admin/acceso", data={"token": "adm", "destino": "/admin/eliminaciones"})
         self.assertEqual(r.status_code, 200)
         self.assertIn("clinica-a", r.text)
         self.assertIn("gestion_empresas.py eliminar --empresa clinica-a --solicitud", r.text)

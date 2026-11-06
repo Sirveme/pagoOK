@@ -21,6 +21,12 @@ class Dispositivo(Base):
     # conectar. NULL = sin caída avisada; se limpia al volver a conectarse.
     # Garantiza "un solo aviso por caída" y persiste entre reinicios.
     alerta_caida_en = Column(DateTime)
+    # Último pago que el SERVIDOR capturó desde las notificaciones de este
+    # equipo (se escribe en /notificaciones/inbound al parsear un pago).
+    # Distinto de device_estado_actual.ultimo_pago_bancario, que es lo que la
+    # app dice haber visto. Sirve para detectar equipos "verdes" que llevan
+    # mucho sin capturar nada (incidente 06-11-2026). NULL = aún ninguno.
+    ultimo_pago_capturado = Column(DateTime)
     # Auto-registro (aditivo): identidad de la instalación + telemetría básica.
     instalacion_id = Column(String(64))
     manufacturer = Column(String(50))

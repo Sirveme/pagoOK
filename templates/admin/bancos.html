@@ -66,12 +66,14 @@
   </div>
 </div>
 <script>
-const TOKEN = {{ token | tojson }};
 const $ = id => document.getElementById(id);
 function esc(s) { return s == null ? "" : String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 async function api(url, opciones) {
-  const o = Object.assign({ headers: { "Content-Type": "application/json", "X-Admin-Token": TOKEN } }, opciones || {});
-  const r = await fetch(url, o); let d = {}; try { d = await r.json(); } catch (e) {}
+  // Autorización por la cookie de sesión de superadmin (ya no viaja el token).
+  const o = Object.assign({ credentials: "same-origin", headers: { "Content-Type": "application/json" } }, opciones || {});
+  const r = await fetch(url, o);
+  if (r.status === 401) { location.reload(); return { ok: false, datos: {} }; }   // sesión vencida -> login
+  let d = {}; try { d = await r.json(); } catch (e) {}
   return { ok: r.ok, datos: d };
 }
 async function cargar() {

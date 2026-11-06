@@ -33,6 +33,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.admin import superadmin
 from app.admin.db import get_db
 from app.admin.models import Empresa
 from app.api.deps_empresa import SesionCtx, requiere, resolver_dispositivo, sesion_opcional
@@ -183,9 +184,10 @@ def solicitar_banco(
 # ADMINISTRADOR: bancos, solicitudes y correos por revisar
 # =============================================================
 
-def _exigir_admin(token: str | None) -> None:
-    from app.admin.router import _token_admin_valido
-    if not _token_admin_valido(token):
+def _exigir_admin(request: Request, token: str | None) -> None:
+    """Autoriza por header X-Admin-Token (scripts) o por la sesión de
+    superadmin (el panel, tras entrar por POST /admin/acceso)."""
+    if not superadmin.autorizado(request, token):
         raise HTTPException(401, "No autorizado")
 
 
@@ -260,10 +262,10 @@ def _invalidar_cache() -> None:
 
 
 @router.get("/api/v1/admin/bancos")
-def admin_listar_bancos(pais: str = "PE", tipo: str | None = None, estado: str | None = None,
+def admin_listar_bancos(request: Request, pais: str = "PE", tipo: str | None = None, estado: str | None = None,
                         x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
                         db: Session = Depends(get_db)):
-    _exigir_admin(x_admin_token)
+    _exigir_admin(request, x_admin_token)
     q = db.query(BancoConfig).filter(BancoConfig.pais == pais.upper())
     if tipo:
         q = q.filter(BancoConfig.tipo == tipo)
@@ -275,10 +277,10 @@ def admin_listar_bancos(pais: str = "PE", tipo: str | None = None, estado: str |
 
 
 @router.post("/api/v1/admin/bancos")
-def admin_crear_banco(payload: dict = Body(...),
+def admin_crear_banco(request: Request, payload: dict = Body(...),
                       x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
                       db: Session = Depends(get_db)):
-    _exigir_admin(x_admin_token)
+    _exigir_admin(request, x_admin_token)
     datos = _validar_banco(payload, parcial=False)
     if db.query(BancoConfig).filter(BancoConfig.pais == datos["pais"], BancoConfig.clave == datos["clave"]).first():
         raise HTTPException(409, f"Ya existe {datos['clave']} en {datos['pais']}")
@@ -290,11 +292,11 @@ def admin_crear_banco(payload: dict = Body(...),
 
 
 @router.put("/api/v1/admin/bancos/{banco_id}")
-def admin_editar_banco(banco_id: int, payload: dict = Body(...),
+def admin_editar_banco(request: Request, banco_id: int, payload: dict = Body(...),
                        x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
                        db: Session = Depends(get_db)):
     """Editar o desactivar ({"activo": false}). Nunca se borra."""
-    _exigir_admin(x_admin_token)
+    _exigir_admin(request, x_admin_token)
     b = db.get(BancoConfig, banco_id)
     if b is None:
         raise HTTPException(404, "Banco no encontrado")
@@ -306,10 +308,10 @@ def admin_editar_banco(banco_id: int, payload: dict = Body(...),
 
 
 @router.get("/api/v1/admin/bancos/solicitudes")
-def admin_solicitudes_banco(pais: str | None = None,
+def admin_solicitudes_banco(request: Request, pais: str | None = None,
                             x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
                             db: Session = Depends(get_db)):
-    _exigir_admin(x_admin_token)
+    _exigir_admin(request, x_admin_token)
     q = db.query(SolicitudBanco.pais, SolicitudBanco.nombre_normalizado,
                  func.min(SolicitudBanco.nombre_banco), func.count(SolicitudBanco.id),
                  func.max(SolicitudBanco.creado_en))
@@ -322,12 +324,12 @@ def admin_solicitudes_banco(pais: str | None = None,
 
 
 @router.get("/api/v1/admin/correos")
-def admin_correos(estado: str = "sin_formato",
+def admin_correos(request: Request, estado: str = "sin_formato",
                   x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
                   db: Session = Depends(get_db)):
     """Correos que piden atención: sin formato (agregar formato) o rechazados
     (p. ej. el banco firma con un dominio que aún no está en la lista)."""
-    _exigir_admin(x_admin_token)
+    _exigir_admin(request, x_admin_token)
     if estado not in ("sin_formato", "rechazado", "descartado"):
         raise HTTPException(400, "estado: sin_formato | rechazado | descartado")
     filas = (
@@ -342,10 +344,10 @@ def admin_correos(estado: str = "sin_formato",
 
 
 @router.post("/api/v1/admin/correos/{correo_id}/reprocesar")
-def admin_reprocesar_correo(correo_id: int,
+def admin_reprocesar_correo(request: Request, correo_id: int,
                             x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
                             db: Session = Depends(get_db)):
-    _exigir_admin(x_admin_token)
+    _exigir_admin(request, x_admin_token)
     c = db.get(CorreoRaw, correo_id)
     if c is None:
         raise HTTPException(404, "Correo no encontrado")
@@ -357,11 +359,8 @@ def admin_reprocesar_correo(correo_id: int,
 
 
 @router.get("/admin/bancos", response_class=HTMLResponse)
-def admin_bancos_html(request: Request, token: str | None = None):
-    from app.admin.router import _html_login_admin_empresas, _token_admin_valido
-    if not _token_admin_valido(token):
-        cuerpo = _html_login_admin_empresas().body.decode("utf-8") \
-            .replace("/admin/empresas/nuevas", "/admin/bancos").replace("Empresas nuevas", "Bancos y billeteras")
-        return HTMLResponse(cuerpo, status_code=401)
-    return templates.TemplateResponse("admin/bancos.html", {"request": request, "token": token,
-                                                             "tipos": TIPOS_BANCO})
+def admin_bancos_html(request: Request):
+    # Sesión de superadmin por cookie firmada (el token ya NO viaja en la URL).
+    if not superadmin.sesion_valida(request):
+        return HTMLResponse(superadmin.html_login("/admin/bancos", "Bancos y billeteras"), status_code=401)
+    return templates.TemplateResponse("admin/bancos.html", {"request": request, "tipos": TIPOS_BANCO})

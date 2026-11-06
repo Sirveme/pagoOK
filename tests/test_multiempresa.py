@@ -643,27 +643,40 @@ class TestRutasCerradas(Base_):
         self._p.stop()
         super().tearDown()
 
-    # ---- /admin/empresas/nuevas: token de administrador ----
-    def test_empresas_nuevas_exige_token_admin(self):
+    # ---- /admin/empresas/nuevas: sesión de superadmin (sin ?token= en la URL) ----
+    def test_empresas_nuevas_exige_sesion_admin(self):
         c = self.cliente()
         form = {"ruc": "20111111111", "razon_social": "INTRUSA SAC"}
         with mock.patch.dict(os.environ, {"ADMIN_TOKEN": "secreto-admin"}):
+            # Sin sesión: 401 y no lista empresas. El ?token= de antes ya no abre.
             self.assertEqual(c.get("/admin/empresas/nuevas").status_code, 401)
-            self.assertEqual(c.get("/admin/empresas/nuevas?token=malo").status_code, 401)
-            self.assertNotIn("CLINICA A", c.get("/admin/empresas/nuevas").text)   # no lista empresas
+            self.assertEqual(c.get("/admin/empresas/nuevas?token=secreto-admin").status_code, 401)
+            self.assertNotIn("CLINICA A", c.get("/admin/empresas/nuevas").text)
             self.assertEqual(c.post("/admin/empresas/nuevas", data=form).status_code, 401)
-            self.assertEqual(c.post("/admin/empresas/nuevas", data={**form, "token": "malo"}).status_code, 401)
+            # Un token malo por POST no crea sesión.
+            c.post("/admin/acceso", data={"token": "malo", "destino": "/admin/empresas/nuevas"})
+            self.assertEqual(c.get("/admin/empresas/nuevas").status_code, 401)
             self.assertEqual(self.db.query(Empresa).filter_by(id_fiscal="20111111111").count(), 0)
-            ok = c.get("/admin/empresas/nuevas?token=secreto-admin")
+            # Login correcto por POST -> cookie firmada -> acceso.
+            c.post("/admin/acceso", data={"token": "secreto-admin", "destino": "/admin/empresas/nuevas"})
+            ok = c.get("/admin/empresas/nuevas")
             self.assertEqual(ok.status_code, 200)
-            self.assertIn('name="token" value="secreto-admin"', ok.text)
-            r = c.post("/admin/empresas/nuevas", data={**form, "token": "secreto-admin"})
+            self.assertNotIn("secreto-admin", ok.text)   # el token ya no se incrusta en la página
+            r = c.post("/admin/empresas/nuevas", data=form)
             self.assertEqual(r.status_code, 200)
         self.assertEqual(self.db.query(Empresa).filter_by(id_fiscal="20111111111").count(), 1)
 
+    def test_empresas_nuevas_acepta_header_admin_para_scripts(self):
+        c = self.cliente()
+        form = {"ruc": "20122222222", "razon_social": "VIA SCRIPT SAC"}
+        with mock.patch.dict(os.environ, {"ADMIN_TOKEN": "secreto-admin"}):
+            r = c.post("/admin/empresas/nuevas", data=form, headers={"X-Admin-Token": "secreto-admin"})
+            self.assertEqual(r.status_code, 200)
+        self.assertEqual(self.db.query(Empresa).filter_by(id_fiscal="20122222222").count(), 1)
+
     def test_empresas_nuevas_sin_admin_token_configurado_queda_cerrada(self):
         with mock.patch.dict(os.environ, {"ADMIN_TOKEN": ""}):
-            self.assertEqual(self.cliente().get("/admin/empresas/nuevas?token=").status_code, 401)
+            self.assertEqual(self.cliente().get("/admin/empresas/nuevas").status_code, 401)
 
     # ---- /flujo-caja/{slug}: sesión con permiso de reportes ----
     def test_flujo_caja_aislado_por_sesion_y_rol(self):

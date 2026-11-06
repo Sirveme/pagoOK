@@ -11,6 +11,7 @@ NOTA: el DDL de referencia del prompt venía truncado; las columnas de
 Verificar contra el esquema real de Railway antes de habilitar la consolidación.
 """
 from sqlalchemy import (
+    Boolean,
     Column,
     DateTime,
     ForeignKey,
@@ -38,6 +39,12 @@ class DeviceEstadoActual(Base):
     veces_alarma_disparada = Column(Integer, default=0)
     veces_rebind_intentado = Column(Integer, default=0)
     veces_rebind_exitoso = Column(Integer, default=0)
+    # Estado del lector de notificaciones de Android (incidente 06-11-2026):
+    # el equipo puede enviar heartbeat "verde" con la app viva, pero con el
+    # NotificationListener desconectado por Android -> no captura ningún pago.
+    # NULL = la app no reporta el campo (versiones viejas, < 1.6.x).
+    listener_conectado = Column(Boolean)
+    permiso_notificaciones = Column(Boolean)
     manufacturer = Column(String(50))
     modelo = Column(String(80))
     android_version = Column(String(20))

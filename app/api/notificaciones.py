@@ -199,6 +199,12 @@ async def inbound(
         raw.error_parseo = str(e)[:500]
         logger.exception(f"Error parseando: {e}")
 
+    # Marca del último pago que el SERVIDOR capturó de este equipo (incidente
+    # 06-11): sirve para ver equipos "verdes" que llevan mucho sin capturar.
+    # Cuenta tanto un pago nuevo como la vinculación con uno que llegó por correo.
+    if pago_creado is not None:
+        dispositivo.ultimo_pago_capturado = recibido_servidor
+
     db.commit()
 
     # 7) Enviar Web Push a receptores suscritos (best-effort, post-commit)

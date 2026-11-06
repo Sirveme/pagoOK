@@ -169,7 +169,8 @@ class TestAdminPropuestas(BasePropuestas):
         self.ver()
         self.ver(ua=UA_WHATSAPP)
         with mock.patch.dict(os.environ, {"ADMIN_TOKEN": "adm"}):
-            r = self.cliente().get("/admin/propuestas?token=adm")
+            # Entrar por POST deja la cookie de sesión y renderiza el panel (sigue el 303).
+            r = self.cliente().post("/admin/acceso", data={"token": "adm", "destino": "/admin/propuestas"})
         self.assertEqual(r.status_code, 200)
         self.assertIn("Propuesta PagoOK para Clínica Demo", r.text)
         self.assertIn(f"https://pagook.pro/propuestas/{CODIGO}", r.text)

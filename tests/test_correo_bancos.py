@@ -324,14 +324,23 @@ class TestDuplicados(BaseCorreo):
 class TestAdminBancos(BaseCorreo):
     H = {"X-Admin-Token": "adm"}
 
-    def test_exige_token(self):
+    def test_exige_sesion_o_header(self):
         with mock.patch.dict(os.environ, {"ADMIN_TOKEN": "adm"}):
             c = self.cliente()
+            # El token ya NO abre por la URL (fuga en logs/Referer): solo el login.
             self.assertEqual(c.get("/admin/bancos").status_code, 401)
             self.assertEqual(c.get("/admin/bancos?token=malo").status_code, 401)
-            self.assertEqual(c.get("/admin/bancos?token=adm").status_code, 200)
+            self.assertEqual(c.get("/admin/bancos?token=adm").status_code, 401)
+            # Sin cookie ni header válido, la API JSON está cerrada.
             self.assertEqual(c.get("/api/v1/admin/bancos").status_code, 401)
             self.assertEqual(c.get("/api/v1/admin/bancos", headers={"X-Admin-Token": "x"}).status_code, 401)
+            # Entrar por POST deja la cookie de sesión -> abre el panel y la API por cookie.
+            r = c.post("/admin/acceso", data={"token": "adm", "destino": "/admin/bancos"})
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(c.get("/api/v1/admin/bancos").status_code, 200)
+            # El header X-Admin-Token sigue sirviendo para los scripts.
+            c.cookies.clear()
+            self.assertEqual(c.get("/api/v1/admin/bancos", headers=self.H).status_code, 200)
 
     def test_crear_validar_editar_y_desactivar(self):
         with mock.patch.dict(os.environ, {"ADMIN_TOKEN": "adm"}):

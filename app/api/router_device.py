@@ -14,22 +14,25 @@ from __future__ import annotations
 
 import logging
 import re
-import os
 import secrets
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.admin.db import get_db
 from app.admin.models import CodigoInvitacion, Empresa
+from app.admin import superadmin
 from app.api.models_device import DeviceEstadoActual
-from app.api.models_webhook import Dispositivo
+from app.api.models_cuenta import CuentaApi
+from app.api.models_webhook import Dispositivo, NotificacionRaw
 from app.api.deps_empresa import resolver_dispositivo
+from app.api.publica_v1 import cuenta_actual
 from app.api.router_demo import _obtener_empresa_por_slug
 from app.services import cuenta_empresa
 from app.api.tokens_legacy import advertir_si_token_legacy
@@ -44,6 +47,9 @@ ESTADOS_VALIDOS = {"verde", "amarillo", "rojo"}
 UMBRAL_AMARILLO_MIN = 20
 UMBRAL_ROJO_MIN = 45
 DIAS_INACTIVO = 7
+# Ventana para contar avisos de billetera que la app no pudo interpretar
+# (estado 'no_reconocido'): es una alerta rodante que se limpia sola.
+HORAS_NO_RECONOCIDO = 24
 
 # Rate limit del auto-registro: máx 10 requests por IP en 60 s (en memoria).
 LIMITE_REGISTRO = 10
@@ -101,6 +107,11 @@ def _epoch_ms_a_dt(valor) -> Optional[datetime]:
 
 def _ahora_utc() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _bool_opcional(valor) -> Optional[bool]:
+    """None si la app no mandó el campo (versiones viejas); si no, bool(valor)."""
+    return None if valor is None else bool(valor)
 
 
 def _fecha_flexible(valor) -> Optional[datetime]:
@@ -317,6 +328,10 @@ async def heartbeat(
         f.veces_zombie_total = int(data.get("veces_zombie_total") or 0)
         f.veces_rebind_intentado = int(data.get("veces_rebind_intentado") or 0)
         f.veces_rebind_exitoso = int(data.get("veces_rebind_exitoso") or 0)
+        # Estado del lector de notificaciones (incidente 06-11): la app 1.6.x los
+        # envía; las viejas no, y quedan en NULL (desconocido, no fuerza rojo).
+        f.listener_conectado = _bool_opcional(data.get("listener_conectado"))
+        f.permiso_notificaciones = _bool_opcional(data.get("permiso_notificaciones"))
         f.manufacturer = str(data.get("manufacturer"))[:50]
         f.modelo = str(data.get("modelo"))[:80]
         f.android_version = str(data.get("android_version"))[:20]
@@ -338,7 +353,15 @@ async def heartbeat(
     guardar_campos_opcionales(dispositivo, data)
     db.commit()
 
-    # 4) Log según estado.
+    # 4) Log según estado. El lector caído es el incidente 06-11: el equipo
+    #    sigue vivo (heartbeat), pero Android desconectó el NotificationListener
+    #    y no capturará ningún pago. Se avisa aunque el estado llegue "verde".
+    if data.get("listener_conectado") is False:
+        logger.warning(
+            f"Lector de notificaciones DESCONECTADO dispositivo={dispositivo.id} "
+            f"empresa={dispositivo.empresa_id} estado_reportado={estado} "
+            f"permiso_notificaciones={data.get('permiso_notificaciones')}"
+        )
     if estado == "verde":
         logger.info(f"Heartbeat verde dispositivo={dispositivo.id} empresa={dispositivo.empresa_id}")
     else:
@@ -352,6 +375,66 @@ async def heartbeat(
     empresa = db.get(Empresa, dispositivo.empresa_id)
     cuenta = cuenta_empresa.info_cuenta(db, empresa) if empresa else None
     return {"ok": True, "next_check_seconds": 60, "cuenta": cuenta}
+
+
+# =============================================================
+# ENDPOINT: POST /api/v1/device/no-reconocido  (auth X-Device-Token)
+# =============================================================
+# Red de seguridad del incidente 06-11: cuando el lector SÍ funciona pero llega
+# un aviso de billetera/banco que la app no supo interpretar como pago (formato
+# nuevo, texto raro), lo reporta aquí para que NO se pierda en silencio. Se
+# guarda como notificacion_raw con estado 'no_reconocido', aparece en el panel
+# de estado y pinta el equipo amarillo mientras haya avisos recientes.
+
+@router.post("/api/v1/device/no-reconocido")
+async def aviso_no_reconocido(
+    request: Request,
+    x_device_token: Optional[str] = Header(default=None, alias="X-Device-Token"),
+    db: Session = Depends(get_db),
+):
+    dispositivo = resolver_dispositivo(db, x_device_token)
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(400, "JSON inválido")
+    if not isinstance(data, dict):
+        raise HTTPException(400, "El body debe ser un objeto JSON")
+
+    package = (data.get("package") or "")[:200]
+    titulo = data.get("titulo") or ""
+    texto = data.get("texto") or ""
+    if not texto.strip():
+        raise HTTPException(400, "Falta el texto del aviso")
+    sbn_key = (data.get("sbn_key") or "")[:200] or None
+
+    # Dedup por sbn_key (si la app reintenta, no duplicamos el aviso).
+    if sbn_key:
+        existente = (
+            db.query(NotificacionRaw)
+            .filter(NotificacionRaw.empresa_id == dispositivo.empresa_id,
+                    NotificacionRaw.sbn_key == sbn_key)
+            .first()
+        )
+        if existente:
+            return {"status": "duplicado", "raw_id": existente.id}
+
+    raw = NotificacionRaw(
+        empresa_id=dispositivo.empresa_id,
+        dispositivo_id=dispositivo.id,
+        package_app=package,
+        titulo=titulo[:1000] if titulo else None,
+        texto=texto[:5000],
+        sbn_key=sbn_key,
+        timestamp_celular=data.get("timestamp_celular"),
+        estado_parseo="no_reconocido",
+    )
+    db.add(raw)
+    db.commit()
+    logger.warning(
+        f"Aviso NO RECONOCIDO dispositivo={dispositivo.id} empresa={dispositivo.empresa_id} "
+        f"package={package} texto={texto[:80]!r}"
+    )
+    return {"status": "guardado", "raw_id": raw.id}
 
 
 # =============================================================
@@ -378,17 +461,60 @@ def estado_conexion(minutos: Optional[float]) -> str:
     return "verde"
 
 
-def _estado_unico(minutos: Optional[float], reportado: Optional[str]) -> tuple[str, str]:
-    """Un solo estado por equipo: el peor entre la conexión y lo que el propio
-    equipo reportó en su último heartbeat. Devuelve (estado, motivo)."""
-    conexion = estado_conexion(minutos)
+def _estado_unico(minutos: Optional[float], reportado: Optional[str],
+                  listener_conectado: Optional[bool] = None,
+                  avisos_no_reconocidos: int = 0) -> tuple[str, str]:
+    """Un solo estado por equipo: el peor entre la conexión, el lector de
+    notificaciones y lo que el propio equipo reportó. Devuelve (estado, motivo).
+
+    El lector caído (listener_conectado == False) es ROJO aunque el heartbeat
+    sea reciente y verde: ese es justo el incidente 06-11 (el equipo está vivo
+    pero Android desconectó el NotificationListener y no captura pagos).
+
+    Un equipo con app vieja NO reporta el lector (listener_conectado == None):
+    nunca se pinta verde "por defecto", queda AMARILLO pidiendo actualizar, para
+    no dar una falsa sensación de que todo está bien.
+
+    Avisos de billetera sin interpretar (no_reconocido) recientes también dejan
+    el equipo en AMARILLO: pudo perderse un pago con un formato nuevo."""
     if minutos is None:
         return "rojo", "Nunca envió un heartbeat"
+    if listener_conectado is False:
+        return "rojo", "El lector de notificaciones está desconectado"
+    conexion = estado_conexion(minutos)
     if conexion != "verde":
         return conexion, "Sin heartbeat reciente"
     if reportado in ("amarillo", "rojo"):
         return reportado, "El equipo reporta un problema de captura"
+    if avisos_no_reconocidos:
+        n = avisos_no_reconocidos
+        return "amarillo", f"{n} aviso{'s' if n != 1 else ''} de billetera sin interpretar"
+    if listener_conectado is None:
+        return "amarillo", "Sin dato del lector: actualiza la app"
     return "verde", "Conectado"
+
+
+def _conteo_no_reconocido(db: Session, ids: list[int]) -> dict[int, int]:
+    """{dispositivo_id: avisos 'no_reconocido' en las últimas HORAS_NO_RECONOCIDO
+    horas}. Equipos sin avisos no aparecen en el dict."""
+    if not ids:
+        return {}
+    desde = datetime.utcnow() - timedelta(hours=HORAS_NO_RECONOCIDO)
+    filas = (
+        db.query(NotificacionRaw.dispositivo_id, func.count())
+        .filter(NotificacionRaw.estado_parseo == "no_reconocido",
+                NotificacionRaw.dispositivo_id.in_(ids),
+                NotificacionRaw.timestamp_servidor >= desde)
+        .group_by(NotificacionRaw.dispositivo_id)
+        .all()
+    )
+    return {did: n for did, n in filas}
+
+
+def _fmt_utc(dt: Optional[datetime]) -> Optional[str]:
+    """datetime -> 'YYYY-MM-DDTHH:MM:SSZ' (UTC) o None."""
+    dt = _a_utc(dt)
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ") if dt else None
 
 
 def _obtener_dispositivos(db: Session) -> dict:
@@ -414,13 +540,16 @@ def _obtener_dispositivos(db: Session) -> dict:
     resumen = {"total": 0, "verde": 0, "amarillo": 0, "rojo": 0, "inactivos": 0}
     activos_por_empresa: dict[int, int] = {}
     inactivos_por_empresa: dict[int, int] = {}
+    no_rec = _conteo_no_reconocido(db, [disp.id for disp, _, _ in filas])
 
     for disp, emp, dea in filas:
         uh = _a_utc(dea.ultimo_heartbeat) if dea else None
         minutos = _minutos_desde(uh)
         referencia = uh or _a_utc(disp.creado_en)
         inactivo = referencia is None or (ahora - referencia).total_seconds() > DIAS_INACTIVO * 86400
-        estado, motivo = _estado_unico(minutos, dea.estado if dea else None)
+        listener = dea.listener_conectado if dea else None
+        avisos = no_rec.get(disp.id, 0)
+        estado, motivo = _estado_unico(minutos, dea.estado if dea else None, listener, avisos)
 
         dispositivos.append({
             "dispositivo_id": disp.id,
@@ -430,6 +559,10 @@ def _obtener_dispositivos(db: Session) -> dict:
             "estado": estado,
             "motivo": motivo,
             "estado_reportado": dea.estado if dea else None,
+            "listener_conectado": listener,
+            "permiso_notificaciones": dea.permiso_notificaciones if dea else None,
+            "ultimo_pago_capturado": _fmt_utc(disp.ultimo_pago_capturado),
+            "avisos_no_reconocidos": avisos,
             "inactivo": inactivo,
             "manufacturer": dea.manufacturer if dea else None,
             "modelo": dea.modelo if dea else None,
@@ -475,8 +608,13 @@ def _a_utc(dt: Optional[datetime]) -> Optional[datetime]:
 
 
 def _token_admin_valido(token: Optional[str]) -> bool:
-    admin_token = os.getenv("ADMIN_TOKEN", "").strip()
-    return bool(admin_token) and secrets.compare_digest((token or "").encode(), admin_token.encode())
+    return superadmin.token_admin_valido(token)
+
+
+def _autorizado(request: Request, x_admin_token: Optional[str]) -> bool:
+    """Admin global por header X-Admin-Token (scripts) o por la cookie de
+    sesión de superadmin (el dashboard la usa tras entrar por POST)."""
+    return superadmin.autorizado(request, x_admin_token)
 
 
 # =============================================================
@@ -485,10 +623,11 @@ def _token_admin_valido(token: Optional[str]) -> bool:
 
 @router.get("/api/v1/admin/dispositivos")
 def admin_dispositivos_json(
+    request: Request,
     x_admin_token: Optional[str] = Header(default=None, alias="X-Admin-Token"),
     db: Session = Depends(get_db),
 ):
-    if not _token_admin_valido(x_admin_token):
+    if not _autorizado(request, x_admin_token):
         raise HTTPException(401, "No autorizado")
     return _obtener_dispositivos(db)
 
@@ -496,13 +635,14 @@ def admin_dispositivos_json(
 @router.post("/api/v1/admin/dispositivos/{dispositivo_id}/archivar")
 def admin_archivar_dispositivo(
     dispositivo_id: int,
+    request: Request,
     x_admin_token: Optional[str] = Header(default=None, alias="X-Admin-Token"),
     db: Session = Depends(get_db),
 ):
     """Archiva un equipo inactivo: Dispositivo.activo = False (no se borra nada;
     su token deja de funcionar). Se revierte desde /admin/dispositivos de la
     empresa. Solo equipos sin heartbeat hace más de DIAS_INACTIVO días."""
-    if not _token_admin_valido(x_admin_token):
+    if not _autorizado(request, x_admin_token):
         raise HTTPException(401, "No autorizado")
     disp = db.get(Dispositivo, dispositivo_id)
     if disp is None or not disp.activo:
@@ -517,19 +657,76 @@ def admin_archivar_dispositivo(
 
 
 # =============================================================
+# ENDPOINT: GET /api/v1/dispositivos/estado  (API de clientes, X-API-Key)
+# =============================================================
+# El cliente, con SU API key, ve SOLO los equipos de SU empresa y detecta el
+# incidente 06-11 por su cuenta: `listener_conectado=false` o un `estado` rojo
+# aunque el equipo siga "vivo". Aislamiento: empresa_id sale de la credencial.
+
+@router.get("/api/v1/dispositivos/estado")
+def dispositivos_estado_cliente(
+    cuenta: CuentaApi = Depends(cuenta_actual),
+    db: Session = Depends(get_db),
+):
+    """Estado de los equipos de la empresa dueña de la API key.
+
+    Respuesta (contrato): lista JSON ordenada del peor estado al mejor:
+      [{id, nombre, estado, motivo, ultimo_heartbeat, listener_conectado,
+        ultimo_pago_capturado, avisos_no_reconocidos}]
+      - estado: "verde" | "amarillo" | "rojo"
+      - listener_conectado: true | false | null (equipos con app vieja: null)
+      - avisos_no_reconocidos: avisos de billetera sin interpretar en las
+        últimas 24 h (0 si ninguno)
+      - fechas en UTC ISO-8601 con sufijo Z, o null
+    """
+    filas = (
+        db.query(Dispositivo, DeviceEstadoActual)
+        .outerjoin(DeviceEstadoActual, DeviceEstadoActual.dispositivo_id == Dispositivo.id)
+        .filter(
+            Dispositivo.empresa_id == cuenta.empresa_id,
+            Dispositivo.activo == True,  # noqa: E712
+        )
+        .all()
+    )
+
+    no_rec = _conteo_no_reconocido(db, [disp.id for disp, _ in filas])
+    salida = []
+    for disp, dea in filas:
+        uh = _a_utc(dea.ultimo_heartbeat) if dea else None
+        minutos = _minutos_desde(uh)
+        listener = dea.listener_conectado if dea else None
+        avisos = no_rec.get(disp.id, 0)
+        estado, motivo = _estado_unico(minutos, dea.estado if dea else None, listener, avisos)
+        salida.append({
+            "id": disp.id,
+            "nombre": disp.nombre,
+            "estado": estado,
+            "motivo": motivo,
+            "ultimo_heartbeat": _fmt_utc(uh),
+            "listener_conectado": listener,
+            "ultimo_pago_capturado": _fmt_utc(disp.ultimo_pago_capturado),
+            "avisos_no_reconocidos": avisos,
+        })
+
+    # Peor estado primero (rojo > amarillo > verde); desempate por nombre.
+    salida.sort(key=lambda d: (-_GRAVEDAD.get(d["estado"], 0), (d["nombre"] or "").casefold()))
+    return salida
+
+
+# =============================================================
 # ENDPOINT 3: GET /admin/dispositivos/estado (HTML)
 # =============================================================
 
 @router.get("/admin/dispositivos/estado", response_class=HTMLResponse)
 def admin_dispositivos_html(
-    token: Optional[str] = None,
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    # MVP: token por query string. TODO(seguridad): migrar a cookie firmada.
-    if not _token_admin_valido(token):
-        return HTMLResponse(_html_login())
+    # Sesión de superadmin por cookie firmada (el token ya NO viaja en la URL).
+    if not superadmin.sesion_valida(request):
+        return HTMLResponse(_html_login(), status_code=401)
     datos = _obtener_dispositivos(db)
-    return HTMLResponse(_html_dashboard(datos, token))
+    return HTMLResponse(_html_dashboard(datos))
 
 
 # =============================================================
@@ -537,29 +734,10 @@ def admin_dispositivos_html(
 # =============================================================
 
 def _html_login() -> str:
-    return """<!DOCTYPE html>
-<html lang="es"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Estado de dispositivos · pagoOK</title>
-<style>
-  body { font-family:'Inter',system-ui,sans-serif; background:#faf6ef; color:#1c1f26; display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0; }
-  .caja { background:#fff; border-radius:16px; padding:28px; box-shadow:0 2px 14px rgba(28,31,38,.1); max-width:360px; width:90%; }
-  h1 { font-size:18px; color:#0f766e; margin:0 0 6px; }
-  p { font-size:13px; color:#4b5563; margin:0 0 16px; }
-  input { width:100%; border:1px solid #ddd; border-radius:8px; padding:10px 12px; font-size:14px; }
-  button { width:100%; margin-top:12px; background:#0f766e; color:#fff; border:none; border-radius:8px; padding:11px; font-weight:700; cursor:pointer; }
-</style></head>
-<body><div class="caja">
-  <h1>Estado de dispositivos</h1>
-  <p>Ingresa el token de administrador para continuar.</p>
-  <form method="get" action="/admin/dispositivos/estado">
-    <input type="password" name="token" placeholder="Token de administrador" autofocus>
-    <button type="submit">Entrar</button>
-  </form>
-</div></body></html>"""
+    return superadmin.html_login("/admin/dispositivos/estado", "Estado de dispositivos")
 
 
-def _html_dashboard(datos: dict, token: str) -> str:
+def _html_dashboard(datos: dict) -> str:
     import json as _json
     plantilla = """<!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8">
@@ -592,6 +770,8 @@ def _html_dashboard(datos: dict, token: str) -> str:
   .barra { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
   .barra button, td button { border:1px solid #cbd5e1; background:#fff; border-radius:8px; padding:6px 12px; font-size:13px; cursor:pointer; }
   td button { padding:3px 9px; font-size:12px; }
+  .salir { margin-left:8px; font-size:13px; color:var(--coral); text-decoration:none; }
+  .sin-pago { color:#b91c1c; font-weight:600; }
   .umbrales { font-size:12px; color:var(--suave); }
   h2 { font-size:15px; color:var(--jade); margin:22px 0 8px; }
   .tabla-scroll { overflow-x:auto; }
@@ -607,12 +787,15 @@ def _html_dashboard(datos: dict, token: str) -> str:
   <div class="resumen" id="resumen"></div>
   <div class="barra">
     <span class="umbrales" id="umbrales"></span>
-    <button type="button" id="btn-inactivos">Mostrar inactivos</button>
+    <span>
+      <button type="button" id="btn-inactivos">Mostrar inactivos</button>
+      <a class="salir" href="/admin/salir">Salir</a>
+    </span>
   </div>
   <div class="tabla-scroll"><table>
     <thead><tr>
       <th>Empresa</th><th>Equipo</th><th>Android</th><th>App</th>
-      <th>Estado</th><th>Último heartbeat</th><th>Zombies</th><th>Alarmas</th><th></th>
+      <th>Estado</th><th>Último heartbeat</th><th>Último pago</th><th>Sin interpretar</th><th>Zombies</th><th>Alarmas</th><th></th>
     </tr></thead>
     <tbody id="tbody"></tbody>
   </table></div>
@@ -621,7 +804,6 @@ def _html_dashboard(datos: dict, token: str) -> str:
   <div class="actualizado" id="actualizado"></div>
 </div>
 <script>
-const TOKEN = __TOKEN_JSON__;
 let datos = __DATOS_JSON__;
 let verInactivos = false;
 
@@ -633,6 +815,14 @@ function relativo(min) {
   const h = Math.floor(min/60);
   if (h < 48) return "hace " + h + " h";
   return "hace " + Math.floor(h/24) + " días";
+}
+function ultimoPago(iso) {
+  if (!iso) return '<span class="sin-pago">Ninguno</span>';
+  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  return relativo(min < 0 ? 0 : min);
+}
+function sinInterpretar(n) {
+  return n ? '<span class="sin-pago" title="Avisos de billetera que la app no supo leer (últimas 24 h)">'+n+'</span>' : '0';
 }
 function equipo(d) {
   const partes = [d.manufacturer, d.modelo].filter(Boolean);
@@ -668,11 +858,13 @@ function pintar() {
       "<td>"+esc(d.app_version || "")+"</td>" +
       "<td>"+badge+"</td>" +
       "<td>"+relativo(d.minutos_desde_ultimo_heartbeat)+"</td>" +
+      "<td>"+ultimoPago(d.ultimo_pago_capturado)+"</td>" +
+      "<td>"+sinInterpretar(d.avisos_no_reconocidos)+"</td>" +
       "<td>"+d.veces_zombie_total+"</td>" +
       "<td>"+d.veces_alarma_disparada+"</td>" +
       "<td>"+accion+"</td>" +
     "</tr>";
-  }).join("") : "<tr><td colspan='9' class='vacio'>No hay equipos activos.</td></tr>";
+  }).join("") : "<tr><td colspan='11' class='vacio'>No hay equipos activos.</td></tr>";
   const sin = datos.empresas_sin_equipos;
   document.getElementById("sin-equipos").innerHTML = sin.length
     ? '<ul class="sin-equipos">' + sin.map(e => "<li>"+esc(e.empresa)+" <small>("+esc(e.slug)+")"+
@@ -683,13 +875,14 @@ function pintar() {
 }
 async function refrescar() {
   try {
-    const r = await fetch("/api/v1/admin/dispositivos", { headers: { "X-Admin-Token": TOKEN } });
+    const r = await fetch("/api/v1/admin/dispositivos", { credentials: "same-origin" });
+    if (r.status === 401) { location.reload(); return; }   // sesión vencida -> login
     if (r.ok) { datos = await r.json(); pintar(); }
   } catch (e) {}
 }
 async function archivar(id) {
   if (!confirm("¿Archivar este equipo? Su token deja de funcionar; no se borra nada y se puede reactivar desde el panel de dispositivos de la empresa.")) return;
-  const r = await fetch("/api/v1/admin/dispositivos/" + id + "/archivar", { method: "POST", headers: { "X-Admin-Token": TOKEN } });
+  const r = await fetch("/api/v1/admin/dispositivos/" + id + "/archivar", { method: "POST", credentials: "same-origin" });
   if (!r.ok) { alert("No se pudo archivar: " + ((await r.json().catch(() => ({}))).detail || r.status)); return; }
   refrescar();
 }
@@ -698,6 +891,4 @@ pintar();
 setInterval(refrescar, 30000);
 </script>
 </body></html>"""
-    return (plantilla
-            .replace("__TOKEN_JSON__", _json.dumps(token))
-            .replace("__DATOS_JSON__", _json.dumps(datos)))
+    return plantilla.replace("__DATOS_JSON__", _json.dumps(datos))

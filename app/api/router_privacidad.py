@@ -27,6 +27,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Red
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from app.admin import superadmin
 from app.admin.db import get_db
 from app.admin.models import Empresa
 from app.api.deps_empresa import SesionCtx, borrar_cookie, requiere, sesion_opcional
@@ -256,14 +257,11 @@ def eliminar_mis_datos(
 # =============================================================
 
 @router.get("/admin/eliminaciones", response_class=HTMLResponse)
-def admin_eliminaciones(request: Request, token: str | None = None, db: Session = Depends(get_db)):
-    from app.admin.router import _html_login_admin_empresas, _token_admin_valido
-
-    if not _token_admin_valido(token):
-        respuesta = _html_login_admin_empresas()
-        cuerpo = respuesta.body.decode("utf-8").replace("/admin/empresas/nuevas", "/admin/eliminaciones") \
-                                               .replace("Empresas nuevas", "Solicitudes de eliminación")
-        return HTMLResponse(cuerpo, status_code=401)
+def admin_eliminaciones(request: Request, db: Session = Depends(get_db)):
+    # Sesión de superadmin por cookie firmada (el token ya NO viaja en la URL).
+    if not superadmin.sesion_valida(request):
+        return HTMLResponse(
+            superadmin.html_login("/admin/eliminaciones", "Solicitudes de eliminación"), status_code=401)
     solicitudes = db.query(SolicitudEliminacion).order_by(SolicitudEliminacion.id.desc()).limit(200).all()
     filas = []
     for s in solicitudes:
