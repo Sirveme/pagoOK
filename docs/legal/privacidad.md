@@ -1,6 +1,6 @@
 # Política de Privacidad de PagoOK
 
-*Última actualización: 18 de octubre de 2026 · Versión 2026-10-v1*
+*Última actualización: 11 de noviembre de 2026 · Versión 2026-11-v1*
 
 PagoOK lee únicamente las notificaciones de las apps de bancos y billeteras que tú configuras, para confirmar los pagos que recibe tu negocio. Esta política explica qué datos tratamos, para qué y cómo puedes descargarlos o eliminarlos.
 
@@ -40,6 +40,10 @@ El filtro funciona **dentro de tu celular**, antes de que algo salga hacia nuest
 
 Los demás avisos de las apps financieras —pagos que recibes, pagos que realizas y consumos con tarjeta— se envían para que tu negocio pueda registrarlos y conciliarlos, como se explica en la sección 4.
 
+Algunos avisos de esas mismas apps de bancos y billeteras no se reconocen como un pago. También se guardan como texto completo durante 90 días, para mejorar el reconocimiento de los formatos de cada banco; después se borran automáticamente.
+
+En resumen, PagoOK lee solo las apps de bancos y billeteras que configuras —tanto ingresos como egresos—, extrae de cada aviso el monto, la contraparte, la fecha y la hora, y lo envía a la cuenta de tu empresa. No lee notificaciones de ninguna otra app.
+
 ## 4. Qué datos se envían a nuestros servidores
 
 | Origen | Datos | Ejemplo |
@@ -68,6 +72,7 @@ No usamos tus datos para publicidad, no los vendemos y no creamos perfiles de ti
 
 - **Los sistemas que tú conectas.** A pedido de tu negocio, enviamos los pagos confirmados a tus propios sistemas de gestión (por ejemplo Facturalo, Te Atiendo o alerta.pe) para emitir comprobantes o atender pedidos. Solo se envían a los sistemas que tu negocio autoriza.
 - **Proveedores de infraestructura.** Usamos servicios de alojamiento en la nube que guardan los datos por encargo nuestro y no pueden usarlos para fines propios.
+- **Escaneo de códigos QR (Google).** Para escanear códigos QR, la app usa el componente de Google ML Kit (a través de Google Play services). Ese componente puede enviar a Google datos técnicos de diagnóstico y uso para su funcionamiento, sin el contenido de tus pagos.
 - **Autoridades.** Solo cuando una ley o una orden válida lo exija.
 
 No vendemos, alquilamos ni cedemos datos a terceros con fines comerciales o publicitarios.
@@ -115,6 +120,7 @@ Si consideras que no atendimos tu solicitud, puedes acudir a la autoridad de pro
 
 ## 11. Menores, cambios y contacto
 
+- **Condiciones del Servicio.** El uso de PagoOK se rige también por las [Condiciones del Servicio](/terminos).
 - **Menores de edad.** PagoOK está dirigido a negocios y no está destinado a menores de 18 años.
 - **Cambios en esta política.** Si la cambiamos de forma importante, te avisaremos en la app antes de que el cambio entre en vigor. La fecha de la última actualización figura al inicio.
 - **Contacto.** privacidad@pagook.pro · PERU SISTEMAS PRO E.I.R.L., Calle Iquitos Mz A Lote 49, Punchana, Maynas, Loreto, Perú.

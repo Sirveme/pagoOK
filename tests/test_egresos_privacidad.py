@@ -254,12 +254,12 @@ class TestPrivacidad(Base_):
         r = self.cliente().get("/privacidad")
         self.assertEqual(r.status_code, 200)
         self.assertIn("Política de Privacidad de PagoOK", r.text)
-        self.assertIn("2026-10-v1", r.text)
+        self.assertIn("2026-11-v1", r.text)
         self.assertIn('class="toc"', r.text)                 # índice de secciones
         self.assertIn("<table>", r.text)                      # las tablas del texto se renderizan
         for ruta in ("/privacidad", "/static/legal/legal.css", "/static/panel/panel.css"):
             self.assertNotIn("#ffffff", self.cliente().get(ruta).text.lower(), ruta)
-        self.assertEqual(self.cliente().get("/api/v1/privacidad/version").json(), {"version": "2026-10-v1"})
+        self.assertEqual(self.cliente().get("/api/v1/privacidad/version").json(), {"version": "2026-11-v1"})
 
     def test_texto_plano_mismo_contenido(self):
         r = self.cliente().get("/privacidad.txt")
@@ -561,3 +561,27 @@ class TestFiltrosMovimientos(Base_):
             self.assertIn('document.getElementById("metodo").value = "";', html, tipo)   # reinicio al cargar
             self.assertIn("isoConZona", html, tipo)
         self.assertIn('class="solo-ingreso"', self.cliente().get("/perusistemas/egresos").text)
+
+
+# =====================================================================
+# Contador del resumen de hoy: los pagos de prueba se cuentan aparte (zWeb-10)
+# =====================================================================
+class TestContadorPagosHoy(Base_):
+    def test_pagos_de_prueba_se_cuentan_aparte_y_no_suman(self):
+        # Base_ ya sembró un ingreso real de S/ 40.00 hoy para clínica A.
+        hoy = datetime.utcnow().replace(microsecond=0) - timedelta(minutes=5)
+        self.db.add_all([
+            PagoDetectado(empresa_id=self.a.id, metodo="yape", monto=Decimal("10.00"),
+                          titular="Prueba Uno", recibido_en=hoy, tipo="ingreso", es_prueba=True),
+            PagoDetectado(empresa_id=self.a.id, metodo="yape", monto=Decimal("20.00"),
+                          titular="Prueba Dos", recibido_en=hoy, tipo="ingreso", es_prueba=True),
+        ])
+        self.db.commit()
+
+        r = self.login("+51911111111").get("/api/v1/panel/pagos/hoy")
+        self.assertEqual(r.status_code, 200, r.text)
+        d = r.json()
+        self.assertEqual(d["cantidad"], 1)          # solo el real cuenta
+        self.assertEqual(d["total"], "40.00")       # las pruebas no suman
+        self.assertEqual(d["de_prueba"], 2)         # se cuentan aparte
+        self.assertEqual(len(d["pagos"]), 3)        # pero sí se listan (con etiqueta PRUEBA)

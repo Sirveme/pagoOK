@@ -73,7 +73,11 @@ async function cargarHoy() {
   if (!PUEDE_VER) return;
   const r = await api("/api/v1/panel/pagos/hoy");
   if (!r.ok) { $("resumenHoy").textContent = errorDe(r); return; }
-  $("resumenHoy").textContent = r.datos.cantidad + " pago(s) · Total S/ " + r.datos.total;
+  // Los pagos de prueba se listan (con etiqueta PRUEBA) pero NO suman al total.
+  // Si hay, se aclara aparte para que el "0" no parezca un error.
+  const dePrueba = r.datos.de_prueba || 0;
+  $("resumenHoy").textContent = r.datos.cantidad + " pago(s) · Total S/ " + r.datos.total +
+    (dePrueba ? " · " + dePrueba + " de prueba (no suman)" : "");
   $("tablaHoy").innerHTML = r.datos.pagos.map(p =>
     "<tr><td>" + hhmm(p.fecha_hora) + "</td><td>" + esc(p.contraparte || "—") +
     (p.es_prueba ? " <span class='etiqueta-prueba'>PRUEBA</span>" : "") + "</td><td>" + esc(p.institucion) +

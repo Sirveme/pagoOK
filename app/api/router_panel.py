@@ -291,11 +291,13 @@ def pagos_hoy(ctx: SesionCtx = Depends(requiere("ver_pagos")), db: Session = Dep
     # el total e importe del día NO los cuentan (no son ingresos de negocio).
     total = sum((Decimal(str(p.monto)) for p in pagos if not p.es_prueba), Decimal("0"))
     reales = sum(1 for p in pagos if not p.es_prueba)
+    de_prueba = sum(1 for p in pagos if p.es_prueba)
 
     def _fila(p):
         return {**serializar_pago(p), "es_prueba": bool(p.es_prueba)}
 
-    return {"pagos": [_fila(p) for p in pagos], "cantidad": reales, "total": monto_texto(total)}
+    return {"pagos": [_fila(p) for p in pagos], "cantidad": reales,
+            "total": monto_texto(total), "de_prueba": de_prueba}
 
 
 @router.post("/api/v1/panel/pagos/buscar")

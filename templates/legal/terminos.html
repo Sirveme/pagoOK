@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Condiciones del Servicio · PagoOK</title>
+  <meta name="description" content="Condiciones del Servicio de PagoOK: uso del servicio, cuenta, responsabilidad y terminación.">
+  <link rel="stylesheet" href="/static/panel/panel.css">
+  <link rel="stylesheet" href="/static/legal/legal.css">
+</head>
+<body>
+<header class="cabecera">
+  <a href="/" class="logo" style="text-decoration:none;color:var(--txt)">pago<span class="ok">OK</span></a>
+  <nav class="nav">
+    <a href="/privacidad">Privacidad</a>
+    <a href="/terminos" class="activo">Condiciones del Servicio</a>
+    <a href="/eliminar-cuenta">Eliminar mis datos</a>
+  </nav>
+</header>
+<main class="cont legal">
+  {% if version %}<p class="mute">Versión {{ version }} · <a href="/terminos.txt">Ver en texto plano</a></p>{% endif %}
+  <details class="indice tarjeta" open>
+    <summary>Índice</summary>
+    {{ indice | safe }}
+  </details>
+  <article class="texto-legal">
+    {{ contenido | safe }}
+  </article>
+  <p class="mute" style="margin:28px 0">
+    Lee también la <a href="/privacidad">Política de privacidad</a>.
+  </p>
+</main>
+</body>
+</html>

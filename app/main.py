@@ -21,6 +21,7 @@ from app.api.publica_v1_consulta import router as router_consulta_pagos
 from app.api.router_vinculacion import router as router_vinculacion
 from app.api.router_panel import router as router_panel
 from app.api.router_privacidad import router as router_privacidad
+from app.api.router_terminos import router as router_terminos
 from app.api.router_correo import router as router_correo
 from app.api.router_propuestas import router as router_propuestas
 from app.middleware.security import SecurityScanBlockMiddleware
@@ -141,6 +142,8 @@ app.include_router(router_panel)
 # /privacidad, /privacidad.txt, /eliminar-cuenta, /panel/eliminar, /admin/eliminaciones
 # (también ANTES del comodín /{slug}).
 app.include_router(router_privacidad)
+# /terminos, /terminos.txt (Condiciones del Servicio), también antes de /{slug}.
+app.include_router(router_terminos)
 # Canal de correo bancario + /admin/bancos (zWeb-06), también antes de /{slug}.
 app.include_router(router_correo)
 # Propuestas comerciales /propuestas/{codigo} + /admin/propuestas (zWeb-07).
