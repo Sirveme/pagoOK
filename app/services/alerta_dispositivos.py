@@ -99,6 +99,9 @@ def revisar(db, ahora: datetime | None = None, enviar=None) -> dict:
         if not accion:
             continue
         empresa = db.get(Empresa, disp.empresa_id)
+        # La cuenta de revisión de Play no genera alertas de celular caído.
+        if empresa is not None and getattr(empresa, "es_cuenta_revision", False):
+            continue
         duenio = getattr(empresa, "duenio", None) if empresa else None
         telefono = whatsapp.telefono_e164(getattr(duenio, "telefono", None))
         modelo = disp.modelo or (dea.modelo if dea else None) or "celular"

@@ -74,16 +74,42 @@ def whatsapp_disponible() -> bool:
     return bool(token and phone_id)
 
 
-def enviar_plantilla_whatsapp(celular_e164: str, plantilla: str, idioma: str,
-                              componentes: list[dict]) -> bool:
-    """POST genérico de una plantilla aprobada a la Cloud API de Meta.
+def _extraer_error_meta(texto: str | None) -> dict:
+    """Saca code/error_subcode/message/fbtrace_id del cuerpo de error de Meta.
 
-    Reutilizado por el OTP y por las alertas de dispositivos. Devuelve True solo
-    si Meta aceptó el envío; nunca registra el código ni el celular en claro.
+    El cuerpo NO contiene el código OTP ni el token; solo describe el error. Si
+    no es JSON de Meta, devuelve el texto crudo recortado en `message`.
+    """
+    import json
+
+    try:
+        err = (json.loads(texto or "{}") or {}).get("error") or {}
+    except (ValueError, TypeError):
+        err = {}
+    if not err:
+        return {"message": (texto or "")[:300] or None}
+    return {
+        "code": err.get("code"),
+        "error_subcode": err.get("error_subcode"),
+        "message": (err.get("message") or "")[:300] or None,
+        "fbtrace_id": err.get("fbtrace_id"),
+    }
+
+
+def enviar_plantilla_whatsapp_detalle(celular_e164: str, plantilla: str, idioma: str,
+                                      componentes: list[dict]) -> dict:
+    """POST de una plantilla aprobada a la Cloud API de Meta, con detalle.
+
+    Devuelve {"ok": bool, "status": int|None, "error": {...}|None}. Nunca
+    registra ni devuelve el código ni el token. Es el único lugar que arma y
+    manda el POST; lo usan el OTP, las alertas y el diagnóstico (misma ruta).
     """
     token, phone_number_id, version = config_meta()
     if not (token and phone_number_id and plantilla and celular_e164):
-        return False
+        faltan = [n for n, v in (("WA_ACCESS_TOKEN", token), ("WA_PHONE_NUMBER_ID", phone_number_id),
+                                 ("plantilla", plantilla), ("celular", celular_e164)) if not v]
+        return {"ok": False, "status": None,
+                "error": {"message": f"Falta configuración o destino: {', '.join(faltan)}"}}
     cuerpo = {
         "messaging_product": "whatsapp",
         "recipient_type": "individual",
@@ -96,12 +122,27 @@ def enviar_plantilla_whatsapp(celular_e164: str, plantilla: str, idioma: str,
         r = httpx.post(url, json=cuerpo, timeout=10, headers={"Authorization": f"Bearer {token}"})
     except httpx.HTTPError as exc:
         logger.error(f"WhatsApp: error de red ({type(exc).__name__})")
-        return False
+        return {"ok": False, "status": None, "error": {"message": f"error de red ({type(exc).__name__})"}}
     if 200 <= r.status_code < 300:
-        return True
-    # El cuerpo de error de Meta no contiene el código (solo el error).
-    logger.error(f"WhatsApp: HTTP {r.status_code}: {r.text[:300]}")
-    return False
+        return {"ok": True, "status": r.status_code, "error": None}
+    err = _extraer_error_meta(r.text)
+    # Registro detallado para diagnóstico (nunca el token ni el código):
+    logger.error(
+        "WhatsApp: HTTP %s code=%s subcode=%s fbtrace=%s msg=%s",
+        r.status_code, err.get("code"), err.get("error_subcode"),
+        err.get("fbtrace_id"), err.get("message"),
+    )
+    return {"ok": False, "status": r.status_code, "error": err}
+
+
+def enviar_plantilla_whatsapp(celular_e164: str, plantilla: str, idioma: str,
+                              componentes: list[dict]) -> bool:
+    """POST genérico de una plantilla aprobada a la Cloud API de Meta.
+
+    Reutilizado por el OTP y por las alertas de dispositivos. Devuelve True solo
+    si Meta aceptó el envío; nunca registra el código ni el celular en claro.
+    """
+    return enviar_plantilla_whatsapp_detalle(celular_e164, plantilla, idioma, componentes)["ok"]
 
 
 # =============================================================
@@ -143,15 +184,24 @@ class WhatsAppEnviador(EnviadorOTP):
     def configurado(self) -> bool:
         return bool(self.token and self.phone_number_id and self.plantilla)
 
-    def enviar(self, celular_e164: str, codigo: str) -> bool:
+    def _componentes(self, codigo: str) -> list[dict]:
         componentes = [{"type": "body", "parameters": [{"type": "text", "text": codigo}]}]
         if self.con_boton:
             componentes.append({
                 "type": "button", "sub_type": "url", "index": "0",
                 "parameters": [{"type": "text", "text": codigo}],
             })
+        return componentes
+
+    def enviar(self, celular_e164: str, codigo: str) -> bool:
         # Mismo cliente/configuración que el resto de avisos por WhatsApp.
-        return enviar_plantilla_whatsapp(celular_e164, self.plantilla, self.idioma, componentes)
+        return enviar_plantilla_whatsapp(
+            celular_e164, self.plantilla, self.idioma, self._componentes(codigo))
+
+    def enviar_detalle(self, celular_e164: str, codigo: str) -> dict:
+        """Igual que enviar(), pero devuelve el detalle de Meta (diagnóstico)."""
+        return enviar_plantilla_whatsapp_detalle(
+            celular_e164, self.plantilla, self.idioma, self._componentes(codigo))
 
 
 _enviador_forzado: EnviadorOTP | None = None

@@ -108,6 +108,9 @@ def _serializar_pago(pago: PagoDetectado) -> dict:
         "confirmacion_usuario": confirmacion,
         # Badge "¿Es tuyo?" solo si es sugerencia sin revisar
         "necesita_revision": posible_interno and confirmacion is None,
+        # Pago de prueba (botón "Simular pago de prueba"): se muestra con etiqueta
+        # "PRUEBA" y no cuenta para los totales de negocio.
+        "es_prueba": bool(getattr(pago, "es_prueba", False)),
     }
 
 
@@ -264,6 +267,7 @@ def vista_testers(request: Request, db: Session = Depends(get_db)):
         db.query(Empresa)
         .filter(Empresa.visible_en_testers == True)
         .filter(Empresa.activa == True)
+        .filter(Empresa.es_cuenta_revision == False)  # la cuenta de revisión no se muestra
         .order_by(Empresa.creada_en.asc())
         .all()
     )
@@ -274,6 +278,7 @@ def vista_testers(request: Request, db: Session = Depends(get_db)):
         total_pagos = (
             db.query(func.count(PagoDetectado.id))
             .filter(PagoDetectado.empresa_id == emp.id)
+            .filter(PagoDetectado.es_prueba == False)  # los pagos de prueba no cuentan
             .scalar() or 0
         )
         ultimo_ping = (

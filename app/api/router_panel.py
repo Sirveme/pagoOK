@@ -60,6 +60,7 @@ from app.services.conciliacion import (
     PagoNoEncontrado, PagoYaUsado, consultar_pago, marcar_usado_panel, serializar_pago,
 )
 from app.services.eventos import TZ_LIMA, a_iso_lima, monto_texto
+from app.services import revision
 from app.services.otp import OtpDemasiados, OtpNoDisponible, emitir_otp, obtener_enviador, verificar_otp
 from app.services.secretos import (
     generar_codigo_vinculacion, generar_token, hash_codigo, hash_token,
@@ -74,6 +75,8 @@ VIGENCIA_CODIGO_VINCULACION = timedelta(minutes=10)
 VIGENCIA_INVITACION = timedelta(hours=24)
 MENSAJE_OTP_ENVIADO = "Si el número está registrado, te enviaremos un código por WhatsApp."
 MENSAJE_OTP_INVALIDO = "Código incorrecto o vencido."
+MENSAJE_OTP_FALLO_ENVIO = ("No pudimos enviarte el código por WhatsApp. Inténtalo de nuevo en unos "
+                           "minutos; si sigue fallando, escríbenos.")
 
 ETIQUETA_ROL = {"dueno": "Dueño", "cajero": "Cajero", "almacen": "Almacén", "contador": "Contador"}
 
@@ -151,6 +154,12 @@ def _celular_o_400(valor) -> str:
 def login_otp(request: Request, payload: dict = Body(...), db: Session = Depends(get_db)):
     _limitar_ip(request, "otp")
     celular = _celular_o_400(payload.get("celular"))
+
+    # Acceso de revisión de Google Play: celular ficticio con código fijo, sin
+    # WhatsApp. El código se valida en /verificar. Un solo camino de acceso.
+    if revision.es_celular_revision(celular):
+        return {"ok": True, "mensaje": "Ingresa el código de revisión."}
+
     try:
         enviador = obtener_enviador()  # 503 ANTES de mirar el celular: no revela nada
     except OtpNoDisponible:
@@ -162,8 +171,9 @@ def login_otp(request: Request, payload: dict = Body(...), db: Session = Depends
             emitir_otp(db, celular, "login", enviador)
         except OtpDemasiados:
             logger.warning("Login OTP: demasiados códigos pedidos para un celular registrado")
-        except Exception as exc:  # el envío falló: misma respuesta, se registra el error
+        except Exception as exc:  # el envío falló de verdad: avisar claro (1.4)
             logger.error(f"Login OTP: no se pudo enviar ({type(exc).__name__})")
+            return JSONResponse({"detail": MENSAJE_OTP_FALLO_ENVIO}, status_code=502)
     # Misma respuesta exista o no el celular.
     return {"ok": True, "mensaje": MENSAJE_OTP_ENVIADO}
 
@@ -172,7 +182,19 @@ def login_otp(request: Request, payload: dict = Body(...), db: Session = Depends
 def login_verificar(request: Request, payload: dict = Body(...), db: Session = Depends(get_db)):
     _limitar_ip(request, "verificar")
     celular = _celular_o_400(payload.get("celular"))
-    if not verificar_otp(db, celular, str(payload.get("codigo") or ""), "login"):
+    codigo = str(payload.get("codigo") or "")
+    # Acceso de revisión: código fijo (hash) en vez del OTP de WhatsApp. El rol
+    # (contador = solo lectura) sale de la membresía sembrada en revision-play.
+    # Candado propio por IP (5 fallos/10 min), ya que el código es fijo.
+    if revision.es_celular_revision(celular):
+        clave_fallos = _ip(request)
+        if revision.panel_bloqueado(clave_fallos):
+            raise HTTPException(429, "Demasiados intentos. Espera unos minutos.")
+        if not revision.codigo_revision_valido(codigo):
+            revision.registrar_fallo_panel(clave_fallos)
+            raise HTTPException(400, MENSAJE_OTP_INVALIDO)
+        revision.limpiar_fallos_panel(clave_fallos)
+    elif not verificar_otp(db, celular, codigo, "login"):
         raise HTTPException(400, MENSAJE_OTP_INVALIDO)
     usuario = db.query(Usuario).filter(Usuario.celular == celular, Usuario.activo == True).first()  # noqa: E712
     empresas = _empresas_de(db, usuario.id) if usuario else []
@@ -264,8 +286,15 @@ def pagos_hoy(ctx: SesionCtx = Depends(requiere("ver_pagos")), db: Session = Dep
         .order_by(PagoDetectado.recibido_en.desc())
         .all()
     )
-    total = sum((Decimal(str(p.monto)) for p in pagos), Decimal("0"))
-    return {"pagos": [serializar_pago(p) for p in pagos], "cantidad": len(pagos), "total": monto_texto(total)}
+    # La lista muestra también los pagos de prueba (con etiqueta "PRUEBA"), pero
+    # el total e importe del día NO los cuentan (no son ingresos de negocio).
+    total = sum((Decimal(str(p.monto)) for p in pagos if not p.es_prueba), Decimal("0"))
+    reales = sum(1 for p in pagos if not p.es_prueba)
+
+    def _fila(p):
+        return {**serializar_pago(p), "es_prueba": bool(p.es_prueba)}
+
+    return {"pagos": [_fila(p) for p in pagos], "cantidad": reales, "total": monto_texto(total)}
 
 
 @router.post("/api/v1/panel/pagos/buscar")
@@ -339,6 +368,7 @@ def reporte_csv(
     filas = (
         db.query(PagoDetectado)
         .filter(PagoDetectado.empresa_id == ctx.empresa.id, PagoDetectado.tipo_incierto == False,  # noqa: E712
+                PagoDetectado.es_prueba == False,  # noqa: E712  (exportación de negocio: sin pruebas)
                 PagoDetectado.recibido_en >= ini, PagoDetectado.recibido_en < fin)
         .order_by(PagoDetectado.recibido_en)
         .all()

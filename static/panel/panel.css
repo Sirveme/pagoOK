@@ -45,6 +45,7 @@ th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--bord
 th { color: var(--txt-mute); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .4px; }
 .monto { font-weight: 700; color: var(--ambar-claro); white-space: nowrap; }
 .chip { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; background: var(--card-2); }
+.etiqueta-prueba { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .4px; background: #3730a3; color: #e0e7ff; vertical-align: middle; }
 .chip.verde { color: var(--verde); } .chip.rojo { color: var(--rojo); } .chip.amarillo { color: var(--ambar); }
 .codigo { font-size: 40px; font-weight: 800; letter-spacing: 6px; color: var(--ambar-claro); text-align: center; margin: 10px 0; }
 .qr { display: flex; justify-content: center; margin: 12px 0; }

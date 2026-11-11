@@ -299,8 +299,13 @@ def armar_datos_pago_confirmado(pago, referencia_pedido: str | None = None) -> d
 
 def debe_emitir_pago_confirmado(pago) -> bool:
     """Solo ingresos clasificados con certeza. Los dudosos (tipo_incierto)
-    quedan para un futuro pago.recibido / pago.no_conciliado."""
-    return (pago.tipo or "ingreso") == "ingreso" and not bool(pago.tipo_incierto)
+    quedan para un futuro pago.recibido / pago.no_conciliado. Los pagos de
+    prueba (es_prueba) nunca emiten eventos para ninguna empresa."""
+    return (
+        (pago.tipo or "ingreso") == "ingreso"
+        and not bool(pago.tipo_incierto)
+        and not bool(getattr(pago, "es_prueba", False))
+    )
 
 
 def emitir_pago_confirmado(db: Session, pago) -> dict | None:

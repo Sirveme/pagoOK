@@ -314,6 +314,9 @@ async def empresa_actualizar(
 ):
     if not empresa:
         return RedirectResponse(url="/admin/empresa/nueva", status_code=303)
+    # La cuenta de revisión de Google Play no se modifica desde el panel.
+    if getattr(empresa, "es_cuenta_revision", False):
+        raise HTTPException(403, "La cuenta de revisión de Play no se puede modificar.")
     empresa.razon_social = razon_social.strip().upper()
     empresa.nombre_comercial = nombre_comercial.strip()
     empresa.domicilio_fiscal = domicilio_fiscal.strip() or None

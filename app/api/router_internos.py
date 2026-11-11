@@ -133,11 +133,16 @@ def _query_movimientos(
     db: Session, empresa_id: int, tipo: str,
     desde: Optional[str], hasta: Optional[str],
     metodo: Optional[str], solo_negocio: bool, tipo_egreso: Optional[str] = None,
+    incluir_prueba: bool = False,
 ):
     q = db.query(PagoDetectado).filter(
         PagoDetectado.empresa_id == empresa_id,
         PagoDetectado.tipo == tipo,
     )
+    # Reportes de negocio (totales, CSV) NUNCA cuentan pagos de prueba; solo la
+    # lista visible los incluye (con etiqueta) pasando incluir_prueba=True.
+    if not incluir_prueba:
+        q = q.filter(PagoDetectado.es_prueba == False)  # noqa: E712
     d = _parse_iso_opcional(desde, "desde")
     h = _parse_iso_opcional(hasta, "hasta")
     if d is not None:
@@ -176,7 +181,12 @@ def _listar_movimientos(
     metodo: Optional[str], solo_negocio: bool, pagina: int,
     tipo_egreso: Optional[str] = None,
 ) -> dict:
-    q = _query_movimientos(db, empresa_id, tipo, desde, hasta, metodo, solo_negocio, tipo_egreso)
+    # La LISTA muestra también los pagos de prueba (con etiqueta); los TOTALES de
+    # negocio (totales_por_moneda) los excluyen.
+    q = _query_movimientos(db, empresa_id, tipo, desde, hasta, metodo, solo_negocio,
+                           tipo_egreso, incluir_prueba=True)
+    q_negocio = _query_movimientos(db, empresa_id, tipo, desde, hasta, metodo, solo_negocio,
+                                   tipo_egreso, incluir_prueba=False)
     total = q.count()
     pagina = max(1, pagina)
     offset = (pagina - 1) * TAM_PAGINA
@@ -194,7 +204,7 @@ def _listar_movimientos(
         "total": total,
         "hay_siguiente": offset + len(filas) < total,
         "movimientos": [_serializar_pago(p) for p in filas],
-        "totales_por_moneda": _totales_por_moneda(q.order_by(None)),
+        "totales_por_moneda": _totales_por_moneda(q_negocio.order_by(None)),
     }
 
 
@@ -509,6 +519,7 @@ def _html_lista_movimientos(slug: str, nombre_empresa: str, tipo: str) -> str:
   th { background:#f7f3ea; color:var(--suave); font-weight:600; }
   td.monto { font-variant-numeric:tabular-nums; font-weight:700; color:var(--acento); }
   .badge { background:#fef3c7; border:1px solid #fbbf24; border-radius:999px; padding:2px 8px; font-size:11px; }
+  .badge-prueba { background:#e0e7ff; border-color:#818cf8; color:#3730a3; font-weight:700; letter-spacing:.04em; }
   .pag { display:flex; gap:10px; justify-content:center; align-items:center; margin:16px 0; }
   .pag button { border:1px solid #ddd; background:#fff; border-radius:8px; padding:8px 14px; cursor:pointer; }
   .pag button:disabled { opacity:.4; cursor:not-allowed; }
@@ -630,7 +641,7 @@ async function cargar() {
     tb.innerHTML = data.movimientos.map(p => {
       const simbolo = p.moneda === "USD" ? "$" : "S/";
       const flecha = ES_EGRESO ? "→ " : "";
-      const estado = p.necesita_revision ? '<span class="badge">🏠 ¿Tuyo?</span>' : (p.confirmacion_usuario==="confirmado_interno" ? "Cuenta propia" : "");
+      const estado = p.es_prueba ? '<span class="badge badge-prueba">PRUEBA</span>' : (p.necesita_revision ? '<span class="badge">🏠 ¿Tuyo?</span>' : (p.confirmacion_usuario==="confirmado_interno" ? "Cuenta propia" : ""));
       const medio = ES_EGRESO && p.tipo_egreso_label ? p.tipo_egreso_label + " · " + p.metodo_label : p.metodo_label;
       const tarjeta = p.tarjeta_ultimos4 ? " (•••• " + esc(p.tarjeta_ultimos4) + ")" : "";
       return "<tr><td>"+esc(p.fecha)+"</td><td>"+esc(p.hora)+"</td><td>"+esc(medio)+tarjeta+"</td><td>"+flecha+esc(p.titular_corto)+"</td><td class=monto>"+simbolo+" "+esc(p.monto)+"</td><td title='"+(p.origen==="correo"?"Correo del banco":"Aviso del celular")+"'>"+(p.origen==="correo"?"✉️ correo":"📱 celular")+"</td><td>"+estado+"</td></tr>";
@@ -668,7 +679,8 @@ document.getElementById("csv").addEventListener("click", () => {
   }
   if (!ultimaData || !ultimaData.movimientos.length) return;
   const filas = [["Fecha","Hora","Metodo","Nombre","Monto","Moneda"]];
-  ultimaData.movimientos.forEach(p => filas.push([p.fecha,p.hora,p.metodo_label,(p.titular||""),p.monto,p.moneda]));
+  // Los pagos de prueba no salen en la exportación (no son de negocio).
+  ultimaData.movimientos.forEach(p => { if (p.es_prueba) return; filas.push([p.fecha,p.hora,p.metodo_label,(p.titular||""),p.monto,p.moneda]); });
   const csv = filas.map(f => f.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(",")).join("\\n");
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([csv], {type:"text/csv"}));

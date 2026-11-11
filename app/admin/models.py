@@ -96,6 +96,11 @@ class Empresa(Base):
     # ¿Permite auto-registro de dispositivos sin código de invitación?
     # Default FALSE (seguro): sin esto, la empresa exige código.
     acepta_autoregistro = Column(Boolean, default=False, nullable=False, server_default="false")
+    # Cuenta de revisión de Google Play (zWeb-09): no vence, no genera alertas de
+    # celular caído, no aparece en reportes de negocio ni métricas de admin, y no
+    # se puede eliminar, suspender ni modificar desde el panel (igual que las
+    # empresas demo). Solo debe existir UNA (el slug revision-play del seed).
+    es_cuenta_revision = Column(Boolean, default=False, nullable=False, server_default="false")
     # --- Multi-empresa (sql/multiempresa_2026-10.sql) ---
     # `pais` del contrato = pais_codigo (ISO alfa-2). Tipo de id fiscal: RUC, RFC, NIT...
     id_fiscal_tipo = Column(String(10))

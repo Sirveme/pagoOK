@@ -79,10 +79,15 @@ def empresa_de_revision_play(db: Session, codigo_normalizado: str) -> Empresa | 
         return None
     if not hmac.compare_digest(codigo_normalizado.encode(), secreto.encode()):
         return None
-    slug = os.getenv("EMPRESA_REVISION_PLAY", SLUG_REVISION_POR_DEFECTO).strip().lower()
-    empresa = db.query(Empresa).filter(Empresa.slug == slug).first()
+    # Preferir la cuenta marcada con la bandera; si no hay, caer al slug de la
+    # variable (compatibilidad con el seed anterior `demo-revision`).
+    from app.services import revision
+    empresa = revision.empresa_revision(db)
+    if empresa is None:
+        slug = os.getenv("EMPRESA_REVISION_PLAY", SLUG_REVISION_POR_DEFECTO).strip().lower()
+        empresa = db.query(Empresa).filter(Empresa.slug == slug).first()
     if empresa is None or cuenta_empresa.es_principal(empresa):
-        logger.error(f"Código de revisión de Play activo pero la empresa demo {slug!r} no existe o no es válida")
+        logger.error("Código de revisión de Play activo pero la empresa de revisión no existe o no es válida")
         return None
     return empresa
 

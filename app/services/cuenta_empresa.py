@@ -49,6 +49,12 @@ def es_principal(empresa) -> bool:
     return (empresa.slug or "").lower() == SLUG_PRINCIPAL
 
 
+def nunca_vence(empresa) -> bool:
+    """Cuentas que siempre están activas: perusistemas y la cuenta de revisión
+    de Google Play (es_cuenta_revision)."""
+    return es_principal(empresa) or bool(getattr(empresa, "es_cuenta_revision", False))
+
+
 def iniciar_prueba(empresa, ahora: datetime | None = None) -> None:
     """Deja una empresa nueva en prueba de 7 días."""
     ahora = ahora or _ahora()
@@ -62,7 +68,7 @@ def refrescar_estado(db: Session | None, empresa, ahora: datetime | None = None)
     """Estado efectivo. Si la prueba ya terminó, la marca 'vencida' (y hace
     commit si se pasa `db`). perusistemas siempre queda 'activa'."""
     ahora = ahora or _ahora()
-    if es_principal(empresa):
+    if nunca_vence(empresa):
         if empresa.estado_cuenta != ACTIVA:
             empresa.estado_cuenta = ACTIVA
             if db is not None:
@@ -131,6 +137,6 @@ def activar(empresa) -> None:
 
 
 def suspender(empresa) -> None:
-    if es_principal(empresa):
-        raise CuentaError("perusistemas siempre está activa; no se puede suspender.")
+    if nunca_vence(empresa):
+        raise CuentaError("Esta cuenta siempre está activa; no se puede suspender.")
     empresa.estado_cuenta = SUSPENDIDA

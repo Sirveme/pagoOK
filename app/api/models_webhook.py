@@ -90,6 +90,13 @@ class PagoDetectado(Base):
     # El parser no pudo clasificar ingreso/egreso con certeza (guardado como
     # 'ingreso' por defecto, marcado para revisión).
     tipo_incierto = Column(Boolean, default=False, nullable=False, server_default="false")
+    # --- Pago de prueba (zWeb-09) ---
+    # true SOLO para el aviso que genera el botón "Simular pago de prueba" de la
+    # app (contrato del inbound). Un pago de prueba NUNCA sale en la API pública
+    # (consultar/listar), nunca se marca como usado, nunca dispara pago.confirmado
+    # ni push, y NO cuenta para reportes de negocio, cupos ni tarifa. Se ve en el
+    # panel con la etiqueta "PRUEBA".
+    es_prueba = Column(Boolean, default=False, nullable=False, server_default="false")
     # --- Egresos (zWeb-05). `tipo` ya es la dirección (ingreso | egreso) ---
     # envio_billetera | transferencia_enviada | consumo_tarjeta | retiro_cajero |
     # pago_servicio | cargo_recurrente | otro_egreso. NULL en ingresos.

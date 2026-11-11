@@ -8,7 +8,7 @@ GET  /api/v1/ping                       <- health check para el celular
 """
 from fastapi import APIRouter, Request, Header, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, and_
+from sqlalchemy import desc, and_, func
 from datetime import datetime, timedelta
 from decimal import Decimal
 import logging
@@ -24,6 +24,23 @@ router = APIRouter(prefix="/api/v1", tags=["webhook"])
 
 # La hora del celular se acepta solo si está dentro de esta diferencia del servidor.
 UMBRAL_CELULAR = timedelta(minutes=5)
+
+# Pagos de prueba (botón "Simular pago de prueba"): tope por dispositivo y hora.
+MAX_PRUEBAS_POR_HORA = 10
+
+
+def _pruebas_recientes(db: Session, dispositivo_id: int, desde: datetime) -> int:
+    """Cuántos pagos de prueba generó este dispositivo desde `desde`."""
+    return (
+        db.query(func.count(PagoDetectado.id))
+        .join(NotificacionRaw, PagoDetectado.notificacion_raw_id == NotificacionRaw.id)
+        .filter(
+            NotificacionRaw.dispositivo_id == dispositivo_id,
+            PagoDetectado.es_prueba == True,  # noqa: E712
+            PagoDetectado.recibido_en >= desde,
+        )
+        .scalar()
+    ) or 0
 
 
 def recibido_en_para(ts_celular_ms, servidor: datetime) -> datetime:
@@ -96,6 +113,13 @@ async def inbound(
     texto = data.get("texto") or ""
     sbn_key = (data.get("sbn_key") or "")[:200] or None
     ts_celular = data.get("timestamp_celular")
+    # Contrato del botón "Simular pago de prueba": el único campo que marca el
+    # aviso como prueba. Default false -> un aviso real sigue idéntico.
+    es_prueba = bool(data.get("es_prueba"))
+    if es_prueba:
+        usados = _pruebas_recientes(db, dispositivo.id, datetime.utcnow() - timedelta(hours=1))
+        if usados >= MAX_PRUEBAS_POR_HORA:
+            raise HTTPException(429, f"Límite de pagos de prueba por hora alcanzado ({MAX_PRUEBAS_POR_HORA}).")
 
     # 3) Dedup por sbn_key (si la app reintenta y manda el mismo, no duplicamos)
     if sbn_key:
@@ -134,7 +158,7 @@ async def inbound(
         # mismo tipo, monto y moneda), la notificación se vincula a ese registro
         # y no se crea otro. `pago` queda en None: sin push ni webhook repetidos.
         previo_correo = None
-        if parsed:
+        if parsed and not es_prueba:
             from app.services.correo_entrante import vincular_notificacion_con_correo
             previo_correo = vincular_notificacion_con_correo(
                 db, dispositivo.empresa_id, parsed, datetime.utcnow())
@@ -173,6 +197,7 @@ async def inbound(
                 tipo_incierto=bool(parsed.get("tipo_incierto", False)),
                 tipo_egreso=parsed.get("tipo_egreso"),
                 tarjeta_ultimos4=parsed.get("tarjeta_ultimos4"),
+                es_prueba=es_prueba,
                 # Hora del pago: la del celular si es razonable; si no, la del servidor.
                 recibido_en=recibido_en_para(ts_celular, recibido_servidor),
             )
@@ -207,8 +232,9 @@ async def inbound(
 
     db.commit()
 
-    # 7) Enviar Web Push a receptores suscritos (best-effort, post-commit)
-    if pago is not None:
+    # 7) Enviar Web Push a receptores suscritos (best-effort, post-commit).
+    #    Un pago de prueba NUNCA notifica (ni push ni, más abajo, webhook/evento).
+    if pago is not None and not pago.es_prueba:
         try:
             from app.api.push_service import enviar_push_a_empresa, formatear_push_pago
             from app.admin.db import VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_CLAIM_EMAIL
@@ -239,7 +265,8 @@ async def inbound(
 
     # 8) Contrato de eventos: encolar pago.confirmado para los sistemas
     #    suscritos (best-effort; solo inserta en BD, el envío lo hace el worker).
-    if pago is not None:
+    #    debe_emitir_pago_confirmado ya excluye los pagos de prueba.
+    if pago is not None and not pago.es_prueba:
         try:
             from app.services.eventos import emitir_pago_confirmado
             emitir_pago_confirmado(db, pago)
@@ -283,6 +310,7 @@ async def buscar_pagos(
     q = db.query(PagoDetectado).filter(
         PagoDetectado.empresa_id == dispositivo.empresa_id,
         PagoDetectado.tipo == "ingreso",  # la caja busca pagos recibidos, nunca egresos
+        PagoDetectado.es_prueba == False,  # noqa: E712  (un pago de prueba no confirma ventas)
         PagoDetectado.recibido_en >= desde,
     )
     if not incluir_consumidos:
@@ -327,6 +355,7 @@ async def pagos_recientes(
     pagos = db.query(PagoDetectado).filter(
         PagoDetectado.empresa_id == dispositivo.empresa_id,
         PagoDetectado.tipo == "ingreso",
+        PagoDetectado.es_prueba == False,  # noqa: E712
     ).order_by(desc(PagoDetectado.recibido_en)).limit(min(limit, 50)).all()
 
     return {
@@ -358,6 +387,7 @@ async def consumir_pago(
         PagoDetectado.id == pago_id,
         PagoDetectado.empresa_id == dispositivo.empresa_id,
         PagoDetectado.tipo == "ingreso",
+        PagoDetectado.es_prueba == False,  # noqa: E712
     ).first()
     if not pago:
         raise HTTPException(404, "Pago no encontrado")

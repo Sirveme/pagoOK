@@ -171,6 +171,8 @@ def listar_pagos(
         | (PagoDetectado.reclamado_por == cuenta.id),
         # Nunca ofrecer pagos dudosos (sin verbo de ingreso: posibles promociones).
         PagoDetectado.tipo_incierto == False,  # noqa: E712
+        # Ni los de prueba (botón "Simular pago de prueba").
+        PagoDetectado.es_prueba == False,  # noqa: E712
         # Ni los ya usados por otro (p. ej. marcados desde el panel, sin cuenta_api).
         ~_usado_por_otro(cuenta.id),
     )
@@ -225,6 +227,7 @@ def reclamar_pago(
             PagoDetectado.id == pid,
             PagoDetectado.empresa_id == cuenta.empresa_id,
             PagoDetectado.tipo == "ingreso",
+            PagoDetectado.es_prueba == False,
             PagoDetectado.reclamado_por.is_(None),
             ~_usado_por_otro(cuenta.id),
         )
@@ -244,6 +247,7 @@ def reclamar_pago(
             PagoDetectado.id == pid,
             PagoDetectado.empresa_id == cuenta.empresa_id,
             PagoDetectado.tipo == "ingreso",
+            PagoDetectado.es_prueba == False,
         )
         .first()
     )

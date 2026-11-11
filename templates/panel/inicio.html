@@ -75,9 +75,10 @@ async function cargarHoy() {
   if (!r.ok) { $("resumenHoy").textContent = errorDe(r); return; }
   $("resumenHoy").textContent = r.datos.cantidad + " pago(s) · Total S/ " + r.datos.total;
   $("tablaHoy").innerHTML = r.datos.pagos.map(p =>
-    "<tr><td>" + hhmm(p.fecha_hora) + "</td><td>" + esc(p.contraparte || "—") + "</td><td>" + esc(p.institucion) +
+    "<tr><td>" + hhmm(p.fecha_hora) + "</td><td>" + esc(p.contraparte || "—") +
+    (p.es_prueba ? " <span class='etiqueta-prueba'>PRUEBA</span>" : "") + "</td><td>" + esc(p.institucion) +
     "</td><td class='monto'>S/ " + esc(p.monto) + "</td>" +
-    (PUEDE_MARCAR ? "<td><button class='btn sec' style='margin:0;padding:5px 10px;font-size:13px' onclick='marcar(" + p.pago_id + ")'>Marcar usado</button></td>" : "") +
+    (PUEDE_MARCAR ? "<td>" + (p.es_prueba ? "" : "<button class='btn sec' style='margin:0;padding:5px 10px;font-size:13px' onclick='marcar(" + p.pago_id + ")'>Marcar usado</button>") + "</td>" : "") +
     "</tr>").join("") || "<tr><td colspan='5' class='mute'>Todavía no hay pagos hoy.</td></tr>";
 }
 

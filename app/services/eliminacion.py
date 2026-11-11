@@ -60,11 +60,16 @@ def _slugs_demo() -> set[str]:
 
 
 def eliminacion_permitida(empresa: Empresa) -> bool:
-    """Nunca perusistemas, ni las de SLUGS_DEMO, ni la demo del revisor de Play."""
+    """Nunca perusistemas, ni las de SLUGS_DEMO, ni la cuenta de revisión de Play."""
     import os
     slug = (empresa.slug or "").lower()
-    revision = os.getenv("EMPRESA_REVISION_PLAY", "demo-revision").strip().lower()
-    return not (cuenta_empresa.es_principal(empresa) or slug in _slugs_demo() or slug == revision)
+    revision_slug = os.getenv("EMPRESA_REVISION_PLAY", "demo-revision").strip().lower()
+    return not (
+        cuenta_empresa.es_principal(empresa)
+        or slug in _slugs_demo()
+        or slug == revision_slug
+        or bool(getattr(empresa, "es_cuenta_revision", False))
+    )
 
 
 def hash_id_fiscal(pais: str, id_fiscal: str) -> str:

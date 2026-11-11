@@ -66,6 +66,8 @@ def calcular_resumen_dia(empresa_id: int, fecha: date, session: Session) -> dict
         session.query(PagoDetectado)
         .filter(
             PagoDetectado.empresa_id == empresa_id,
+            # Los pagos de prueba no cuentan para ningún reporte de negocio.
+            PagoDetectado.es_prueba == False,  # noqa: E712
             PagoDetectado.recibido_en >= inicio,
             PagoDetectado.recibido_en <= fin,
         )

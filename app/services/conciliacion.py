@@ -198,6 +198,7 @@ def consultar_pago(
         PagoDetectado.empresa_id == empresa_id,
         PagoDetectado.tipo == "ingreso",
         PagoDetectado.tipo_incierto == False,  # noqa: E712
+        PagoDetectado.es_prueba == False,  # noqa: E712  (un pago de prueba nunca se consulta)
         PagoDetectado.monto == monto,
         or_(PagoDetectado.confirmacion_usuario.is_(None),
             PagoDetectado.confirmacion_usuario != "confirmado_interno"),
@@ -327,6 +328,7 @@ def marcar_usado(db: Session, *, cuenta, pago_id: int, referencia_externa: str,
         PagoDetectado.id == pago_id,
         PagoDetectado.empresa_id == cuenta.empresa_id,
         PagoDetectado.tipo == "ingreso",  # un egreso no se usa para confirmar nada
+        PagoDetectado.es_prueba == False,  # noqa: E712  (un pago de prueba nunca se marca usado)
     ).first()
     if pago is None:
         raise PagoNoEncontrado()
@@ -386,6 +388,7 @@ def marcar_usado_panel(db: Session, *, empresa_id: int, usuario_nombre: str, pag
     pago = db.query(PagoDetectado).filter(
         PagoDetectado.id == pago_id, PagoDetectado.empresa_id == empresa_id,
         PagoDetectado.tipo == "ingreso",
+        PagoDetectado.es_prueba == False,  # noqa: E712
     ).first()
     if pago is None:
         raise PagoNoEncontrado()
