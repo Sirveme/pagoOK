@@ -12,7 +12,7 @@
     </div>
     <div id="paso2" class="oculto">
       <p class="mute" id="msgEnviado"></p>
-      <label for="codigo">Código de 6 dígitos</label>
+      <label for="codigo" id="codigoLabel">Código de 6 dígitos</label>
       <input id="codigo" inputmode="numeric" maxlength="6" placeholder="123456" autocomplete="one-time-code">
       <button class="btn" style="width:100%" onclick="verificar()">Ingresar</button>
       <button class="btn sec" style="width:100%" onclick="volver()">Usar otro número</button>
@@ -24,11 +24,31 @@
 {% block scripts %}
 <script>
 const $ = id => document.getElementById(id);
+// La casilla del código: 6 dígitos (OTP normal) o alfanumérica larga (revisión).
+function configurarCampo(modo) {
+  const campo = $("codigo");
+  if (modo === "revision") {
+    $("codigoLabel").textContent = "Código de revisión";
+    campo.setAttribute("inputmode", "text");      // teclado de texto, no numérico
+    campo.setAttribute("maxlength", "40");         // alfanumérico y largo
+    campo.setAttribute("placeholder", "Código de revisión");
+    campo.setAttribute("autocomplete", "off");
+  } else {
+    $("codigoLabel").textContent = "Código de 6 dígitos";
+    campo.setAttribute("inputmode", "numeric");
+    campo.setAttribute("maxlength", "6");
+    campo.setAttribute("placeholder", "123456");
+    campo.setAttribute("autocomplete", "one-time-code");
+  }
+  campo.value = "";
+}
+
 async function pedirCodigo() {
   $("error").textContent = "";
   const r = await api("/panel/login/otp", { method: "POST", body: JSON.stringify({ celular: $("celular").value }) });
   if (!r.ok) { $("error").textContent = errorDe(r); return; }
   $("msgEnviado").textContent = r.datos.mensaje;
+  configurarCampo(r.datos.modo);
   $("paso1").classList.add("oculto"); $("paso2").classList.remove("oculto"); $("codigo").focus();
 }
 async function verificar() {

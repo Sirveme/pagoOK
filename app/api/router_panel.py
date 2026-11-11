@@ -157,8 +157,9 @@ def login_otp(request: Request, payload: dict = Body(...), db: Session = Depends
 
     # Acceso de revisión de Google Play: celular ficticio con código fijo, sin
     # WhatsApp. El código se valida en /verificar. Un solo camino de acceso.
+    # `modo` le dice al front que la casilla es alfanumérica y larga (no 6 dígitos).
     if revision.es_celular_revision(celular):
-        return {"ok": True, "mensaje": "Ingresa el código de revisión."}
+        return {"ok": True, "mensaje": "Ingresa el código de revisión.", "modo": "revision"}
 
     try:
         enviador = obtener_enviador()  # 503 ANTES de mirar el celular: no revela nada

@@ -133,6 +133,17 @@ class TestAccesoRevision(RevisionBase):
         r = self.client.post("/panel/login/otp", json={"celular": CELULAR})
         self.assertEqual(r.status_code, 200, r.text)
         self.assertTrue(r.json()["ok"])
+        # El front usa este flag para la casilla alfanumérica larga.
+        self.assertEqual(r.json().get("modo"), "revision")
+
+    def test_codigo_largo_alfanumerico_entra(self):
+        # Un código largo y alfanumérico (hasta 40) se acepta tal cual (solo .strip()).
+        codigo = "RevPlay-2026_Acceso-LARGO-abc123"
+        with mock.patch.dict(os.environ, {
+            "REVISION_PANEL_CODIGO_HASH": hashlib.sha256(codigo.encode()).hexdigest()}):
+            r = self.client.post("/panel/login/verificar",
+                                 json={"celular": CELULAR, "codigo": f"  {codigo}  "})
+        self.assertEqual(r.status_code, 200, r.text)
 
     def test_login_con_codigo_fijo(self):
         r = self.client.post("/panel/login/verificar", json={"celular": CELULAR, "codigo": CODIGO})
