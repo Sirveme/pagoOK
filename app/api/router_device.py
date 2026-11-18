@@ -28,13 +28,16 @@ from sqlalchemy.orm import Session
 from app.admin.db import get_db
 from app.admin.models import CodigoInvitacion, Empresa
 from app.admin import superadmin
+from app.admin.estilo_oscuro import CSS_BASE
 from app.api.models_device import DeviceEstadoActual
 from app.api.models_cuenta import CuentaApi
 from app.api.models_webhook import Dispositivo, NotificacionRaw
 from app.api.deps_empresa import resolver_dispositivo
 from app.api.publica_v1 import cuenta_actual
 from app.api.router_demo import _obtener_empresa_por_slug
-from app.services import cuenta_empresa
+from app.services import cuenta_empresa, incidentes
+from app.api.models_incidente import DispositivoIncidente
+from app.services.log_seguro import log_aviso
 from app.api.tokens_legacy import advertir_si_token_legacy
 
 logger = logging.getLogger("pagook")
@@ -319,6 +322,8 @@ async def heartbeat(
         .first()
     )
     estado_anterior = fila.estado if fila else None
+    zombies_anterior = (fila.veces_zombie_total or 0) if fila else None
+    rebind_anterior = (fila.veces_rebind_exitoso or 0) if fila else None
 
     def _campos_comunes(f: DeviceEstadoActual) -> None:
         f.estado = estado
@@ -352,6 +357,18 @@ async def heartbeat(
     # viejas no los envían y no pasa nada.
     guardar_campos_opcionales(dispositivo, data)
     db.commit()
+
+    # 3b) Zombies y alarmas con fecha (zWeb-11). Va DESPUÉS del commit y
+    #     aislado: si el registro falla (p. ej. la tabla aún no existe), el
+    #     heartbeat ya quedó guardado y el equipo recibe su 200 igual.
+    try:
+        incidentes.registrar_desde_heartbeat(
+            db, dispositivo, data, zombies_antes=zombies_anterior, estado_antes=estado_anterior,
+            rebind_antes=rebind_anterior)
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception(f"No se pudo registrar el incidente del dispositivo {dispositivo.id}")
 
     # 4) Log según estado. El lector caído es el incidente 06-11: el equipo
     #    sigue vivo (heartbeat), pero Android desconectó el NotificationListener
@@ -430,10 +447,9 @@ async def aviso_no_reconocido(
     )
     db.add(raw)
     db.commit()
-    logger.warning(
-        f"Aviso NO RECONOCIDO dispositivo={dispositivo.id} empresa={dispositivo.empresa_id} "
-        f"package={package} texto={texto[:80]!r}"
-    )
+    # zWeb-12: sin el texto del aviso (queda en la BD, que se purga a los 90 días).
+    logger.warning(log_aviso("Aviso NO RECONOCIDO", dispositivo, package, "no_reconocido", texto,
+                             raw_id=raw.id))
     return {"status": "guardado", "raw_id": raw.id}
 
 
@@ -657,6 +673,96 @@ def admin_archivar_dispositivo(
 
 
 # =============================================================
+# Detalle de un equipo: zombies y alarmas con fecha (zWeb-11)
+# =============================================================
+
+@router.get("/api/v1/admin/dispositivos/{dispositivo_id}/detalle")
+def admin_detalle_dispositivo(
+    dispositivo_id: int,
+    request: Request,
+    x_admin_token: Optional[str] = Header(default=None, alias="X-Admin-Token"),
+    db: Session = Depends(get_db),
+):
+    """Lo que abre el panel lateral: datos del equipo, estado del lector y la
+    lista de zombies/alarmas (hora de Lima). Los contadores anteriores al
+    registro detallado se informan aparte como `sin_fecha`."""
+    if not _autorizado(request, x_admin_token):
+        raise HTTPException(401, "No autorizado")
+    fila = next((d for d in _obtener_dispositivos(db)["dispositivos"]
+                 if d["dispositivo_id"] == dispositivo_id), None)
+    if fila is None:
+        raise HTTPException(404, "Equipo no encontrado o archivado")
+    disp = db.get(Dispositivo, dispositivo_id)
+    dea = db.get(DeviceEstadoActual, dispositivo_id)
+
+    lista = incidentes.listar(db, dispositivo_id)
+    zombies_con_fecha = (
+        db.query(func.coalesce(func.sum(DispositivoIncidente.cantidad), 0))
+        .filter(DispositivoIncidente.dispositivo_id == dispositivo_id,
+                DispositivoIncidente.tipo == "zombie").scalar() or 0
+    )
+    alarmas_con_fecha = (
+        db.query(func.count(DispositivoIncidente.id))
+        .filter(DispositivoIncidente.dispositivo_id == dispositivo_id,
+                DispositivoIncidente.tipo == "alarma").scalar() or 0
+    )
+    causa_actual = None
+    if dea is not None:
+        if dea.permiso_notificaciones is False:
+            causa_actual = "sin_permiso"
+        elif dea.listener_conectado is False:
+            causa_actual = "lector_desconectado"
+    return {
+        "dispositivo": {
+            **{k: fila[k] for k in (
+                "dispositivo_id", "empresa", "nombre", "manufacturer", "modelo", "estado", "motivo",
+                "app_version", "android_version", "listener_conectado", "permiso_notificaciones",
+                "minutos_desde_ultimo_heartbeat", "veces_zombie_total", "veces_alarma_disparada",
+                "avisos_no_reconocidos")},
+            "ultimo_heartbeat_lima": incidentes.fmt_lima(dea.ultimo_heartbeat if dea else None),
+            "ultimo_pago_capturado_lima": incidentes.fmt_lima(disp.ultimo_pago_capturado),
+            "accion_actual": incidentes.ACCIONES.get(causa_actual or ""),
+        },
+        "incidentes": [incidentes.serializar(i) for i in lista],
+        "sin_fecha": {
+            "zombies": max(0, fila["veces_zombie_total"] - int(zombies_con_fecha)),
+            "alarmas": max(0, fila["veces_alarma_disparada"] - int(alarmas_con_fecha)),
+        },
+    }
+
+
+@router.post("/api/v1/admin/incidentes/{incidente_id}/revisar")
+async def admin_revisar_incidente(
+    incidente_id: int,
+    request: Request,
+    x_admin_token: Optional[str] = Header(default=None, alias="X-Admin-Token"),
+    db: Session = Depends(get_db),
+):
+    """Marca un zombie/alarma como revisado, con auditoría de quién y cuándo.
+
+    La sesión de superadmin no tiene usuarios con nombre (es una sola llave),
+    así que se guarda el nombre que escribe quien revisa (opcional) + el canal
+    (panel o script) + la IP. Idempotente: no pisa una revisión anterior."""
+    if not _autorizado(request, x_admin_token):
+        raise HTTPException(401, "No autorizado")
+    inc = db.get(DispositivoIncidente, incidente_id)
+    if inc is None:
+        raise HTTPException(404, "Incidente no encontrado")
+    try:
+        cuerpo = await request.json()
+    except Exception:
+        cuerpo = {}
+    nombre = str((cuerpo or {}).get("nombre") or "").strip()[:80] if isinstance(cuerpo, dict) else ""
+    canal = "superadmin (script)" if _token_admin_valido(x_admin_token) else "superadmin (panel)"
+    por = f"{nombre} · {canal}" if nombre else canal
+    nueva = incidentes.marcar_revisada(db, inc, por=por, ip=_ip_cliente(request))
+    db.commit()
+    if nueva:
+        logger.info(f"Incidente {inc.id} ({inc.tipo}) del dispositivo {inc.dispositivo_id} revisado por {por}")
+    return {"ok": True, "ya_estaba_revisada": not nueva, "incidente": incidentes.serializar(inc)}
+
+
+# =============================================================
 # ENDPOINT: GET /api/v1/dispositivos/estado  (API de clientes, X-API-Key)
 # =============================================================
 # El cliente, con SU API key, ve SOLO los equipos de SU empresa y detecta el
@@ -744,43 +850,62 @@ def _html_dashboard(datos: dict) -> str:
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Estado de dispositivos · pagoOK</title>
 <style>
-  :root { --jade:#0f766e; --coral:#ea6d40; --fondo:#faf6ef; --grafito:#1c1f26; --suave:#4b5563; }
-  * { box-sizing:border-box; margin:0; padding:0; }
-  body { font-family:'Inter',system-ui,sans-serif; background:var(--fondo); color:var(--grafito); padding:16px; }
+__CSS_BASE__
   .cont { max-width:1000px; margin:0 auto; }
-  h1 { font-size:20px; color:var(--jade); margin-bottom:8px; }
   .resumen { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
-  .chip { border-radius:999px; padding:6px 14px; font-size:13px; font-weight:600; }
-  .c-verde { background:#dcfce7; color:#166534; }
-  .c-amarillo { background:#fef3c7; color:#854d0e; }
-  .c-rojo { background:#fee2e2; color:#991b1b; }
-  .c-total { background:#e2e8f0; color:#334155; }
-  .c-sin { background:#e5e7eb; color:#4b5563; }
-  table { width:100%; border-collapse:collapse; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 1px 8px rgba(28,31,38,.06); }
-  th, td { text-align:left; padding:9px 12px; font-size:13px; border-bottom:1px solid #f0ece3; }
-  th { background:#f7f3ea; color:var(--suave); font-weight:600; }
-  tr.rojo { background:#fee2e2; }
-  tr.amarillo { background:#fef3c7; }
-  tr.inactivo { background:#f3f4f6; color:#6b7280; }
+  tr.rojo td { background:var(--rojo-fondo); }
+  tr.amarillo td { background:var(--ambar-fondo); }
+  tr.inactivo td { color:var(--txt-mute); }
   td.empresa { font-weight:600; }
-  .badge { border-radius:999px; padding:2px 9px; font-size:11px; font-weight:700; text-transform:capitalize; }
-  .b-verde { background:#16a34a; color:#fff; } .b-amarillo { background:#ca8a04; color:#fff; }
-  .b-rojo { background:#dc2626; color:#fff; } .b-inactivo { background:#9ca3af; color:#fff; }
-  .motivo { display:block; font-size:11px; color:var(--suave); margin-top:2px; }
+  .motivo { display:block; font-size:11px; color:var(--txt-suave); margin-top:2px; }
   .barra { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
-  .barra button, td button { border:1px solid #cbd5e1; background:#fff; border-radius:8px; padding:6px 12px; font-size:13px; cursor:pointer; }
   td button { padding:3px 9px; font-size:12px; }
-  .salir { margin-left:8px; font-size:13px; color:var(--coral); text-decoration:none; }
-  .sin-pago { color:#b91c1c; font-weight:600; }
-  .umbrales { font-size:12px; color:var(--suave); }
-  h2 { font-size:15px; color:var(--jade); margin:22px 0 8px; }
-  .tabla-scroll { overflow-x:auto; }
-  .sin-equipos { background:#fff; border-radius:12px; padding:4px 0; box-shadow:0 1px 8px rgba(28,31,38,.06); }
-  .sin-equipos li { list-style:none; padding:8px 14px; font-size:13px; border-bottom:1px solid #f0ece3; }
+  .sin-pago { color:var(--rojo); font-weight:600; }
+  .umbrales { font-size:12px; color:var(--txt-suave); }
+  .sin-equipos { background:var(--card); border:1px solid var(--borde); border-radius:12px; padding:4px 0; }
+  .sin-equipos li { list-style:none; padding:8px 14px; font-size:13px; border-bottom:1px solid var(--borde); }
   .sin-equipos li:last-child { border-bottom:none; }
-  .sin-equipos small { color:var(--suave); }
-  .vacio { font-size:13px; color:var(--suave); padding:10px 0; }
-  .actualizado { font-size:12px; color:var(--suave); margin-top:12px; text-align:center; }
+  .sin-equipos small { color:var(--txt-suave); }
+  .actualizado { font-size:12px; color:var(--txt-mute); margin-top:12px; text-align:center; }
+  tbody tr.fila { cursor:pointer; }
+  tbody tr.fila:hover td { background:var(--card-2); }
+  td button.num { border:none; background:none; padding:0; font-size:13px; color:var(--ambar-claro); font-weight:700; text-decoration:underline; cursor:pointer; }
+  /* Panel lateral de detalle (zWeb-11/12) */
+  .velo { position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; z-index:10; }
+  .velo.abierto { display:block; }
+  .lateral { position:fixed; top:0; right:0; bottom:0; width:440px; max-width:100%; background:var(--bg);
+             border-left:1px solid var(--borde); box-shadow:-4px 0 24px rgba(0,0,0,.5); transform:translateX(100%);
+             transition:transform .2s ease; z-index:11; display:flex; flex-direction:column; }
+  .lateral.abierto { transform:none; }
+  .lat-cab { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; padding:16px; background:var(--bg-2); border-bottom:1px solid var(--borde); }
+  .lat-cab h3 { font-size:16px; color:var(--ambar-claro); }
+  .lat-cab small { display:block; font-size:12px; color:var(--txt-suave); margin-top:2px; }
+  .cerrar { border:none; background:none; font-size:24px; line-height:1; color:var(--txt-suave); cursor:pointer; padding:0 4px; }
+  .lat-cuerpo { padding:14px 16px 24px; overflow-y:auto; flex:1; }
+  .datos { display:grid; grid-template-columns:auto 1fr; gap:6px 12px; background:var(--card); border:1px solid var(--borde); border-radius:12px; padding:12px 14px; font-size:13px; }
+  .datos dt { color:var(--txt-suave); }
+  .datos dd { font-weight:600; word-break:break-word; }
+  .que-hacer { background:var(--ambar-fondo); border-left:4px solid var(--ambar); border-radius:8px; padding:9px 12px; font-size:13px; margin-top:10px; }
+  .lat-cuerpo h4 { font-size:14px; color:var(--ambar-claro); margin:18px 0 8px; }
+  .revisor { display:flex; gap:8px; align-items:center; font-size:12px; color:var(--txt-suave); margin-bottom:10px; }
+  .revisor input { flex:1; min-width:0; }
+  .inc { background:var(--card); border:1px solid var(--borde); border-radius:12px; padding:10px 12px; margin-bottom:8px; font-size:13px; }
+  .inc-cab { display:flex; justify-content:space-between; gap:8px; align-items:center; flex-wrap:wrap; }
+  .inc-fecha { font-size:12px; color:var(--txt-suave); }
+  .tipo { border-radius:999px; padding:2px 9px; font-size:11px; font-weight:700; }
+  .t-zombie { background:rgba(167,139,250,.18); color:var(--violeta); } .t-alarma { background:var(--rojo-fondo); color:var(--rojo); }
+  .inc p { margin-top:6px; }
+  .inc .accion { margin-top:6px; font-size:12px; background:var(--ambar-fondo); border-radius:6px; padding:6px 8px; }
+  .inc-datos { display:grid; grid-template-columns:auto 1fr; gap:2px 10px; margin-top:8px; font-size:12px; }
+  .inc-datos dt { color:var(--txt-mute); }
+  .inc-pie { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-top:8px; font-size:12px; color:var(--txt-suave); }
+  .activa { color:var(--rojo); font-weight:700; } .resuelta { color:var(--verde); font-weight:600; }
+  .inc-pie button { border-color:var(--ambar); color:var(--ambar-claro); font-weight:600; padding:5px 10px; font-size:12px; }
+  @media (max-width:480px) {
+    body { padding:12px; }
+    .lateral { width:100%; }
+    .datos { grid-template-columns:1fr; gap:2px; } .datos dd { margin-bottom:6px; }
+  }
 </style></head>
 <body><div class="cont">
   <h1>Estado de dispositivos</h1>
@@ -789,6 +914,7 @@ def _html_dashboard(datos: dict) -> str:
     <span class="umbrales" id="umbrales"></span>
     <span>
       <button type="button" id="btn-inactivos">Mostrar inactivos</button>
+      <a class="boton" href="/admin/testers-metricas">Métricas de testers</a>
       <a class="salir" href="/admin/salir">Salir</a>
     </span>
   </div>
@@ -803,6 +929,14 @@ def _html_dashboard(datos: dict) -> str:
   <div id="sin-equipos"></div>
   <div class="actualizado" id="actualizado"></div>
 </div>
+<div class="velo" id="velo"></div>
+<aside class="lateral" id="lateral" role="dialog" aria-modal="true" aria-labelledby="lat-titulo" aria-hidden="true">
+  <div class="lat-cab">
+    <div><h3 id="lat-titulo">Equipo</h3><small id="lat-sub"></small></div>
+    <button type="button" class="cerrar" id="lat-cerrar" aria-label="Cerrar">&times;</button>
+  </div>
+  <div class="lat-cuerpo" id="lat-cuerpo"></div>
+</aside>
 <script>
 let datos = __DATOS_JSON__;
 let verInactivos = false;
@@ -850,8 +984,9 @@ function pintar() {
       : '<span class="badge b-'+d.estado+'">'+esc(d.estado)+'</span><span class="motivo">'+esc(d.motivo)+'</span>';
     const empresa = d.empresa_id === anterior ? "" : esc(d.empresa);
     anterior = d.empresa_id;
-    const accion = d.inactivo ? '<button type="button" onclick="archivar('+d.dispositivo_id+')">Archivar</button>' : "";
-    return "<tr class='"+clase+"'>" +
+    const accion = d.inactivo ? '<button type="button" onclick="event.stopPropagation();archivar('+d.dispositivo_id+')">Archivar</button>' : "";
+    const num = n => '<button type="button" class="num" title="Ver detalle" onclick="event.stopPropagation();abrirDetalle('+d.dispositivo_id+')">'+n+'</button>';
+    return "<tr class='fila "+clase+"' onclick='abrirDetalle("+d.dispositivo_id+")'>" +
       "<td class='empresa'>"+empresa+"</td>" +
       "<td>"+equipo(d)+"</td>" +
       "<td>"+esc(d.android_version || "")+"</td>" +
@@ -860,8 +995,8 @@ function pintar() {
       "<td>"+relativo(d.minutos_desde_ultimo_heartbeat)+"</td>" +
       "<td>"+ultimoPago(d.ultimo_pago_capturado)+"</td>" +
       "<td>"+sinInterpretar(d.avisos_no_reconocidos)+"</td>" +
-      "<td>"+d.veces_zombie_total+"</td>" +
-      "<td>"+d.veces_alarma_disparada+"</td>" +
+      "<td>"+num(d.veces_zombie_total)+"</td>" +
+      "<td>"+num(d.veces_alarma_disparada)+"</td>" +
       "<td>"+accion+"</td>" +
     "</tr>";
   }).join("") : "<tr><td colspan='11' class='vacio'>No hay equipos activos.</td></tr>";
@@ -886,9 +1021,113 @@ async function archivar(id) {
   if (!r.ok) { alert("No se pudo archivar: " + ((await r.json().catch(() => ({}))).detail || r.status)); return; }
   refrescar();
 }
+// ---- Panel lateral de detalle (zWeb-11) ----
+let detalleId = null;
+function leerRevisor() { try { return localStorage.getItem("pagook_revisor") || ""; } catch (e) { return ""; } }
+function guardarRevisor(v) { try { localStorage.setItem("pagook_revisor", v); } catch (e) {} }
+function sino(v, si, no) {
+  if (v === true) return '<span class="bueno">'+si+'</span>';
+  if (v === false) return '<span class="malo">'+no+'</span>';
+  return '<span>Sin dato (app vieja)</span>';
+}
+function pintarDetalle(j) {
+  const d = j.dispositivo;
+  document.getElementById("lat-titulo").textContent = [d.manufacturer, d.modelo].filter(Boolean).join(" ") || d.nombre || ("Equipo " + d.dispositivo_id);
+  document.getElementById("lat-sub").textContent = d.empresa + " · equipo #" + d.dispositivo_id;
+  let h = '<span class="badge b-'+esc(d.estado)+'">'+esc(d.estado)+'</span><span class="motivo">'+esc(d.motivo)+'</span>';
+  h += '<dl class="datos" style="margin-top:10px">' +
+    '<dt>Versión de la app</dt><dd>'+esc(d.app_version || "—")+'</dd>' +
+    '<dt>Android</dt><dd>'+esc(d.android_version || "—")+'</dd>' +
+    '<dt>Último heartbeat</dt><dd>'+esc(d.ultimo_heartbeat_lima || "Nunca")+(d.minutos_desde_ultimo_heartbeat != null ? ' <span style="font-weight:400">('+relativo(d.minutos_desde_ultimo_heartbeat)+')</span>' : '')+'</dd>' +
+    '<dt>Lector de notificaciones</dt><dd>'+sino(d.listener_conectado, "Conectado", "Desconectado")+'</dd>' +
+    '<dt>Permiso de notificaciones</dt><dd>'+sino(d.permiso_notificaciones, "Concedido", "Denegado")+'</dd>' +
+    '<dt>Último pago capturado</dt><dd>'+(d.ultimo_pago_capturado_lima ? esc(d.ultimo_pago_capturado_lima) : '<span class="malo">Ninguno</span>')+'</dd>' +
+  '</dl>';
+  if (d.accion_actual) h += '<div class="que-hacer"><b>Qué hacer ahora:</b> '+esc(d.accion_actual)+'</div>';
+  h += '<h4>Zombies y alarmas</h4>';
+  h += '<label class="revisor">Tu nombre <input id="revisor" maxlength="80" placeholder="Para el registro de revisión" value="'+esc(leerRevisor())+'"></label>';
+  if (j.incidentes.length) {
+    h += j.incidentes.map(i => {
+      const estado = i.activa ? '<span class="activa">Sigue activo</span>' : '<span class="resuelta">Resuelto'+(i.cerrada_lima ? ' · '+esc(i.cerrada_lima) : '')+'</span>';
+      const rev = i.revisada
+        ? '<span>Revisada '+esc(i.revisada_lima)+' · '+esc(i.revisada_por || "")+'</span>'
+        : '<button type="button" onclick="revisar('+i.id+')">Marcar como revisada</button>';
+      const recup = i.activa ? '—' : esc(i.recuperacion_texto || "—") +
+        (i.recuperacion_detalle ? '<br><span class="mute">'+esc(i.recuperacion_detalle)+'</span>' : '');
+      return '<div class="inc"><div class="inc-cab"><span class="tipo t-'+esc(i.tipo)+'">'+(i.tipo === "zombie" ? "Zombie" : "Alarma")+
+        (i.cantidad > 1 ? ' ×'+i.cantidad : '')+'</span><span class="inc-fecha">'+esc(i.ocurrido_lima)+'</span></div>' +
+        '<p>'+esc(i.mensaje)+'</p>' +
+        '<dl class="inc-datos">' +
+          '<dt>Inicio</dt><dd>'+esc(i.ocurrido_lima)+'</dd>' +
+          '<dt>Duración</dt><dd>'+esc(i.duracion || "—")+'</dd>' +
+          '<dt>Versión de la app</dt><dd>'+esc(i.app_version || "—")+'</dd>' +
+          '<dt>Lector al inicio</dt><dd>'+sino(i.listener_conectado, "Conectado", "Desconectado")+'</dd>' +
+          '<dt>Recuperación</dt><dd>'+recup+'</dd>' +
+        '</dl>' +
+        (i.accion ? '<div class="accion"><b>Qué hacer:</b> '+esc(i.accion)+'</div>' : '') +
+        '<div class="inc-pie">'+estado+rev+'</div></div>';
+    }).join("");
+  } else {
+    h += '<p class="vacio">Sin zombies ni alarmas registrados con fecha.</p>';
+  }
+  const sf = j.sin_fecha;
+  if (sf.zombies || sf.alarmas) {
+    const partes = [];
+    if (sf.zombies) partes.push(sf.zombies + " zombie" + (sf.zombies !== 1 ? "s" : ""));
+    if (sf.alarmas) partes.push(sf.alarmas + " alarma" + (sf.alarmas !== 1 ? "s" : ""));
+    h += '<p class="nota">'+partes.join(" y ")+' sin detalle: ocurrieron antes de que se empezara a guardar cada evento (antes solo había contadores). No se reconstruyen hacia atrás.</p>';
+  }
+  document.getElementById("lat-cuerpo").innerHTML = h;
+  document.getElementById("revisor").addEventListener("change", e => guardarRevisor(e.target.value.trim()));
+}
+async function abrirDetalle(id) {
+  detalleId = id;
+  const lat = document.getElementById("lateral");
+  document.getElementById("lat-titulo").textContent = "Cargando…";
+  document.getElementById("lat-sub").textContent = "";
+  document.getElementById("lat-cuerpo").innerHTML = "";
+  document.getElementById("velo").classList.add("abierto");
+  lat.classList.add("abierto"); lat.setAttribute("aria-hidden", "false");
+  document.getElementById("lat-cerrar").focus();
+  await cargarDetalle();
+}
+async function cargarDetalle() {
+  const fallo = () => {
+    document.getElementById("lat-titulo").textContent = "Detalle del equipo";
+    document.getElementById("lat-cuerpo").innerHTML = '<p class="vacio">No se pudo cargar el detalle. Revisa tu conexión y vuelve a abrirlo.</p>';
+  };
+  try {
+    const r = await fetch("/api/v1/admin/dispositivos/" + detalleId + "/detalle", { credentials: "same-origin" });
+    if (r.status === 401) { location.reload(); return; }
+    if (!r.ok) { fallo(); return; }
+    pintarDetalle(await r.json());
+  } catch (e) { fallo(); }
+}
+function cerrarDetalle() {
+  detalleId = null;
+  const lat = document.getElementById("lateral");
+  lat.classList.remove("abierto"); lat.setAttribute("aria-hidden", "true");
+  document.getElementById("velo").classList.remove("abierto");
+}
+async function revisar(incId) {
+  const campo = document.getElementById("revisor");
+  const nombre = campo ? campo.value.trim() : "";
+  guardarRevisor(nombre);
+  const r = await fetch("/api/v1/admin/incidentes/" + incId + "/revisar", {
+    method: "POST", credentials: "same-origin",
+    headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nombre })
+  });
+  if (!r.ok) { alert("No se pudo marcar como revisada (" + r.status + ")."); return; }
+  cargarDetalle();
+}
+document.getElementById("lat-cerrar").addEventListener("click", cerrarDetalle);
+document.getElementById("velo").addEventListener("click", cerrarDetalle);
+document.addEventListener("keydown", e => { if (e.key === "Escape" && detalleId !== null) cerrarDetalle(); });
 document.getElementById("btn-inactivos").addEventListener("click", () => { verInactivos = !verInactivos; pintar(); });
 pintar();
 setInterval(refrescar, 30000);
 </script>
 </body></html>"""
-    return plantilla.replace("__DATOS_JSON__", _json.dumps(datos))
+    # "</" escapado: un nombre de empresa no puede cerrar el <script>.
+    return plantilla.replace("__CSS_BASE__", CSS_BASE).replace(
+        "__DATOS_JSON__", _json.dumps(datos).replace("</", "<\\/"))

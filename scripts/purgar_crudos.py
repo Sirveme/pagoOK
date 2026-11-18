@@ -2,22 +2,28 @@
 banco con más de N días.
 
 La política de privacidad (sección 8) dice que el texto completo del aviso se
-borra a los 90 días. Esto deja en NULL `titulo` y `texto` de notificacion_raw;
+borra a los 90 días. Esto deja en NULL `titulo`, `texto` y `error_parseo` de
+notificacion_raw en TODOS los estados (parseada, ignorada, fallida,
+no_reconocido…). `error_parseo` también se borra porque guarda el mensaje del
+error del parser, que puede arrastrar parte del texto.
 NO borra filas ni toca los pagos/egresos ya procesados (pago_detectado guarda
 monto, pagador, fecha, etc. por su cuenta). Tampoco toca sbn_key (evita
 duplicados) ni el estado del parseo.
+
+Sale con código 0 si todo salió bien (1 si falló y se hizo ROLLBACK; 2 si no
+pudo conectarse). No pregunta nada: sirve tal cual como cron de Railway.
 
 Uso:
   python scripts/purgar_crudos.py --dias 90            (simulación: solo cuenta)
   python scripts/purgar_crudos.py --dias 90 --aplicar
 
-Programarlo en Railway (NO está programado; hazlo cuando lo decidas):
-  1. En el proyecto de Railway: New > Empty Service (o "Cron Job"), mismo repo.
-  2. Variables: las mismas del servicio web (al menos DATABASE_URL).
-  3. Settings > Deploy > Custom Start Command:
-       python scripts/purgar_crudos.py --dias 90 --aplicar
-  4. Settings > Cron Schedule:  0 8 * * *   (todos los días a las 03:00 de Lima; Railway usa UTC)
-  El servicio arranca, purga y termina; no queda corriendo.
+Programarlo en Railway como servicio cron (ver railway.purga.json):
+  1. Proyecto PagoOK.pro > New > GitHub Repo > el mismo repo, rama main.
+  2. Settings > Config-as-code > ruta: /railway.purga.json
+     (IMPORTANTE: sin esto toma railway.json y levantaría uvicorn, que nunca termina).
+  3. Variables: solo DATABASE_URL = ${{Postgres-DB.DATABASE_URL}} (red interna).
+  4. El archivo ya trae el comando, el horario 0 8 * * * (03:00 de Lima; Railway
+     usa UTC) y restartPolicyType NEVER. El servicio arranca, purga y termina.
 """
 from __future__ import annotations
 
@@ -48,11 +54,13 @@ def purgar_crudos(db, dias: int, aplicar: bool, ahora: datetime | None = None) -
     limite = (ahora or datetime.now(timezone.utc)).replace(tzinfo=None) - timedelta(days=dias)
     q = db.query(NotificacionRaw).filter(
         NotificacionRaw.timestamp_servidor < limite,
-        or_(NotificacionRaw.texto.isnot(None), NotificacionRaw.titulo.isnot(None)),
+        or_(NotificacionRaw.texto.isnot(None), NotificacionRaw.titulo.isnot(None),
+            NotificacionRaw.error_parseo.isnot(None)),
     )
     if not aplicar:
         return q.count()
-    return q.update({NotificacionRaw.texto: None, NotificacionRaw.titulo: None}, synchronize_session=False)
+    return q.update({NotificacionRaw.texto: None, NotificacionRaw.titulo: None,
+                     NotificacionRaw.error_parseo: None}, synchronize_session=False)
 
 
 def purgar_correos(db, dias: int, aplicar: bool, ahora: datetime | None = None) -> int:

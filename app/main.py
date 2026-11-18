@@ -16,6 +16,7 @@ from app.api.router_demo import router as router_demo
 from app.api.router_push import router as router_push
 from app.api.router_internos import router as router_internos
 from app.api.router_device import router as router_device
+from app.api.router_testers import router as router_testers
 from app.api.router_webhook_ejemplo import router as router_webhook_ejemplo
 from app.api.publica_v1_consulta import router as router_consulta_pagos
 from app.api.router_vinculacion import router as router_vinculacion
@@ -117,6 +118,7 @@ app.include_router(webhook_router)
 # Heartbeat de dispositivos + dashboard admin de estado.
 # Después de notificaciones y antes del catch-all /{slug} de router_demo.
 app.include_router(router_device)
+app.include_router(router_testers)   # zWeb-12: /admin/testers-metricas (solo lectura)
 
 # API publica v1 (consumidores externos del ecosistema, ej. alerta.pe).
 # Auth por X-API-Key. Rutas /api/v1/pagos y /api/v1/pagos/{id}/reclamar:

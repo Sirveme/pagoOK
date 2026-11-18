@@ -18,6 +18,7 @@ from app.admin.models import Empresa
 from app.api.models_webhook import Dispositivo, NotificacionRaw, PagoDetectado
 from app.api.parser import parsear
 from app.api.deps_empresa import resolver_dispositivo
+from app.services.log_seguro import donde_fallo as _donde_fallo, log_aviso
 
 logger = logging.getLogger("pagook")
 router = APIRouter(prefix="/api/v1", tags=["webhook"])
@@ -179,7 +180,8 @@ async def inbound(
                 )
             except Exception as exc_det:
                 posible_interno = False
-                logger.warning(f"Falló detección de interno: {exc_det}")
+                # Solo el tipo de error: el mensaje podría arrastrar el titular.
+                logger.warning(f"Falló detección de interno: {type(exc_det).__name__} raw_id={raw.id}")
 
             pago = PagoDetectado(
                 empresa_id=dispositivo.empresa_id,
@@ -203,26 +205,21 @@ async def inbound(
             )
             db.add(pago)
             db.flush()
-            if parsed.get("tipo_incierto"):
-                logger.warning(
-                    f"Tipo incierto (guardado como ingreso) empresa="
-                    f"{dispositivo.empresa_id} texto={texto[:80]!r}"
-                )
             raw.estado_parseo = "parseada"
             raw.metodo_detectado = parsed["metodo"]
             pago_creado = pago.id
-            logger.info(
-                f"✓ Parseado: empresa={dispositivo.empresa_id} "
-                f"metodo={parsed['metodo']} monto={parsed['monto']} "
-                f"titular={parsed.get('titular_corto', '')}"
-            )
+            # zWeb-12: ningún log lleva título, texto ni titular del aviso.
+            logger.info(log_aviso(
+                "Aviso parseado" + (" (tipo incierto, guardado como ingreso)" if parsed.get("tipo_incierto") else ""),
+                dispositivo, package, raw.estado_parseo, texto, metodo=parsed["metodo"], pago_id=pago.id))
         else:
             raw.estado_parseo = "ignorada"
-            logger.debug(f"Sin match parser: {package} - {texto[:80]}")
+            logger.debug(log_aviso("Aviso sin match del parser", dispositivo, package, raw.estado_parseo, texto))
     except Exception as e:
         raw.estado_parseo = "fallida"
-        raw.error_parseo = str(e)[:500]
-        logger.exception(f"Error parseando: {e}")
+        raw.error_parseo = str(e)[:500]   # en la BD (se purga a los 90 días), no en el log
+        logger.error(log_aviso("Error parseando aviso", dispositivo, package, raw.estado_parseo, texto,
+                               error=_donde_fallo(e)))
 
     # Marca del último pago que el SERVIDOR capturó de este equipo (incidente
     # 06-11): sirve para ver equipos "verdes" que llevan mucho sin capturar.

@@ -8,6 +8,7 @@ Ejecutar:  python -m unittest tests.test_egresos_privacidad
 import io
 import json
 import os
+import re
 import sys
 import unittest
 import zipfile
@@ -254,12 +255,35 @@ class TestPrivacidad(Base_):
         r = self.cliente().get("/privacidad")
         self.assertEqual(r.status_code, 200)
         self.assertIn("Política de Privacidad de PagoOK", r.text)
-        self.assertIn("2026-11-v1", r.text)
+        self.assertIn("2026-11-v2", r.text)
         self.assertIn('class="toc"', r.text)                 # índice de secciones
         self.assertIn("<table>", r.text)                      # las tablas del texto se renderizan
         for ruta in ("/privacidad", "/static/legal/legal.css", "/static/panel/panel.css"):
             self.assertNotIn("#ffffff", self.cliente().get(ruta).text.lower(), ruta)
-        self.assertEqual(self.cliente().get("/api/v1/privacidad/version").json(), {"version": "2026-11-v1"})
+        self.assertEqual(self.cliente().get("/api/v1/privacidad/version").json(), {"version": "2026-11-v2"})
+
+    def test_politica_v2_apps_compatibles_y_variantes(self):
+        """zWeb-12: la política dice exactamente qué apps lee la app (lista fija
+        de NotificationService.kt, copiada en sql/correo_bancos_2026-10.sql)."""
+        fuente = Path("docs/legal/privacidad.md").read_text(encoding="utf-8")
+        self.assertNotIn("que configuras", fuente)
+        self.assertNotIn("que tú configuras", fuente)
+        self.assertEqual(fuente.count("compatibles con PagoOK"), 2)
+        for app_nombre in ("Yape", "BCP", "Interbank", "BBVA", "Scotiabank", "Banco de la Nación",
+                           "Pichincha", "BanBif", "Tunki"):
+            self.assertIn(app_nombre, fuente.split("\n## ")[0])          # en la introducción
+        seccion3 = fuente.split("## 3.")[1].split("\n## ")[0]
+        self.assertIn("versiones para empresas", seccion3)
+        self.assertIn("**con monto**", seccion3)
+        self.assertIn("90 días", seccion3)
+        self.assertIn("nunca se procesan códigos, claves ni OTP", seccion3)
+        self.assertIn("Versión 2026-11-v2", fuente)
+        self.assertIn("17 de noviembre de 2026", fuente)
+        # Los paquetes de la lista fija de la app son exactamente 9 bancos/billeteras.
+        sql = Path("sql/correo_bancos_2026-10.sql").read_text(encoding="utf-8")
+        claves = re.findall(r"\('(\w+)',\s+'\[\"[\w.]+\"\]'::jsonb\)", sql)
+        self.assertEqual(set(claves), {"yape", "tunki", "bcp", "interbank", "bbva", "scotiabank",
+                                       "banco_nacion", "pichincha", "banbif"})
 
     def test_texto_plano_mismo_contenido(self):
         r = self.cliente().get("/privacidad.txt")
@@ -497,6 +521,39 @@ class TestPurgaCrudos(Base_):
         self.assertIsNotNone(n.texto)
         self.assertEqual([(p.id, p.monto, p.titular) for p in self.db.query(PagoDetectado).order_by(PagoDetectado.id)],
                          pagos_antes)
+
+    def test_purga_todos_los_estados_sin_tocar_pagos_ni_egresos_y_comando_sale_0(self):
+        """zWeb-12: incluye no_reconocido y el error del parser; un egreso ligado
+        a un crudo viejo se conserva; `main()` corre sin preguntar y no sale con error."""
+        from scripts import purgar_crudos as mod
+        viejo = datetime.utcnow() - timedelta(days=91)
+        crudos = [NotificacionRaw(empresa_id=self.a.id, package_app=YAPE, titulo=f"T{e}", texto=f"texto {e}",
+                                  estado_parseo=e, timestamp_servidor=viejo,
+                                  error_parseo="no entendí: Juan Perez S/ 40" if e == "fallida" else None)
+                  for e in ("parseada", "ignorada", "fallida", "no_reconocido", "pendiente")]
+        self.db.add_all(crudos)
+        self.db.flush()
+        egreso = PagoDetectado(empresa_id=self.a.id, notificacion_raw_id=crudos[0].id, metodo="tarjeta",
+                               monto=Decimal("12.50"), titular="Tienda X", tipo="egreso", recibido_en=viejo)
+        self.db.add(egreso)
+        self.db.commit()
+        antes = [(p.id, p.tipo, p.monto, p.titular, p.notificacion_raw_id)
+                 for p in self.db.query(PagoDetectado).order_by(PagoDetectado.id)]
+
+        self.assertEqual(mod.purgar_crudos(self.db, 90, aplicar=False), 5)    # simulación: cuenta todos los estados
+        self.db.rollback()
+        with mock.patch.object(mod, "abrir_sesion", return_value=self.db), \
+                mock.patch.object(sys, "argv", ["purgar_crudos.py", "--dias", "90", "--aplicar"]), \
+                mock.patch.object(self.db, "close"):
+            mod.main()                                                       # no lanza SystemExit -> código 0
+        self.db.expire_all()
+        for c in crudos:
+            r = self.db.get(NotificacionRaw, c.id)
+            self.assertEqual((r.titulo, r.texto, r.error_parseo), (None, None, None), r.estado_parseo)
+            self.assertEqual(r.estado_parseo, c.estado_parseo)               # el estado no se toca
+        self.assertEqual([(p.id, p.tipo, p.monto, p.titular, p.notificacion_raw_id)
+                          for p in self.db.query(PagoDetectado).order_by(PagoDetectado.id)], antes)
+        self.assertEqual(mod.purgar_crudos(self.db, 90, aplicar=False), 0)    # idempotente
 
 
 if __name__ == "__main__":

@@ -1,8 +1,8 @@
 # Política de Privacidad de PagoOK
 
-*Última actualización: 11 de noviembre de 2026 · Versión 2026-11-v1*
+*Última actualización: 17 de noviembre de 2026 · Versión 2026-11-v2*
 
-PagoOK lee únicamente las notificaciones de las apps de bancos y billeteras que tú configuras, para confirmar los pagos que recibe tu negocio. Esta política explica qué datos tratamos, para qué y cómo puedes descargarlos o eliminarlos.
+PagoOK lee únicamente las notificaciones de las apps de bancos y billeteras compatibles con PagoOK (Yape, BCP, Interbank, BBVA, Scotiabank, Banco de la Nación, Pichincha, BanBif y Tunki), para confirmar los pagos que recibe tu negocio. Esta política explica qué datos tratamos, para qué y cómo puedes descargarlos o eliminarlos.
 
 ## En 30 segundos
 
@@ -35,14 +35,14 @@ Para lograrlo, la app usa el permiso de **acceso a notificaciones** de Android. 
 
 El filtro funciona **dentro de tu celular**, antes de que algo salga hacia nuestros servidores.
 
-1. **Solo apps de bancos y billeteras.** PagoOK procesa únicamente los avisos de las apps financieras de su lista. Los avisos de cualquier otra app (mensajería, correo, redes sociales, llamadas) se ignoran en el celular y nunca se envían.
+1. **Solo apps de bancos y billeteras.** PagoOK procesa únicamente los avisos de las apps financieras de su lista. Los avisos de cualquier otra app (mensajería, correo, redes sociales, llamadas) se ignoran en el celular y nunca se envían. Para ampliar la compatibilidad, también se procesan los avisos **con monto** de otras apps de esos mismos bancos y billeteras (por ejemplo, sus versiones para empresas); su texto completo se guarda 90 días y luego se borra. De ellas nunca se procesan códigos, claves ni OTP.
 2. **Nunca datos de acceso.** Aun dentro de las apps financieras, PagoOK descarta en el celular los avisos de inicio de sesión, códigos de verificación, claves, tokens y alertas de nuevo dispositivo. Esos avisos no se envían.
 
 Los demás avisos de las apps financieras —pagos que recibes, pagos que realizas y consumos con tarjeta— se envían para que tu negocio pueda registrarlos y conciliarlos, como se explica en la sección 4.
 
 Algunos avisos de esas mismas apps de bancos y billeteras no se reconocen como un pago. También se guardan como texto completo durante 90 días, para mejorar el reconocimiento de los formatos de cada banco; después se borran automáticamente.
 
-En resumen, PagoOK lee solo las apps de bancos y billeteras que configuras —tanto ingresos como egresos—, extrae de cada aviso el monto, la contraparte, la fecha y la hora, y lo envía a la cuenta de tu empresa. No lee notificaciones de ninguna otra app.
+En resumen, PagoOK lee solo las apps de bancos y billeteras compatibles con PagoOK —tanto ingresos como egresos—, extrae de cada aviso el monto, la contraparte, la fecha y la hora, y lo envía a la cuenta de tu empresa. No lee notificaciones de ninguna otra app.
 
 ## 4. Qué datos se envían a nuestros servidores
 
