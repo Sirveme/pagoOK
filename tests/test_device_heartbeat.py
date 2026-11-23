@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app.admin.db import Base, get_db  # noqa: E402
 import app.admin.models  # noqa: E402,F401
 from app.admin.models import Empresa  # noqa: E402
-from app.api.models_webhook import Dispositivo  # noqa: E402
+from app.api.models_webhook import Dispositivo, NotificacionRaw  # noqa: E402
 from app.api.models_device import DeviceEstadoActual  # noqa: E402,F401
 from app.api.models_cuenta import CuentaApi, generar_api_key, hash_api_key  # noqa: E402
 from app.main import app  # noqa: E402
@@ -483,6 +483,35 @@ class DeviceHeartbeatTest(unittest.TestCase):
         self.assertEqual(r.json()["status"], "duplicado")
         d = next(x for x in self._admin()["dispositivos"] if x["nombre"] == "disp_a")
         self.assertEqual(d["avisos_no_reconocidos"], 1)
+
+    def _crudos(self):
+        db = self.Session()
+        try:
+            return db.query(NotificacionRaw).count()
+        finally:
+            db.close()
+
+    def test_no_reconocido_egreso_con_interruptor_apagado_se_descarta(self):
+        self._hb(self.tokens["disp_a"], egresos_activo=False)
+        for texto in ("Realizaste un consumo de S/.50.00 en TIENDA con tu Tarjeta de Crédito.",
+                      "Plineaste S/ 1.00 a Ana R Torres P"):
+            r = self._no_reconocido(self.tokens["disp_a"], texto=texto)
+            self.assertEqual((r.status_code, r.json()), (200, {"status": "descartado"}), texto)
+        self.assertEqual(self._crudos(), 0)
+
+    def test_no_reconocido_con_interruptor_apagado_guarda_ingresos_y_dudas(self):
+        self._hb(self.tokens["disp_a"], egresos_activo=False)
+        for texto in ("Juan Perez te envió un pago por S/ 80. El cód. de seguridad es: 135",
+                      "Aviso con un formato nuevo por S/ 1"):
+            self.assertEqual(self._no_reconocido(self.tokens["disp_a"], texto=texto).json()["status"], "guardado")
+        self.assertEqual(self._crudos(), 2)
+
+    def test_no_reconocido_egreso_se_guarda_con_interruptor_encendido_o_sin_dato(self):
+        texto = "Plineaste S/ 1.00 a Ana R Torres P"
+        self._hb(self.tokens["disp_a"], egresos_activo=True)
+        self.assertEqual(self._no_reconocido(self.tokens["disp_a"], texto=texto).json()["status"], "guardado")
+        self.assertEqual(self._no_reconocido(self.tokens["disp_b"], texto=texto).json()["status"], "guardado")
+        self.assertEqual(self._crudos(), 2)
 
     def test_no_reconocido_texto_vacio_400(self):
         r = self._no_reconocido(self.tokens["disp_a"], texto="   ")

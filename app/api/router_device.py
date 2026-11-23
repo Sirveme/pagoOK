@@ -33,6 +33,7 @@ from app.api.models_device import DeviceEstadoActual
 from app.api.models_cuenta import CuentaApi
 from app.api.models_webhook import Dispositivo, NotificacionRaw
 from app.api.deps_empresa import resolver_dispositivo
+from app.api.parser import es_egreso_claro
 from app.api.publica_v1 import cuenta_actual
 from app.api.router_demo import _obtener_empresa_por_slug
 from app.services import cuenta_empresa, incidentes
@@ -423,6 +424,12 @@ async def aviso_no_reconocido(
     if not texto.strip():
         raise HTTPException(400, "Falta el texto del aviso")
     sbn_key = (data.get("sbn_key") or "")[:200] or None
+
+    # "Pagos que realizas" apagado: este camino de la app no aplica el interruptor,
+    # así que el egreso se descarta aquí y no se guarda. Sin dato (None), se guarda.
+    if dispositivo.egresos_activo is False and es_egreso_claro(titulo, texto):
+        logger.info(log_aviso("Egreso no reconocido descartado", dispositivo, package, "descartado", texto))
+        return {"status": "descartado"}
 
     # Dedup por sbn_key (si la app reintenta, no duplicamos el aviso).
     if sbn_key:

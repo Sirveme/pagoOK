@@ -7,6 +7,7 @@ o None si no detecta nada.
 Probamos parsers en orden hasta que uno matche.
 """
 import re
+import unicodedata
 from decimal import Decimal
 
 
@@ -122,6 +123,27 @@ def _clasificar_tipo(texto: str) -> tuple[str, bool]:
 def tiene_senal_ingreso(texto: str) -> bool:
     txt = (texto or "").lower()
     return any(v in txt for v in VERBOS_INGRESO)
+
+
+# Mismo criterio que FiltroContenido.esEgreso de la app Android (texto en
+# minúsculas y sin tildes). Ante la duda, no es egreso.
+_RE_SENAL_INGRESO_APP = re.compile(
+    r"\b(te envio un pago|te enviaron|te yapeo|te yapearon|te ha plineado|te plineo|te plinearon|"
+    r"recibiste|te transfirio|te transfirieron|te depositaron|deposito en tu|"
+    r"te pago|te pagaron|abono)\b"
+)
+_RE_SENAL_EGRESO_APP = re.compile(
+    r"\b(yapeaste|plineaste|transferiste|pagaste|compraste|retiraste|enviaste|depositaste)\b|"
+    r"\brealizaste un (consumo|pago|retiro|transferencia|compra)\b|"
+    r"\b(consumo|compra|retiro|cargo) (de|por|en)\b|\bse debito\b|\bdebitamos\b"
+)
+
+
+def es_egreso_claro(titulo: str, texto: str) -> bool:
+    """True solo si el aviso es claramente un pago o consumo que hizo la persona."""
+    t = unicodedata.normalize("NFD", f"{titulo or ''} {texto or ''}".lower())
+    t = "".join(c for c in t if unicodedata.category(c) != "Mn")
+    return not _RE_SENAL_INGRESO_APP.search(t) and bool(_RE_SENAL_EGRESO_APP.search(t))
 
 
 # =============================================================
