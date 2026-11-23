@@ -29,7 +29,6 @@ from sqlalchemy.orm import Session
 
 from app.admin import superadmin
 from app.admin.db import get_db
-from app.admin.models import Empresa
 from app.api.deps_empresa import SesionCtx, borrar_cookie, requiere, sesion_opcional
 from app.api.models_privacidad import SolicitudEliminacion
 from app.services import eliminacion
@@ -164,15 +163,33 @@ def _ip(request: Request) -> str:
     return xff.split(",")[0].strip() if xff else (request.client.host if request.client else "?")
 
 
+def _celular_de_pais(pais: str, valor) -> str | None:
+    """E.164 con la validación del país del autorregistro; otros países, con '+'."""
+    from app.services import registro_paises
+    from app.services.secretos import normalizar_celular
+
+    cfg = registro_paises.pais(pais)
+    return registro_paises.normalizar(cfg, str(valor)) if cfg else normalizar_celular(str(valor))
+
+
 @router.post("/eliminar-cuenta/solicitud")
 def crear_solicitud(request: Request, payload: dict = Body(...), db: Session = Depends(get_db)):
     pais = str(payload.get("pais") or "").strip().upper()[:2]
-    id_fiscal = re.sub(r"\s", "", str(payload.get("id_fiscal") or ""))[:20]
+    id_fiscal = re.sub(r"\s", "", str(payload.get("id_fiscal") or ""))[:20] or None
     nombre = str(payload.get("nombre") or "").strip()[:150]
     contacto = str(payload.get("contacto") or "").strip()[:150]
     motivo = str(payload.get("motivo") or "").strip()[:2000] or None
-    if pais not in {p for p, _ in PAISES_FORM} or not id_fiscal or not nombre or not contacto:
-        raise HTTPException(400, "Completa país, identificador fiscal, nombre y un celular o correo de contacto.")
+    # zWeb-14: quien se registró desde la app con su número no tiene id fiscal:
+    # se identifica con ese celular (y sirve también como contacto).
+    celular = None
+    if not id_fiscal and str(payload.get("celular") or "").strip():
+        celular = _celular_de_pais(pais, payload.get("celular"))
+        if celular is None:
+            raise HTTPException(400, "Revisa el número de celular con el que te registraste.")
+        contacto = contacto or celular
+    if pais not in {p for p, _ in PAISES_FORM} or not (id_fiscal or celular) or not nombre or not contacto:
+        raise HTTPException(400, "Completa país, identificador fiscal o celular, nombre y un celular o correo "
+                                 "de contacto.")
 
     ip_hash = hash_codigo(_ip(request), "solicitud_eliminacion")
     hace_un_dia = datetime.now(timezone.utc) - timedelta(days=1)
@@ -183,7 +200,7 @@ def crear_solicitud(request: Request, payload: dict = Body(...), db: Session = D
     )
     if recientes >= MAX_SOLICITUDES_IP_DIA:
         raise HTTPException(429, "Ya recibimos varias solicitudes desde tu conexión hoy. Inténtalo mañana.")
-    db.add(SolicitudEliminacion(pais=pais, id_fiscal=id_fiscal, nombre=nombre, contacto=contacto,
+    db.add(SolicitudEliminacion(pais=pais, id_fiscal=id_fiscal, celular=celular, nombre=nombre, contacto=contacto,
                                 motivo=motivo, ip_hash=ip_hash, estado="pendiente",
                                 creado_en=datetime.now(timezone.utc)))
     db.commit()
@@ -265,10 +282,7 @@ def admin_eliminaciones(request: Request, db: Session = Depends(get_db)):
     solicitudes = db.query(SolicitudEliminacion).order_by(SolicitudEliminacion.id.desc()).limit(200).all()
     filas = []
     for s in solicitudes:
-        emp = (
-            db.query(Empresa).filter(Empresa.pais_codigo == s.pais, Empresa.id_fiscal == s.id_fiscal).first()
-            if s.estado == "pendiente" else None
-        )
-        filas.append({"s": s, "empresa": emp,
-                      "protegida": bool(emp) and not eliminacion.eliminacion_permitida(emp)})
+        empresas = eliminacion.empresas_de_solicitud(db, s) if s.estado == "pendiente" else []
+        filas.append({"s": s, "empresas": [{"e": e, "protegida": not eliminacion.eliminacion_permitida(e)}
+                                           for e in empresas]})
     return templates.TemplateResponse("admin/eliminaciones.html", {"request": request, "filas": filas})

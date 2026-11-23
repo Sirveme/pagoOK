@@ -188,8 +188,8 @@ class TestersMetricasTest(unittest.TestCase):
         self.assertEqual([(x["grupo"], x["dispositivos"]) for x in g["rubro"]], [("Sin rubro", 3)])
 
     def test_rubro_cuando_existe_la_columna(self):
+        # zWeb-14: la columna ya viene en el modelo (Empresa.rubro).
         with self.engine.begin() as c:
-            c.execute(text("ALTER TABLE empresa ADD COLUMN rubro VARCHAR(40)"))
             c.execute(text("UPDATE empresa SET rubro = 'farmacia' WHERE slug = 'botica'"))
         j = self._datos()
         self.assertTrue(j["rubro_disponible"])

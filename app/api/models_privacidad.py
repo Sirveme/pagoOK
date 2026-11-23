@@ -14,7 +14,11 @@ class SolicitudEliminacion(Base):
     __tablename__ = "solicitud_eliminacion"
     id = Column(Integer, primary_key=True)
     pais = Column(String(2), nullable=False)
-    id_fiscal = Column(String(20), nullable=False)
+    # Uno de los dos (CHECK ck_solicitud_eliminacion_identificador en la BD):
+    # id_fiscal para negocios con RUC/NIT...; celular (E.164) para los
+    # independientes registrados desde la app, que no tienen id fiscal (zWeb-14).
+    id_fiscal = Column(String(20))
+    celular = Column(String(20))
     nombre = Column(String(150))
     contacto = Column(String(150))
     motivo = Column(Text)

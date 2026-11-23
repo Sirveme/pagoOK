@@ -596,7 +596,8 @@ def _obtener_dispositivos(db: Session) -> dict:
             "veces_zombie_total": (dea.veces_zombie_total if dea else 0) or 0,
             "veces_alarma_disparada": (dea.veces_alarma_disparada if dea else 0) or 0,
             "pings_fallidos_consecutivos": (dea.pings_fallidos_consecutivos if dea else 0) or 0,
-            "_orden": (-uh.timestamp()) if uh else float("inf"),
+            # Empate exacto de hora (reloj de Windows de ~15 ms): el más nuevo primero.
+            "_orden": ((-uh.timestamp()) if uh else float("inf"), -disp.id),
         })
 
         if inactivo:

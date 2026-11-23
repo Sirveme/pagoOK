@@ -37,7 +37,7 @@ from app.api.models_device import DeviceEstadoActual, DeviceEstadoHistorico
 from app.api.models_eventos import EntregaEvento, SuscripcionWebhook
 from app.api.models_internos import PersonaCuenta, TitularConfirmadoExterno
 from app.api.models_multiempresa import (
-    CodigoVinculacion, Invitacion, Membresia, Otp, Sesion, Usuario,
+    CodigoVinculacion, Invitacion, Membresia, Otp, Sesion, TicketAcceso, Usuario,
 )
 from app.api.models_pago_uso import PagoUso
 from app.api.models_privacidad import EliminacionAuditoria, SolicitudEliminacion
@@ -74,6 +74,44 @@ def eliminacion_permitida(empresa: Empresa) -> bool:
 
 def hash_id_fiscal(pais: str, id_fiscal: str) -> str:
     return hash_codigo(f"{(pais or '').upper()}|{(id_fiscal or '').strip()}", "auditoria")
+
+
+def _celular_dueno(db: Session, empresa: Empresa) -> str | None:
+    fila = (
+        db.query(Usuario.celular)
+        .join(Membresia, Membresia.usuario_id == Usuario.id)
+        .filter(Membresia.empresa_id == empresa.id, Membresia.rol == "dueno")
+        .order_by(Membresia.id)
+        .first()
+    )
+    return fila[0] if fila else None
+
+
+def hash_auditoria(db: Session, empresa: Empresa) -> str:
+    """Hash del identificador de la empresa para la auditoría: el id fiscal, o
+    el celular del dueño si es un independiente sin id fiscal (zWeb-14)."""
+    if empresa.id_fiscal:
+        return hash_id_fiscal(empresa.pais_codigo, empresa.id_fiscal)
+    return hash_id_fiscal(empresa.pais_codigo, f"cel:{_celular_dueno(db, empresa) or f'empresa:{empresa.id}'}")
+
+
+def empresas_de_solicitud(db: Session, solicitud: SolicitudEliminacion) -> list[Empresa]:
+    """Empresas a las que apunta una solicitud del formulario público: por id
+    fiscal, o por el celular del dueño (independientes, zWeb-14)."""
+    if solicitud.id_fiscal and solicitud.id_fiscal != "[eliminado]":
+        e = (db.query(Empresa)
+             .filter(Empresa.pais_codigo == solicitud.pais, Empresa.id_fiscal == solicitud.id_fiscal).first())
+        return [e] if e else []
+    if solicitud.celular:
+        return (
+            db.query(Empresa)
+            .join(Membresia, Membresia.empresa_id == Empresa.id)
+            .join(Usuario, Usuario.id == Membresia.usuario_id)
+            .filter(Usuario.celular == solicitud.celular, Membresia.rol == "dueno", Membresia.activo == True)  # noqa: E712
+            .order_by(Empresa.id)
+            .all()
+        )
+    return []
 
 
 # =============================================================
@@ -213,7 +251,7 @@ def eliminar_empresa(db: Session, empresa: Empresa, canal: str,
                    if p} if local_ids else set()
     if empresa.duenio_id:
         persona_ids.add(empresa.duenio_id)
-    id_fiscal_hash = hash_id_fiscal(empresa.pais_codigo, empresa.id_fiscal)
+    id_fiscal_hash = hash_auditoria(db, empresa)   # antes de borrar las membresías
 
     # 1) Correos del banco (antes que los pagos: correo_raw.pago_id los referencia)
     from app.api.models_correo import CorreoEmpresa, CorreoRaw, SolicitudBanco
@@ -260,6 +298,7 @@ def eliminar_empresa(db: Session, empresa: Empresa, canal: str,
                  if db.query(Membresia).filter(Membresia.usuario_id == u).count() == 0]
     celulares = [cel for (cel,) in db.query(Usuario.celular).filter(Usuario.id.in_(huerfanos))] if huerfanos else []
     c["otp"] = _borrar(db.query(Otp).filter(Otp.celular.in_(celulares))) if celulares else 0
+    c["ticket_acceso"] = _borrar(db.query(TicketAcceso).filter(TicketAcceso.celular.in_(celulares))) if celulares else 0
     c["usuario"] = _borrar(db.query(Usuario).filter(Usuario.id.in_(huerfanos))) if huerfanos else 0
     personas_huerfanas = [
         p for p in persona_ids
@@ -277,7 +316,7 @@ def eliminar_empresa(db: Session, empresa: Empresa, canal: str,
     if solicitud is not None:
         solicitud.estado = "ejecutada"
         solicitud.atendida_en = datetime.now(timezone.utc)
-        solicitud.nombre = solicitud.contacto = solicitud.motivo = None
+        solicitud.nombre = solicitud.contacto = solicitud.motivo = solicitud.celular = None
         solicitud.id_fiscal = "[eliminado]"
     conteos = {k: int(v or 0) for k, v in c.items()}
     db.add(EliminacionAuditoria(id_fiscal_hash=id_fiscal_hash, conteos=conteos, canal=canal))

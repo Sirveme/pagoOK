@@ -11,6 +11,7 @@ suspendida.
 from __future__ import annotations
 
 import math
+import os
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
@@ -55,12 +56,23 @@ def nunca_vence(empresa) -> bool:
     return es_principal(empresa) or bool(getattr(empresa, "es_cuenta_revision", False))
 
 
-def iniciar_prueba(empresa, ahora: datetime | None = None) -> None:
-    """Deja una empresa nueva en prueba de 7 días."""
+def dias_prueba_independiente() -> int:
+    """Prueba de los independientes que se registran desde la app (zWeb-14).
+    PRUEBA_DIAS_INDEPENDIENTE (default 14, entre 1 y 90). La ampliación única de
+    +15 días sigue igual para todos (ampliar_prueba)."""
+    try:
+        dias = int(os.getenv("PRUEBA_DIAS_INDEPENDIENTE", "14").strip())
+    except ValueError:
+        dias = 14
+    return min(max(dias, 1), 90)
+
+
+def iniciar_prueba(empresa, ahora: datetime | None = None, dias: int = DIAS_PRUEBA) -> None:
+    """Deja una empresa nueva en prueba (7 días salvo que se indique otra cosa)."""
     ahora = ahora or _ahora()
     empresa.estado_cuenta = PRUEBA
     empresa.prueba_inicio = ahora
-    empresa.prueba_fin = ahora + timedelta(days=DIAS_PRUEBA)
+    empresa.prueba_fin = ahora + timedelta(days=dias)
     empresa.prueba_ampliada = False
 
 

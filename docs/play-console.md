@@ -53,6 +53,23 @@ de la empresa (RUC/razón social), del dispositivo (modelo, versión) y del
 usuario del panel (celular). No se leen avisos de otras apps (mensajes, correo,
 redes), ni contraseñas, claves ni OTP.
 
+**Cambio de zWeb-14 (entrar con el número y autorregistro desde la app).**
+Desde esta versión, **la app** pide el **número de celular** (WhatsApp) para
+enviar el código de acceso y como identificador de la cuenta, y, si el número
+es nuevo, el **nombre** de la persona, el **rubro** y, opcionalmente, el nombre
+del negocio. Antes el celular solo se pedía en el panel web. No se pide
+documento de identidad. **Declarar en Data safety ANTES de enviar esta versión
+a producción:**
+
+| Categoría | Tipo de dato | ¿Recopilado? | ¿Compartido? | ¿Obligatorio? | Propósitos |
+| --- | --- | --- | --- | --- | --- |
+| Información personal | **Número de teléfono** | Sí | No | Sí (necesario para entrar) | *Funciones de la app*, *Administración de la cuenta* |
+| Información personal | **Nombre** | Sí (solo al registrarse) | No | Sí (al registrarse) | *Funciones de la app*, *Administración de la cuenta* |
+
+El rubro y el nombre del negocio son datos de la cuenta, no datos personales de
+una categoría de Play. El número viaja cifrado (HTTPS) y se puede eliminar con
+el resto de la cuenta (ver "Eliminación"). Política: versión **2026-11-v3**.
+
 **Si se comparte.** Los pagos **confirmados** se envían a la cuenta de la empresa
 y a los sistemas que el propio usuario conecta por API/webhook (p. ej.
 facturación). No se venden datos ni se usan para publicidad.

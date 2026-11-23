@@ -4,11 +4,13 @@
 <h1>¿Con qué empresa quieres trabajar?</h1>
 <p class="sub">Tienes acceso a varias empresas. Puedes cambiar cuando quieras desde el menú.</p>
 {% for e in empresas %}
-<div class="tarjeta fila" style="align-items:center">
-  <div><b>{{ e.nombre }}</b><div class="mute">{{ e.rol_etiqueta }}</div></div>
+{% set actual = e.empresa_id == yo.empresa.id %}
+<div class="tarjeta fila fila-empresa" style="align-items:center;cursor:pointer" role="button" tabindex="0"
+     data-empresa="{{ e.empresa_id }}" data-actual="{{ 'si' if actual else 'no' }}"
+     aria-label="{{ 'Continuar con' if actual else 'Entrar a' }} {{ e.nombre }}">
+  <div><b>{{ e.nombre }}</b><div class="mute">{{ e.rol_etiqueta }}{% if actual %} · Empresa actual{% endif %}</div></div>
   <div style="flex:0 0 auto">
-    {% if e.empresa_id == yo.empresa.id %}<span class="chip verde">Actual</span>
-    {% else %}<button class="btn" style="margin:0" onclick="elegir({{ e.empresa_id }})">Entrar</button>{% endif %}
+    <span class="btn" style="margin:0">{{ 'Continuar' if actual else 'Entrar' }}</span>
   </div>
 </div>
 {% endfor %}
@@ -19,5 +21,16 @@ async function elegir(id) {
   const r = await api("/panel/empresa", { method: "POST", body: JSON.stringify({ empresa_id: id }) });
   if (r.ok) location.href = r.datos.redirigir; else alert(errorDe(r));
 }
+function abrir(fila) {
+  if (fila.dataset.actual === "si") location.href = "/panel";
+  else elegir(Number(fila.dataset.empresa));
+}
+// Toda la fila es clicable (y se activa con Enter o Espacio desde el teclado).
+document.querySelectorAll(".fila-empresa").forEach(function (fila) {
+  fila.addEventListener("click", function () { abrir(fila); });
+  fila.addEventListener("keydown", function (ev) {
+    if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); abrir(fila); }
+  });
+});
 </script>
 {% endblock %}

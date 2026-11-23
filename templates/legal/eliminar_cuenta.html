@@ -52,10 +52,18 @@
       <div class="fila">
         <div><label for="pais">País</label>
           <select id="pais">{% for c, n in paises %}<option value="{{ c }}">{{ n }}</option>{% endfor %}</select></div>
-        <div><label for="id_fiscal">RUC o identificador fiscal</label><input id="id_fiscal" inputmode="numeric"></div>
       </div>
+      <fieldset class="como" style="border:0;padding:0;margin:12px 0">
+        <legend>¿Cómo te registraste en PagoOK?</legend>
+        <label style="display:block"><input type="radio" name="como" value="celular" checked onchange="cambiarComo()"> Con mi número de celular (desde la app)</label>
+        <label style="display:block"><input type="radio" name="como" value="fiscal" onchange="cambiarComo()"> Con el RUC o identificador fiscal de mi negocio</label>
+      </fieldset>
+      <div id="campo-celular"><label for="celular">Celular con el que te registraste</label>
+        <input id="celular" inputmode="tel" autocomplete="tel" placeholder="987654321"></div>
+      <div id="campo-fiscal" class="oculto"><label for="id_fiscal">RUC o identificador fiscal</label>
+        <input id="id_fiscal" inputmode="numeric"></div>
       <label for="nombre">Tu nombre</label><input id="nombre" autocomplete="name">
-      <label for="contacto">Celular o correo para contactarte</label><input id="contacto" autocomplete="tel">
+      <label for="contacto">Celular o correo para contactarte <span class="mute">(si es otro)</span></label><input id="contacto" autocomplete="email">
       <label for="motivo">Motivo (opcional)</label><textarea id="motivo"></textarea>
       <button class="btn" onclick="enviar()">Enviar solicitud</button>
     </div>
@@ -66,9 +74,15 @@
 <script>
 const $ = id => document.getElementById(id);
 if (new URLSearchParams(location.search).get("ok") === "1") $("eliminado").classList.remove("oculto");
+function porCelular() { return document.querySelector('input[name="como"]:checked').value === "celular"; }
+function cambiarComo() {
+  $("campo-celular").classList.toggle("oculto", !porCelular());
+  $("campo-fiscal").classList.toggle("oculto", porCelular());
+}
 async function enviar() {
-  const datos = { pais: $("pais").value, id_fiscal: $("id_fiscal").value, nombre: $("nombre").value,
+  const datos = { pais: $("pais").value, nombre: $("nombre").value,
                   contacto: $("contacto").value, motivo: $("motivo").value };
+  if (porCelular()) datos.celular = $("celular").value; else datos.id_fiscal = $("id_fiscal").value;
   const r = await fetch("/eliminar-cuenta/solicitud", { method: "POST", headers: { "Content-Type": "application/json" },
                                                          body: JSON.stringify(datos) });
   let d = {}; try { d = await r.json(); } catch (e) {}

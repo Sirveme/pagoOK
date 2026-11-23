@@ -647,7 +647,11 @@ def pagina_elegir(request: Request, db: Session = Depends(get_db)):
     ctx = sesion_opcional(request, db)
     if ctx is None:
         return RedirectResponse("/panel/login", status_code=303)
-    return _pagina(request, "elegir_empresa.html", ctx, db, empresas=_empresas_de(db, ctx.usuario.id))
+    empresas = _empresas_de(db, ctx.usuario.id)
+    # zWeb-14: con una sola empresa no hay nada que elegir: directo al Inicio.
+    if len(empresas) <= 1:
+        return RedirectResponse("/panel", status_code=303)
+    return _pagina(request, "elegir_empresa.html", ctx, db, empresas=empresas)
 
 
 @router.get("/panel/dispositivos", response_class=HTMLResponse)

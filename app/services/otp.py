@@ -33,7 +33,9 @@ MAX_INTENTOS_OTP = 5
 # Anti-abuso del envío (cada OTP cuesta un mensaje de WhatsApp).
 MAX_OTP_POR_CELULAR = 3
 VENTANA_ENVIO = timedelta(minutes=10)
-PROPOSITOS = ("login", "invitacion")
+# "app" (zWeb-14): entrar con el número desde la app Android. Va separado de
+# "login" para que un código pedido en el panel no se consuma desde la app.
+PROPOSITOS = ("login", "invitacion", "app")
 
 
 class OtpNoDisponible(Exception):

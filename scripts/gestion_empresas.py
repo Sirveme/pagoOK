@@ -202,9 +202,10 @@ def eliminar_empresa_cmd(db, slug: str, solicitud_id: int | None = None) -> list
             raise ErrorGestion(f"No existe la solicitud {solicitud_id}")
         if solicitud.estado != "pendiente":
             raise ErrorGestion(f"La solicitud {solicitud_id} ya está {solicitud.estado}")
-        if (solicitud.pais, solicitud.id_fiscal) != (e.pais_codigo, e.id_fiscal):
-            raise ErrorGestion(f"La solicitud {solicitud_id} es de {solicitud.pais} {solicitud.id_fiscal}, "
-                               f"no de {e.slug} ({e.pais_codigo} {e.id_fiscal})")
+        if e.id not in {x.id for x in eliminacion.empresas_de_solicitud(db, solicitud)}:
+            quien = solicitud.id_fiscal or solicitud.celular
+            raise ErrorGestion(f"La solicitud {solicitud_id} es de {solicitud.pais} {quien}, "
+                               f"no de {e.slug} ({e.pais_codigo} {e.id_fiscal or 'sin id fiscal'})")
     razon = e.razon_social
     try:
         conteos = eliminacion.eliminar_empresa(db, e, "solicitud", solicitud=solicitud)

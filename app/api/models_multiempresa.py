@@ -66,6 +66,29 @@ class Otp(Base):
     usado_en = Column(DateTime(timezone=True))
 
 
+class TicketAcceso(Base):
+    """zWeb-14: ticket de corta duración que entrega /api/v1/app/acceso/verificar
+    tras un OTP correcto. De un solo uso y atado al celular verificado.
+
+      tipo = 'registro' (número nuevo -> registro/crear, 15 min)
+           | 'elegir'   (dueño de varias empresas -> acceso/vincular, 10 min)
+    El token viaja solo una vez a la app; aquí se guarda su SHA-256.
+    datos_equipo: lo que la app mandó en verificar (marca, modelo, versión,
+    consentimiento...), para vincular el celular en el paso siguiente.
+    Tabla creada por sql/acceso_app_independientes_2026-11.sql.
+    """
+    __tablename__ = "ticket_acceso"
+    id = Column(Integer, primary_key=True)
+    tipo = Column(String(10), nullable=False)
+    celular = Column(String(20), nullable=False)
+    pais = Column(String(2), nullable=False)
+    token_hash = Column(String(64), unique=True, nullable=False)
+    datos_equipo = Column(_JSON)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
+    expira_en = Column(DateTime(timezone=True), nullable=False)
+    usado_en = Column(DateTime(timezone=True))
+
+
 class CodigoVinculacion(Base):
     __tablename__ = "codigo_vinculacion"
     id = Column(Integer, primary_key=True)

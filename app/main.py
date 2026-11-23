@@ -20,6 +20,8 @@ from app.api.router_testers import router as router_testers
 from app.api.router_webhook_ejemplo import router as router_webhook_ejemplo
 from app.api.publica_v1_consulta import router as router_consulta_pagos
 from app.api.router_vinculacion import router as router_vinculacion
+from app.api.router_acceso_app import router as router_acceso_app
+from app.api.router_registros_admin import router as router_registros_admin
 from app.api.router_panel import router as router_panel
 from app.api.router_privacidad import router as router_privacidad
 from app.api.router_terminos import router as router_terminos
@@ -140,6 +142,9 @@ app.include_router(router_webhook_ejemplo)
 # ANTES de router_push / router_internos / router_demo: "/panel" y "/unirse"
 # los capturaría el comodín /{slug}.
 app.include_router(router_vinculacion)
+# zWeb-14: entrar con el número desde la app + autorregistro, y /admin/registros.
+app.include_router(router_acceso_app)
+app.include_router(router_registros_admin)
 app.include_router(router_panel)
 # /privacidad, /privacidad.txt, /eliminar-cuenta, /panel/eliminar, /admin/eliminaciones
 # (también ANTES del comodín /{slug}).

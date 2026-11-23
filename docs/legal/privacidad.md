@@ -1,6 +1,6 @@
 # Política de Privacidad de PagoOK
 
-*Última actualización: 17 de noviembre de 2026 · Versión 2026-11-v2*
+*Última actualización: 22 de noviembre de 2026 · Versión 2026-11-v3*
 
 PagoOK lee únicamente las notificaciones de las apps de bancos y billeteras compatibles con PagoOK (Yape, BCP, Interbank, BBVA, Scotiabank, Banco de la Nación, Pichincha, BanBif y Tunki), para confirmar los pagos que recibe tu negocio. Esta política explica qué datos tratamos, para qué y cómo puedes descargarlos o eliminarlos.
 
@@ -52,6 +52,7 @@ En resumen, PagoOK lee solo las apps de bancos y billeteras compatibles con Pago
 | Dentro de ese texto | Monto, nombre del pagador tal como lo muestra tu banco (normalmente abreviado), y cuando el banco lo incluye, código de operación o dígitos de referencia | 30.00, "J. Pérez" |
 | Tu celular | Identificador de instalación generado por la propia app, fabricante, modelo, versión de Android y versión de PagoOK | "moto e(6) plus", Android 9 |
 | Estado de la app | Si la app está recibiendo avisos, hora del último aviso y contadores de fallas, para alertarte si deja de funcionar | "activa" |
+| Tu cuenta, si te registras desde la app | Tu número de celular (WhatsApp), tu nombre, el rubro de tu trabajo y, si lo das, el nombre de tu negocio. No pedimos documento de identidad | +51 987 654 321, "Rosa Quispe", taxi |
 
 **No recopilamos:** contraseñas, claves ni códigos de acceso; tu ubicación; tus contactos, fotos o archivos; el IMEI ni el identificador de publicidad del celular; ni avisos de apps que no sean financieras.
 
@@ -65,6 +66,7 @@ Solo para que PagoOK funcione para tu negocio:
 - Asociar cada pago con el pedido o la venta que corresponde (conciliación).
 - Avisarte si el celular deja de recibir avisos o pierde permisos.
 - Mejorar el reconocimiento de los formatos de aviso de cada banco.
+- Si te registras desde la app: enviarte por WhatsApp el código para entrar y usar tu número como identificador de tu cuenta (así no se crean cuentas repetidas); tu nombre y tu rubro sirven para mostrar tu cuenta y adaptar PagoOK a tu tipo de trabajo.
 
 No usamos tus datos para publicidad, no los vendemos y no creamos perfiles de ti ni de tus clientes.
 
@@ -92,6 +94,7 @@ Los avisos de pago incluyen el nombre de quien paga, generalmente abreviado por 
 | Texto completo del aviso | 90 días; luego se borra automáticamente |
 | Pagos confirmados (monto, fecha, pagador) | Mientras tu cuenta esté activa |
 | Datos del celular y estado de la app | Mientras el celular esté vinculado a tu cuenta |
+| Tu número de celular, nombre y rubro | Mientras tu cuenta esté activa |
 | Todo lo anterior | Se borra cuando solicitas la eliminación (sección 10) |
 
 Los comprobantes electrónicos que emitas con otros servicios, como Facturalo, se rigen por sus propias condiciones y por los plazos de conservación que exige la ley tributaria.

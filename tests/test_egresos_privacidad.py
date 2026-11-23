@@ -255,12 +255,12 @@ class TestPrivacidad(Base_):
         r = self.cliente().get("/privacidad")
         self.assertEqual(r.status_code, 200)
         self.assertIn("Política de Privacidad de PagoOK", r.text)
-        self.assertIn("2026-11-v2", r.text)
+        self.assertIn("2026-11-v3", r.text)
         self.assertIn('class="toc"', r.text)                 # índice de secciones
         self.assertIn("<table>", r.text)                      # las tablas del texto se renderizan
         for ruta in ("/privacidad", "/static/legal/legal.css", "/static/panel/panel.css"):
             self.assertNotIn("#ffffff", self.cliente().get(ruta).text.lower(), ruta)
-        self.assertEqual(self.cliente().get("/api/v1/privacidad/version").json(), {"version": "2026-11-v2"})
+        self.assertEqual(self.cliente().get("/api/v1/privacidad/version").json(), {"version": "2026-11-v3"})
 
     def test_politica_v2_apps_compatibles_y_variantes(self):
         """zWeb-12: la política dice exactamente qué apps lee la app (lista fija
@@ -277,8 +277,8 @@ class TestPrivacidad(Base_):
         self.assertIn("**con monto**", seccion3)
         self.assertIn("90 días", seccion3)
         self.assertIn("nunca se procesan códigos, claves ni OTP", seccion3)
-        self.assertIn("Versión 2026-11-v2", fuente)
-        self.assertIn("17 de noviembre de 2026", fuente)
+        self.assertIn("Versión 2026-11-v3", fuente)
+        self.assertIn("22 de noviembre de 2026", fuente)
         # Los paquetes de la lista fija de la app son exactamente 9 bancos/billeteras.
         sql = Path("sql/correo_bancos_2026-10.sql").read_text(encoding="utf-8")
         claves = re.findall(r"\('(\w+)',\s+'\[\"[\w.]+\"\]'::jsonb\)", sql)

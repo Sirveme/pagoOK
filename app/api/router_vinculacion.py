@@ -93,12 +93,51 @@ def empresa_de_revision_play(db: Session, codigo_normalizado: str) -> Empresa | 
 
 
 def datos_empresa_publicos(empresa: Empresa) -> dict:
+    # Sin id_fiscal (independiente, zWeb-14) tampoco hay tipo: nunca "RUC None".
+    tipo = empresa.id_fiscal_tipo or ("RUC" if empresa.pais_codigo == "PE" else None)
     return {
         "razon_social": empresa.razon_social,
         "id_fiscal": empresa.id_fiscal,
-        "id_fiscal_tipo": empresa.id_fiscal_tipo or ("RUC" if empresa.pais_codigo == "PE" else None),
+        "id_fiscal_tipo": tipo if empresa.id_fiscal else None,
         "pais": empresa.pais_codigo,
     }
+
+
+def vincular_equipo(db: Session, empresa: Empresa, data: dict) -> Dispositivo:
+    """Crea (o reutiliza, misma instalación) el dispositivo de este celular en la
+    empresa y guarda los campos opcionales. Hace flush, NO commit.
+
+    La usan /dispositivos/vincular (código del panel) y el acceso con el número
+    desde la app (zWeb-14), así las dos vinculan exactamente igual."""
+    instalacion_id = (str(data.get("instalacion_id") or "")).strip()[:64] or None
+
+    # Misma instalación ya vinculada a esta empresa: se reutiliza el dispositivo.
+    disp = None
+    if instalacion_id:
+        disp = (
+            db.query(Dispositivo)
+            .filter(Dispositivo.empresa_id == empresa.id, Dispositivo.instalacion_id == instalacion_id,
+                    Dispositivo.activo == True)  # noqa: E712
+            .first()
+        )
+    if disp is None:
+        manufacturer = str(data.get("manufacturer") or "")[:50] or None
+        modelo = str(data.get("modelo") or "")[:80] or None
+        disp = Dispositivo(
+            empresa_id=empresa.id,
+            token="tok_" + secrets.token_urlsafe(24),
+            nombre=(f"{manufacturer or ''} {modelo or ''}").strip()[:100] or "Dispositivo",
+            modelo=modelo,
+            instalacion_id=instalacion_id,
+            manufacturer=manufacturer,
+            android_version=str(data.get("android_version") or "")[:20] or None,
+            app_version=str(data.get("app_version") or "")[:30] or None,
+            activo=True,
+        )
+        db.add(disp)
+    guardar_campos_opcionales(disp, data)
+    db.flush()
+    return disp
 
 
 @router.post("/api/v1/dispositivos/vincular")
@@ -151,34 +190,7 @@ async def vincular_dispositivo(request: Request, db: Session = Depends(get_db)):
             _registrar_fallo(ip)
             raise HTTPException(400, MENSAJE_CODIGO_INVALIDO)
         empresa = db.get(Empresa, cv.empresa_id)
-    instalacion_id = (str(data.get("instalacion_id") or "")).strip()[:64] or None
-
-    # Misma instalación ya vinculada a esta empresa: se reutiliza el dispositivo.
-    disp = None
-    if instalacion_id:
-        disp = (
-            db.query(Dispositivo)
-            .filter(Dispositivo.empresa_id == empresa.id, Dispositivo.instalacion_id == instalacion_id,
-                    Dispositivo.activo == True)  # noqa: E712
-            .first()
-        )
-    if disp is None:
-        manufacturer = str(data.get("manufacturer") or "")[:50] or None
-        modelo = str(data.get("modelo") or "")[:80] or None
-        disp = Dispositivo(
-            empresa_id=empresa.id,
-            token="tok_" + secrets.token_urlsafe(24),
-            nombre=(f"{manufacturer or ''} {modelo or ''}").strip()[:100] or "Dispositivo",
-            modelo=modelo,
-            instalacion_id=instalacion_id,
-            manufacturer=manufacturer,
-            android_version=str(data.get("android_version") or "")[:20] or None,
-            app_version=str(data.get("app_version") or "")[:30] or None,
-            activo=True,
-        )
-        db.add(disp)
-    guardar_campos_opcionales(disp, data)
-    db.flush()
+    disp = vincular_equipo(db, empresa, data)
     if cv is not None:
         cv.dispositivo_id = disp.id
     db.commit()

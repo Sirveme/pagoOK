@@ -12,7 +12,7 @@
   <p class="sub">Recibidas por el formulario público de /eliminar-cuenta. Confirma la identidad por el contacto
      antes de ejecutar. Plazo comprometido: 15 días.</p>
   <table>
-    <thead><tr><th>#</th><th>Fecha</th><th>Estado</th><th>País / ID fiscal</th><th>Nombre</th><th>Contacto</th>
+    <thead><tr><th>#</th><th>Fecha</th><th>Estado</th><th>País / ID fiscal o celular</th><th>Nombre</th><th>Contacto</th>
       <th>Empresa en PagoOK</th></tr></thead>
     <tbody>
     {% for f in filas %}{% set s = f.s %}
@@ -20,15 +20,17 @@
         <td>{{ s.id }}</td>
         <td>{{ s.creado_en.strftime('%Y-%m-%d %H:%M') if s.creado_en else '' }}</td>
         <td><span class="chip {{ 'amarillo' if s.estado == 'pendiente' else 'verde' }}">{{ s.estado }}</span></td>
-        <td>{{ s.pais }} {{ s.id_fiscal }}</td>
+        <td>{{ s.pais }} {{ s.id_fiscal or '' }}{% if s.celular %}<div>Celular {{ s.celular }}</div>{% endif %}</td>
         <td>{{ s.nombre or '—' }}</td>
         <td>{{ s.contacto or '—' }}{% if s.motivo %}<div class="mute">{{ s.motivo }}</div>{% endif %}</td>
         <td>
-          {% if f.empresa %}
-            <b>{{ f.empresa.slug }}</b>
-            {% if f.protegida %}<div class="error">Protegida (demo o principal): no se elimina.</div>
-            {% else %}<div class="mute" style="font-family:monospace">python scripts/gestion_empresas.py eliminar --empresa {{ f.empresa.slug }} --solicitud {{ s.id }} --aplicar</div>{% endif %}
-          {% elif s.estado == 'pendiente' %}<span class="mute">No hay empresa con ese ID fiscal</span>{% else %}—{% endif %}
+          {% for x in f.empresas %}
+            <div><b>{{ x.e.slug }}</b>{% if x.e.tipo_empresa == 'independiente' %} <span class="mute">(independiente)</span>{% endif %}</div>
+            {% if x.protegida %}<div class="error">Protegida (demo o principal): no se elimina.</div>
+            {% else %}<div class="mute" style="font-family:monospace">python scripts/gestion_empresas.py eliminar --empresa {{ x.e.slug }} --solicitud {{ s.id }} --aplicar</div>{% endif %}
+          {% else %}
+            {% if s.estado == 'pendiente' %}<span class="mute">No hay empresa con ese {{ 'celular' if s.celular else 'ID fiscal' }}</span>{% else %}—{% endif %}
+          {% endfor %}
         </td>
       </tr>
     {% else %}

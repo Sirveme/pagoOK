@@ -77,9 +77,18 @@ class Empresa(Base):
     __tablename__ = "empresa"
     id = Column(Integer, primary_key=True)
     pais_codigo = Column(String(3), ForeignKey("pais.codigo"), nullable=False)
-    id_fiscal = Column(String(20), nullable=False)
+    # zWeb-14: un independiente que se registra desde la app NO tiene
+    # identificador fiscal (NULL). Las empresas 'negocio' lo siguen teniendo
+    # siempre (CHECK ck_empresa_id_fiscal_negocio en la BD).
+    id_fiscal = Column(String(20))
     razon_social = Column(String(200), nullable=False)
     nombre_comercial = Column(String(200))
+    # 'negocio' (todas las de antes: RUC, panel, código de vinculación) |
+    # 'independiente' (autorregistro desde la app con el número de WhatsApp).
+    tipo_empresa = Column(String(15), nullable=False, default="negocio", server_default="negocio")
+    # Columna creada en zWeb-12 (sql/empresa_rubro_2026-11.sql); desde zWeb-14
+    # la llena el autorregistro con una clave de app/services/registro_paises.py.
+    rubro = Column(String(40))
     domicilio_fiscal = Column(Text)
     ciudad = Column(String(100))
     regimen_tributario_id = Column(Integer, ForeignKey("regimen_tributario.id"))
