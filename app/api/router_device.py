@@ -22,7 +22,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.admin.db import get_db
@@ -54,6 +54,21 @@ DIAS_INACTIVO = 7
 # Ventana para contar avisos de billetera que la app no pudo interpretar
 # (estado 'no_reconocido'): es una alerta rodante que se limpia sola.
 HORAS_NO_RECONOCIDO = 24
+
+# zWeb-15: el resumen automático de grupo que Android crea cuando una app tiene
+# varias notificaciones (sbn_key terminado en "ranker_group") no trae texto; la
+# app lo manda con este texto de relleno. No es un pago perdido: se ignora y no
+# cuenta como "aviso sin interpretar" (no pinta el equipo amarillo).
+SUFIJO_RESUMEN_GRUPO = "ranker_group"
+TEXTO_AVISO_VACIO = "[aviso sin texto]"
+
+
+def es_aviso_sin_contenido(sbn_key: Optional[str], texto: Optional[str]) -> bool:
+    """True si el aviso es el resumen de grupo de Android o no trae texto real."""
+    if (sbn_key or "").strip().endswith(SUFIJO_RESUMEN_GRUPO):
+        return True
+    t = (texto or "").strip()
+    return not t or t.lower() == TEXTO_AVISO_VACIO
 
 # Rate limit del auto-registro: máx 10 requests por IP en 60 s (en memoria).
 LIMITE_REGISTRO = 10
@@ -425,6 +440,12 @@ async def aviso_no_reconocido(
         raise HTTPException(400, "Falta el texto del aviso")
     sbn_key = (data.get("sbn_key") or "")[:200] or None
 
+    # Resumen de grupo de Android o aviso sin texto: no se guarda ni se cuenta.
+    if es_aviso_sin_contenido(sbn_key, texto):
+        logger.info(log_aviso("Aviso sin contenido ignorado (resumen de grupo)", dispositivo, package,
+                              "ignorado", texto))
+        return {"status": "ignorado"}
+
     # "Pagos que realizas" apagado: este camino de la app no aplica el interruptor,
     # así que el egreso se descarta aquí y no se guarda. Sin dato (None), se guarda.
     if dispositivo.egresos_activo is False and es_egreso_claro(titulo, texto):
@@ -527,7 +548,11 @@ def _conteo_no_reconocido(db: Session, ids: list[int]) -> dict[int, int]:
         db.query(NotificacionRaw.dispositivo_id, func.count())
         .filter(NotificacionRaw.estado_parseo == "no_reconocido",
                 NotificacionRaw.dispositivo_id.in_(ids),
-                NotificacionRaw.timestamp_servidor >= desde)
+                NotificacionRaw.timestamp_servidor >= desde,
+                # Filas viejas de resúmenes de grupo (antes de zWeb-15) no cuentan.
+                or_(NotificacionRaw.sbn_key.is_(None),
+                    ~NotificacionRaw.sbn_key.like(f"%{SUFIJO_RESUMEN_GRUPO}")),
+                func.lower(func.trim(func.coalesce(NotificacionRaw.texto, ""))) != TEXTO_AVISO_VACIO)
         .group_by(NotificacionRaw.dispositivo_id)
         .all()
     )

@@ -517,6 +517,47 @@ class DeviceHeartbeatTest(unittest.TestCase):
         r = self._no_reconocido(self.tokens["disp_a"], texto="   ")
         self.assertEqual(r.status_code, 400)
 
+    def test_resumen_de_grupo_y_aviso_sin_texto_se_ignoran(self):
+        # zWeb-15 (fila 488): el resumen de grupo de Android llega sin texto y no
+        # debe contar como "sin interpretar" ni pintar el equipo amarillo.
+        self._hb(self.tokens["disp_a"], estado="verde")
+        casos = [
+            {"titulo": "", "texto": "[aviso sin texto]", "sbn_key": "0|com.bcp.innovacxion.yapeapp|1|g:ranker_group"},
+            {"titulo": "Yape", "texto": "Juan te envió S/ 5", "sbn_key": "0|com.bcp.innovacxion.yapeapp|ranker_group"},
+            {"titulo": "", "texto": "  [Aviso sin texto] ", "sbn_key": "0|com.bcp.innovacxion.yapeapp|7|null|10"},
+            {"titulo": "", "texto": "[aviso sin texto]"},
+        ]
+        for c in casos:
+            r = self._no_reconocido(self.tokens["disp_a"], **c)
+            self.assertEqual((r.status_code, r.json()), (200, {"status": "ignorado"}), c)
+        self.assertEqual(self._crudos(), 0)
+        d = next(x for x in self._admin()["dispositivos"] if x["nombre"] == "disp_a")
+        self.assertEqual(d["avisos_no_reconocidos"], 0)
+        self.assertEqual(d["estado"], "verde")
+
+    def test_resumen_de_grupo_viejo_en_la_base_no_cuenta(self):
+        # Filas guardadas antes de zWeb-15 tampoco pintan amarillo.
+        self._hb(self.tokens["disp_a"], estado="verde")
+        db = self.Session()
+        try:
+            d = db.query(Dispositivo).filter_by(nombre="disp_a").first()
+            db.add_all([
+                NotificacionRaw(empresa_id=d.empresa_id, dispositivo_id=d.id, package_app="x",
+                                texto="[aviso sin texto]", sbn_key="0|x|1|ranker_group",
+                                estado_parseo="no_reconocido"),
+                NotificacionRaw(empresa_id=d.empresa_id, dispositivo_id=d.id, package_app="x",
+                                texto="[aviso sin texto]", sbn_key=None, estado_parseo="no_reconocido"),
+            ])
+            db.commit()
+        finally:
+            db.close()
+        d = next(x for x in self._admin()["dispositivos"] if x["nombre"] == "disp_a")
+        self.assertEqual((d["avisos_no_reconocidos"], d["estado"]), (0, "verde"))
+        # Un aviso real sin interpretar sí sigue contando.
+        self._no_reconocido(self.tokens["disp_a"], sbn_key="0|x|2|null|10")
+        d = next(x for x in self._admin()["dispositivos"] if x["nombre"] == "disp_a")
+        self.assertEqual((d["avisos_no_reconocidos"], d["estado"]), (1, "amarillo"))
+
     # ---- Test 6: admin sin token -> 401 ----
     def test_admin_sin_token_401(self):
         r = self.client.get("/api/v1/admin/dispositivos")

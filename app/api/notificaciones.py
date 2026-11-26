@@ -23,8 +23,12 @@ from app.services.log_seguro import donde_fallo as _donde_fallo, log_aviso
 logger = logging.getLogger("pagook")
 router = APIRouter(prefix="/api/v1", tags=["webhook"])
 
-# La hora del celular se acepta solo si está dentro de esta diferencia del servidor.
-UMBRAL_CELULAR = timedelta(minutes=5)
+# La hora del celular (`timestamp_celular`) se acepta hasta UMBRAL_CELULAR hacia
+# atrás: la app 1.8.4+ recupera los avisos que llegaron con el lector caído, en
+# esa misma ventana de 6 h, y manda la hora real del aviso. TOLERANCIA_ADELANTO
+# absorbe un reloj de celular algo adelantado (nunca se guarda una hora futura).
+UMBRAL_CELULAR = timedelta(hours=6)
+TOLERANCIA_ADELANTO = timedelta(minutes=2)
 
 # Pagos de prueba (botón "Simular pago de prueba"): tope por dispositivo y hora.
 MAX_PRUEBAS_POR_HORA = 10
@@ -45,21 +49,26 @@ def _pruebas_recientes(db: Session, dispositivo_id: int, desde: datetime) -> int
 
 
 def recibido_en_para(ts_celular_ms, servidor: datetime) -> datetime:
-    """Hora que se guarda en `pago_detectado.recibido_en` (UTC naive).
+    """Hora que se guarda en `pago_detectado.recibido_en` (UTC naive): la HORA DEL PAGO.
 
-    Usa la hora del CELULAR (`timestamp_celular`, epoch ms) solo si es RAZONABLE:
-    no posterior al servidor y con menos de 5 min de diferencia. Así se quita el
-    retraso de red (el aviso real llega segundos después) sin confiar en un reloj
-    adelantado ni en un aviso que Yape entregó tarde desde su cola (ahí el celular
-    marca la hora de ENTREGA, no la del pago). En esos casos, la hora del servidor.
+    Usa la hora del CELULAR (`timestamp_celular`, epoch ms) si es válida y razonable:
+      - no es futura (se tolera un reloj adelantado hasta TOLERANCIA_ADELANTO; en
+        ese caso se guarda la hora del servidor, nunca una posterior), y
+      - no es más vieja que UMBRAL_CELULAR (6 h) respecto a la recepción.
+    Así un pago recuperado horas después (lector caído) conserva su hora real.
+    Con Yape entregando tarde desde su cola, el celular marca la hora de ENTREGA:
+    sigue siendo anterior o igual a la del servidor, o sea más cercana al pago.
+    Si no cumple, la hora del servidor. La hora de recepción queda siempre en
+    `notificacion_raw.timestamp_servidor`.
     """
     if ts_celular_ms:
         try:
             cel = datetime.utcfromtimestamp(float(ts_celular_ms) / 1000)
         except (TypeError, ValueError, OverflowError, OSError):
             cel = None
-        if cel is not None and cel <= servidor and (servidor - cel) < UMBRAL_CELULAR:
-            return cel
+        if (cel is not None and cel <= servidor + TOLERANCIA_ADELANTO
+                and (servidor - cel) < UMBRAL_CELULAR):
+            return min(cel, servidor)
     return servidor
 
 
@@ -132,7 +141,9 @@ async def inbound(
             logger.info(f"Dedup sbn_key={sbn_key}, ya existía como raw_id={existente.id}")
             return {"status": "duplicado", "raw_id": existente.id}
 
-    # 4) Crear raw
+    # 4) Crear raw. `timestamp_servidor` = hora de RECEPCIÓN (la del pago va en
+    #    pago_detectado.recibido_en y puede ser anterior si el aviso fue recuperado).
+    recibido_servidor = datetime.utcnow()
     raw = NotificacionRaw(
         empresa_id=dispositivo.empresa_id,
         dispositivo_id=dispositivo.id,
@@ -141,12 +152,13 @@ async def inbound(
         texto=texto[:5000] if texto else None,
         sbn_key=sbn_key,
         timestamp_celular=ts_celular,
+        timestamp_servidor=recibido_servidor,
     )
     db.add(raw)
     db.flush()
+    hora_pago = recibido_en_para(ts_celular, recibido_servidor)
 
     # 5) Actualizar dispositivo (ping + contador)
-    recibido_servidor = datetime.utcnow()
     dispositivo.ultimo_ping = recibido_servidor
     dispositivo.total_notificaciones = (dispositivo.total_notificaciones or 0) + 1
 
@@ -162,7 +174,7 @@ async def inbound(
         if parsed and not es_prueba:
             from app.services.correo_entrante import vincular_notificacion_con_correo
             previo_correo = vincular_notificacion_con_correo(
-                db, dispositivo.empresa_id, parsed, datetime.utcnow())
+                db, dispositivo.empresa_id, parsed, hora_pago)
         if parsed and previo_correo is not None:
             previo_correo.notificacion_raw_id = raw.id
             raw.estado_parseo = "parseada"
@@ -201,7 +213,7 @@ async def inbound(
                 tarjeta_ultimos4=parsed.get("tarjeta_ultimos4"),
                 es_prueba=es_prueba,
                 # Hora del pago: la del celular si es razonable; si no, la del servidor.
-                recibido_en=recibido_en_para(ts_celular, recibido_servidor),
+                recibido_en=hora_pago,
             )
             db.add(pago)
             db.flush()

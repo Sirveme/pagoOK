@@ -113,7 +113,9 @@ def formatear_push_pago(pago) -> tuple[str, str]:
     else:
         titulo = f"📤 {metodo} enviado S/ {monto:.2f}"
 
-    hora = pago.recibido_en.strftime("%H:%M") if pago.recibido_en else ""
+    # recibido_en es UTC naive: la hora del push se muestra en hora de Lima.
+    from app.services.eventos import a_iso_lima
+    hora = a_iso_lima(pago.recibido_en)[11:16] if pago.recibido_en else ""
     cuerpo = f"{titular} · {hora}".strip(" ·")
 
     return titulo, cuerpo

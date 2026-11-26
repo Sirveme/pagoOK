@@ -1,4 +1,5 @@
-"""`recibido_en` usa la hora del celular solo si es razonable; si no, la del servidor.
+"""`recibido_en` (hora del pago) usa la hora del celular si es válida y razonable:
+no futura (tolerancia +2 min) y no más vieja que 6 h; si no, la del servidor (zWeb-15).
 
 Ejecutar:  python -m unittest tests.test_recibido_en
 """
@@ -22,27 +23,49 @@ class RecibidoEnTest(unittest.TestCase):
     def setUp(self):
         self.servidor = datetime(2026, 10, 30, 15, 51, 37)  # UTC naive
 
-    def test_usa_celular_si_es_razonable(self):
+    def test_en_vivo_usa_celular(self):
         # El aviso llegó al celular 13 s antes de que el servidor lo recibiera: se usa esa hora.
         celular = self.servidor - timedelta(seconds=13)
-        r = recibido_en_para(_ms(celular), self.servidor)
-        self.assertEqual(r, celular)
+        self.assertEqual(recibido_en_para(_ms(celular), self.servidor), celular)
 
-    def test_usa_servidor_si_celular_es_posterior(self):
-        # Reloj del celular adelantado 20 s (posterior al servidor): se descarta, usa servidor.
-        celular = self.servidor + timedelta(seconds=20)
-        r = recibido_en_para(_ms(celular), self.servidor)
-        self.assertEqual(r, self.servidor)
-
-    def test_usa_servidor_si_diferencia_mayor_a_5_min(self):
-        # Aviso atrasado (Yape lo entregó tarde): el celular marca mucho antes; usa servidor.
+    def test_aviso_de_yape_entregado_tarde_usa_celular(self):
+        # Antes (regla de 5 min) usaba la del servidor; la del celular es más cercana al pago.
         celular = self.servidor - timedelta(minutes=12)
-        r = recibido_en_para(_ms(celular), self.servidor)
-        self.assertEqual(r, self.servidor)
+        self.assertEqual(recibido_en_para(_ms(celular), self.servidor), celular)
 
-    def test_usa_servidor_si_no_hay_timestamp_celular(self):
-        self.assertEqual(recibido_en_para(None, self.servidor), self.servidor)
-        self.assertEqual(recibido_en_para(0, self.servidor), self.servidor)
+    def test_recuperado_a_las_4_horas_conserva_su_hora(self):
+        celular = self.servidor - timedelta(hours=4)
+        self.assertEqual(recibido_en_para(_ms(celular), self.servidor), celular)
+
+    def test_recuperado_a_las_7_horas_usa_recepcion(self):
+        celular = self.servidor - timedelta(hours=7)
+        self.assertEqual(recibido_en_para(_ms(celular), self.servidor), self.servidor)
+
+    def test_borde_de_6_horas(self):
+        justo = self.servidor - timedelta(hours=6)
+        casi = justo + timedelta(seconds=1)
+        self.assertEqual(recibido_en_para(_ms(justo), self.servidor), self.servidor)
+        self.assertEqual(recibido_en_para(_ms(casi), self.servidor), casi)
+
+    def test_reloj_adelantado_dentro_de_tolerancia_usa_servidor(self):
+        # Adelantado 20 s / 2 min: se acepta como "ahora", pero nunca se guarda una hora futura.
+        for adelanto in (timedelta(seconds=20), timedelta(seconds=30), timedelta(minutes=2)):
+            celular = self.servidor + adelanto
+            self.assertEqual(recibido_en_para(_ms(celular), self.servidor), self.servidor, adelanto)
+
+    def test_timestamp_futuro_usa_recepcion(self):
+        for adelanto in (timedelta(minutes=3), timedelta(hours=5), timedelta(days=400)):
+            celular = self.servidor + adelanto
+            self.assertEqual(recibido_en_para(_ms(celular), self.servidor), self.servidor, adelanto)
+
+    def test_timestamp_invalido_usa_recepcion(self):
+        for valor in (None, 0, "", "abc", "nan", -1, 10 ** 20, [1]):
+            self.assertEqual(recibido_en_para(valor, self.servidor), self.servidor, repr(valor))
+
+    def test_timestamp_en_texto_valido(self):
+        # Algún cliente lo manda como string: se acepta si es un número válido.
+        celular = self.servidor - timedelta(minutes=30)
+        self.assertEqual(recibido_en_para(str(_ms(celular)), self.servidor), celular)
 
 
 if __name__ == "__main__":

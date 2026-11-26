@@ -8,7 +8,27 @@ Probamos parsers en orden hasta que uno matche.
 """
 import re
 import unicodedata
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
+
+
+# Cifra de un monto después de "S/", "S/." o "$" (un solo grupo de captura).
+# Primero se intenta el formato con ESPACIO como separador de miles
+# ("S/ 1 234.50"; también espacio duro U+00A0 o fino U+202F, que usa Android);
+# si no, la cifra corrida con . y , de siempre.
+# Formatos aceptados (todos se guardan con 2 decimales):
+#   S/ 1 -> 1.00 · S/ 1.0 -> 1.00 · S/1.07 · S/. 5.50 · S/ 12,50 -> 12.50
+#   S/ 1,234.50 -> 1234.50 · S/ 1.234,50 -> 1234.50 · S/ 1 234.50 -> 1234.50
+# AMBIGUO (se mantiene a propósito): "S/ 1.500" se lee como 1.50 (punto
+# decimal), no como 1500. Ningún aviso real conocido usa el punto como separador
+# de miles sin decimales; si apareciera uno, se resuelve en el parser de ese banco.
+MONTO_NUM = (
+    r"(?:\d{1,3}(?:[   ]\d{3})+(?!\d)(?:[.,]\d{1,2}(?!\d))?"
+    r"|[\d.,]+)"
+)
+MONTO_CIFRA = f"({MONTO_NUM})"  # la misma cifra, como grupo de captura
+
+_ESPACIOS_MILES = (" ", " ", " ")
+_CENTIMO = Decimal("0.01")
 
 
 def _normalizar_monto(s: str) -> Decimal | None:
@@ -16,7 +36,10 @@ def _normalizar_monto(s: str) -> Decimal | None:
         return None
     # rstrip: la regex del monto se lleva el punto que cierra la oración
     # ("por S/ 5.5. El cód..." -> "5.5."), que no es un decimal válido.
-    s = s.strip().replace(" ", "").rstrip(".,")
+    s = s.strip()
+    for esp in _ESPACIOS_MILES:
+        s = s.replace(esp, "")
+    s = s.rstrip(".,")
     if "," in s and "." in s:
         if s.rfind(",") > s.rfind("."):
             s = s.replace(".", "").replace(",", ".")
@@ -28,9 +51,13 @@ def _normalizar_monto(s: str) -> Decimal | None:
         else:
             s = s.replace(",", "")
     try:
-        return Decimal(s)
+        monto = Decimal(s)
     except Exception:
         return None
+    if not monto.is_finite():
+        return None
+    # Siempre 2 decimales (la columna es NUMERIC(12,2)): "1.0" -> 1.00, "1" -> 1.00.
+    return monto.quantize(_CENTIMO, rounding=ROUND_HALF_UP)
 
 
 def _abreviar_titular(nombre: str) -> str:
@@ -82,9 +109,9 @@ def _detectar_moneda(texto: str) -> str:
 def _extraer_monto(texto: str) -> Decimal | None:
     """Extrae el primer monto en soles (S/) o dólares ($)."""
     txt = texto or ""
-    m = re.search(r"S/\.?\s*([\d.,]+)", txt)
+    m = re.search(r"S/\.?\s*" + MONTO_CIFRA, txt)
     if not m:
-        m = re.search(r"\$\s*([\d.,]+)", txt)
+        m = re.search(r"\$\s*" + MONTO_CIFRA, txt)
     return _normalizar_monto(m.group(1)) if m else None
 
 
@@ -178,7 +205,7 @@ def parse_yape(package: str, titulo: str, texto: str) -> dict | None:
     # ============ TITULAR EN EGRESOS: "Yapeaste S/ X a NOMBRE" ============
     if es_egreso:
         m = re.search(
-            rf"yapeaste\s+S/\.?\s*[\d.,]+\s+a\s+({NOMBRE_INICIO}[{NOMBRE_CHARS}\s.*]+?)(?:\.|,|$)",
+            rf"yapeaste\s+S/\.?\s*{MONTO_NUM}\s+a\s+({NOMBRE_INICIO}[{NOMBRE_CHARS}\s.*]+?)(?:\.|,|$)",
             texto,
             re.IGNORECASE,
         )
@@ -282,7 +309,7 @@ def parse_plin(package: str, titulo: str, texto: str) -> dict | None:
     # ============ TITULAR EN EGRESOS: "Plineaste S/ X a NOMBRE" ============
     if es_egreso:
         m = re.search(
-            rf"plineaste\s+S/\.?\s*[\d.,]+\s+a\s+({NOMBRE_INICIO}[{NOMBRE_CHARS}\s.*]+?)(?:\.|,|$)",
+            rf"plineaste\s+S/\.?\s*{MONTO_NUM}\s+a\s+({NOMBRE_INICIO}[{NOMBRE_CHARS}\s.*]+?)(?:\.|,|$)",
             texto,
             re.IGNORECASE,
         )
@@ -406,7 +433,7 @@ def parse_interbank(package: str, titulo: str, texto: str) -> dict | None:
 #   "TRAN S/ 10.00\nA ****534\n(25/10 08:48:33)"
 # La hora del aviso va en 12 h sin AM/PM: no se usa (vale la de llegada).
 _RE_INTERBANK_TRAN = re.compile(
-    r"^\s*TRAN\s+(S/\.?|US\$|\$)\s*([\d.,]+)\s+A\s+([*•]{2,}\d{2,4})\b",
+    r"^\s*TRAN\s+(S/\.?|US\$|\$)\s*" + MONTO_CIFRA + r"\s+A\s+([*•]{2,}\d{2,4})\b",
 )
 
 
@@ -462,7 +489,7 @@ def _parse_billetera_generica(
         return None
 
     monto = None
-    m = re.search(r"S/\.?\s*([\d.,]+)", texto)
+    m = re.search(r"S/\.?\s*" + MONTO_CIFRA, texto)
     if m:
         monto = _normalizar_monto(m.group(1))
     if monto is None:
