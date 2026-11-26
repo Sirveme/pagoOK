@@ -131,15 +131,14 @@ async def inbound(
         if usados >= MAX_PRUEBAS_POR_HORA:
             raise HTTPException(429, f"Límite de pagos de prueba por hora alcanzado ({MAX_PRUEBAS_POR_HORA}).")
 
-    # 3) Dedup por sbn_key (si la app reintenta y manda el mismo, no duplicamos)
-    if sbn_key:
-        existente = db.query(NotificacionRaw).filter(
-            NotificacionRaw.empresa_id == dispositivo.empresa_id,
-            NotificacionRaw.sbn_key == sbn_key,
-        ).first()
-        if existente:
-            logger.info(f"Dedup sbn_key={sbn_key}, ya existía como raw_id={existente.id}")
-            return {"status": "duplicado", "raw_id": existente.id}
+    # 3) Dedup por empresa + sbn_key + hora del celular (si la app reintenta y
+    #    manda el mismo, no duplicamos; una clave reutilizada por el banco con
+    #    otra hora es un aviso NUEVO). Ver app/services/dedup_aviso.py.
+    from app.services.dedup_aviso import buscar_aviso_duplicado
+    existente = buscar_aviso_duplicado(db, dispositivo, sbn_key, ts_celular, texto, package)
+    if existente:
+        logger.info(f"Dedup sbn_key={sbn_key}, ya existía como raw_id={existente.id}")
+        return {"status": "duplicado", "raw_id": existente.id}
 
     # 4) Crear raw. `timestamp_servidor` = hora de RECEPCIÓN (la del pago va en
     #    pago_detectado.recibido_en y puede ser anterior si el aviso fue recuperado).

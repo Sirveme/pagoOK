@@ -452,16 +452,11 @@ async def aviso_no_reconocido(
         logger.info(log_aviso("Egreso no reconocido descartado", dispositivo, package, "descartado", texto))
         return {"status": "descartado"}
 
-    # Dedup por sbn_key (si la app reintenta, no duplicamos el aviso).
-    if sbn_key:
-        existente = (
-            db.query(NotificacionRaw)
-            .filter(NotificacionRaw.empresa_id == dispositivo.empresa_id,
-                    NotificacionRaw.sbn_key == sbn_key)
-            .first()
-        )
-        if existente:
-            return {"status": "duplicado", "raw_id": existente.id}
+    # Dedup por empresa + sbn_key + hora del celular (mismo criterio que inbound).
+    from app.services.dedup_aviso import buscar_aviso_duplicado
+    existente = buscar_aviso_duplicado(db, dispositivo, sbn_key, data.get("timestamp_celular"), texto, package)
+    if existente:
+        return {"status": "duplicado", "raw_id": existente.id}
 
     raw = NotificacionRaw(
         empresa_id=dispositivo.empresa_id,
