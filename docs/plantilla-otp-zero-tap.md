@@ -61,7 +61,7 @@ ningún error: WhatsApp mostraría solo "Copiar código".
 
 | Par | Clave | Hash | Estado |
 |---|---|---|---|
-| 1 | **Firma de apps de Google Play**, no la de subida | `<HASH_PLAY>` | Pendiente: lo trae el reporte de zStore-16 (app 1.9.0) |
+| 1 | **Firma de apps de Google Play**, no la de subida | `3jVoBDaI/qp` | Del reporte de zStore-16 (27-nov-2026) |
 | 2 | Debug (`%USERPROFILE%\.android\debug.keystore` de este PC) | `Z/ys4SOz6I6` | Calculado con `pro.pagook.app` |
 
 El hash depende del paquete: si el paquete cambia, hay que calcularlo de nuevo.
@@ -103,7 +103,7 @@ PC. Una build de debug hecha en otra máquina tiene otro hash.
           "autofill_text": "Autocompletar",
           "zero_tap_terms_accepted": true,
           "supported_apps": [
-            { "package_name": "pro.pagook.app", "signature_hash": "<HASH_PLAY>" },
+            { "package_name": "pro.pagook.app", "signature_hash": "3jVoBDaI/qp" },
             { "package_name": "pro.pagook.app", "signature_hash": "Z/ys4SOz6I6" }
           ]
         }
@@ -129,7 +129,7 @@ PC. Una build de debug hecha en otra máquina tiene otro hash.
 
 ## 4. Comando de creación (no lo corrí)
 
-Guarda el JSON del paso 3, con los hashes ya puestos, como `plantilla.json`, y
+Guarda el JSON del paso 3 como `plantilla.json`, y
 corre:
 
 ```bash
