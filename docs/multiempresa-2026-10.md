@@ -44,6 +44,7 @@ zStore-05. La app 1.5.x sigue funcionando igual y cae en `perusistemas`.
 | `WA_OTP_PLANTILLA` | Nombre de la plantilla AUTHENTICATION aprobada (ej. `pagook_codigo`) | Envío del OTP. |
 | `WA_OTP_IDIOMA` | `es` (o el código con el que se aprobó la plantilla) | |
 | `WA_OTP_BOTON` | `1` | Las plantillas AUTHENTICATION llevan botón "Copiar código". |
+| `OTP_PLANTILLA_APP` | `pagook_acceso_app` (zero-tap) | Solo `/api/v1/app/acceso/solicitar`; vacía o rechazada por Meta = `WA_OTP_PLANTILLA`. Ver `docs/plantilla-otp-zero-tap.md`. |
 | `GRAPH_API_VERSION` | `v23.0` | |
 | `SLUGS_DEMO` | `perusistemas` | Únicos slugs con pantalla pública `/{slug}` y `/api/v1/demo/{slug}`. Cualquier otro: 404. En `/testers` solo estos se enlazan. |
 | `ADMIN_TOKEN` | (ya existe) | Ahora también protege `/admin/empresas/nuevas` (`?token=`). Si está vacío, la ruta queda cerrada. |

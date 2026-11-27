@@ -95,6 +95,8 @@ Con `?pais=PE`, devuelve el objeto de ese país al primer nivel más `rubros`,
 {"ok": true, "modo": "otp", "mensaje": "Te enviamos un código por WhatsApp al +51 ••• ••• 321.", "vence_en_seg": 300}
 ```
 
+El código llega con la plantilla zero-tap `OTP_PLANTILLA_APP` (o la de siempre como respaldo); el contrato no cambia. Ver `docs/plantilla-otp-zero-tap.md`.
+
 **Revisor de Google**: si el número es el ficticio de revisión, no se envía nada por WhatsApp:
 
 ```json

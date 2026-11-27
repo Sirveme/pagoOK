@@ -18,6 +18,7 @@ from __future__ import annotations
 import hmac
 import logging
 import os
+import time
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -175,13 +176,15 @@ class WhatsAppEnviador(EnviadorOTP):
     "Copiar código"; WA_OTP_BOTON=0 lo omite si la plantilla no tiene botón.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, plantilla: str | None = None, con_boton: bool | None = None) -> None:
         self.token = os.getenv("WA_ACCESS_TOKEN", "").strip()
         self.phone_number_id = os.getenv("WA_PHONE_NUMBER_ID", "").strip()
-        self.plantilla = os.getenv("WA_OTP_PLANTILLA", "").strip()
+        self.plantilla = (plantilla if plantilla is not None else os.getenv("WA_OTP_PLANTILLA", "")).strip()
         self.idioma = os.getenv("WA_OTP_IDIOMA", "es").strip() or "es"
         self.version = os.getenv("GRAPH_API_VERSION", "v23.0").strip() or "v23.0"
-        self.con_boton = os.getenv("WA_OTP_BOTON", "1").strip() not in ("0", "false", "no")
+        if con_boton is None:
+            con_boton = os.getenv("WA_OTP_BOTON", "1").strip() not in ("0", "false", "no")
+        self.con_boton = con_boton
 
     def configurado(self) -> bool:
         return bool(self.token and self.phone_number_id and self.plantilla)
@@ -206,6 +209,67 @@ class WhatsAppEnviador(EnviadorOTP):
             celular_e164, self.plantilla, self.idioma, self._componentes(codigo))
 
 
+# =============================================================
+# PLANTILLA DE LA APP (zWeb-16): zero-tap / one-tap
+# =============================================================
+# OTP_PLANTILLA_APP = nombre de la plantilla AUTHENTICATION con botón zero_tap
+# (pagook_acceso_app, ver docs/plantilla-otp-zero-tap.md). Solo la usa
+# /api/v1/app/acceso/solicitar; el panel y las invitaciones siguen con
+# WA_OTP_PLANTILLA. El payload de envío es el mismo (cuerpo + botón con el
+# código): en Android, WhatsApp entrega el código a la app sin que se lea.
+#
+# Respaldo: si Meta rechaza la plantilla nueva por un error de plantilla
+# (132xxx: no existe, no aprobada, pausada, parámetros), se reenvía con
+# WA_OTP_PLANTILLA y la nueva se salta durante PAUSA_PLANTILLA_APP para no
+# duplicar intentos. Un envío rechazado no se cobra.
+
+PAUSA_PLANTILLA_APP = 600  # segundos
+_plantilla_app_pausada_hasta: dict[str, float] = {}
+
+
+def reiniciar_plantilla_app() -> None:
+    """Olvida las pausas de la plantilla de la app (tests)."""
+    _plantilla_app_pausada_hasta.clear()
+
+
+def _es_error_de_plantilla(error: dict | None) -> bool:
+    code = (error or {}).get("code")
+    try:
+        return 132000 <= int(code) <= 132999
+    except (TypeError, ValueError):
+        return False
+
+
+class EnviadorApp(EnviadorOTP):
+    """Plantilla zero-tap de la app, con respaldo en la plantilla actual."""
+
+    def __init__(self, principal: WhatsAppEnviador, respaldo: WhatsAppEnviador) -> None:
+        self.principal = principal
+        self.respaldo = respaldo
+        self.ultima_plantilla: str | None = None
+
+    def _pausada(self) -> bool:
+        return _plantilla_app_pausada_hasta.get(self.principal.plantilla, 0) > time.monotonic()
+
+    def enviar(self, celular_e164: str, codigo: str) -> bool:
+        return self.enviar_detalle(celular_e164, codigo)["ok"]
+
+    def enviar_detalle(self, celular_e164: str, codigo: str) -> dict:
+        if not self._pausada():
+            res = self.principal.enviar_detalle(celular_e164, codigo)
+            if res.get("ok") or not _es_error_de_plantilla(res.get("error")):
+                self.ultima_plantilla = self.principal.plantilla
+                return res
+            _plantilla_app_pausada_hasta[self.principal.plantilla] = time.monotonic() + PAUSA_PLANTILLA_APP
+            logger.warning(
+                "WhatsApp: plantilla de la app '%s' rechazada (code=%s); se usa '%s' por %s s",
+                self.principal.plantilla, (res.get("error") or {}).get("code"),
+                self.respaldo.plantilla, PAUSA_PLANTILLA_APP,
+            )
+        self.ultima_plantilla = self.respaldo.plantilla
+        return self.respaldo.enviar_detalle(celular_e164, codigo)
+
+
 _enviador_forzado: EnviadorOTP | None = None
 
 
@@ -224,6 +288,23 @@ def obtener_enviador() -> EnviadorOTP:
     if es_desarrollo():
         return DevEnviador()
     raise OtpNoDisponible("WhatsApp no configurado")
+
+
+def obtener_enviador_app() -> EnviadorOTP:
+    """Enviador para /api/v1/app/acceso/solicitar (zWeb-16).
+
+    Con OTP_PLANTILLA_APP y WhatsApp configurado: EnviadorApp (plantilla
+    zero-tap con respaldo). Sin la variable: lo mismo que obtener_enviador().
+    """
+    if _enviador_forzado is not None:
+        return _enviador_forzado
+    base = obtener_enviador()
+    nueva = os.getenv("OTP_PLANTILLA_APP", "").strip()
+    if not nueva or not isinstance(base, WhatsAppEnviador) or nueva == base.plantilla:
+        return base
+    # Las plantillas AUTHENTICATION con botón OTP (copiar, one-tap, zero-tap)
+    # siempre llevan el parámetro del botón, aunque WA_OTP_BOTON=0.
+    return EnviadorApp(WhatsAppEnviador(plantilla=nueva, con_boton=True), base)
 
 
 # =============================================================

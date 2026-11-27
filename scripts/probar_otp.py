@@ -8,6 +8,10 @@ fbtrace_id). Nunca imprime ni registra el token.
 Pensado para correr en Railway, donde están las variables WA_*:
 
     railway run python scripts/probar_otp.py --celular +51987654321
+    railway run python scripts/probar_otp.py --celular +51987654321 --app
+
+Con --app prueba SOLO la plantilla zero-tap de la app (OTP_PLANTILLA_APP), sin
+respaldo, para ver si Meta ya la acepta (zWeb-16).
 
 El código enviado es ficticio (no sirve para iniciar sesión); el objetivo es solo
 ver si el canal funciona. Tras ver el error, usa la guía que imprime el script.
@@ -72,9 +76,19 @@ def main() -> int:
                     help="Destino en formato internacional, p. ej. +51987654321")
     ap.add_argument("--codigo", default="123456",
                     help="Código de prueba a enviar (ficticio, default 123456)")
+    ap.add_argument("--app", action="store_true",
+                    help="Probar la plantilla de la app (OTP_PLANTILLA_APP) sin respaldo")
     args = ap.parse_args()
 
-    enviador = otp.WhatsAppEnviador()
+    if args.app:
+        import os
+        nueva = os.getenv("OTP_PLANTILLA_APP", "").strip()
+        if not nueva:
+            print("✗ OTP_PLANTILLA_APP está vacía: la app usa WA_OTP_PLANTILLA.")
+            return 2
+        enviador = otp.WhatsAppEnviador(plantilla=nueva, con_boton=True)
+    else:
+        enviador = otp.WhatsAppEnviador()
     print("Configuración WhatsApp:")
     print(f"  plantilla:       {enviador.plantilla or '(vacía)'}")
     print(f"  idioma:          {enviador.idioma}")

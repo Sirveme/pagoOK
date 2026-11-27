@@ -39,7 +39,7 @@ from app.api.router_vinculacion import datos_empresa_publicos, vincular_equipo
 from app.services import cuenta_empresa, registro_paises, revision
 from app.services.otp import (
     MAX_OTP_POR_CELULAR, VIGENCIA_OTP, OtpDemasiados, OtpNoDisponible, emitir_otp,
-    obtener_enviador, verificar_otp,
+    obtener_enviador_app, verificar_otp,
 )
 from app.services.secretos import enmascarar_celular, generar_token, hash_token
 
@@ -265,7 +265,7 @@ async def acceso_solicitar(request: Request, db: Session = Depends(get_db)):
 
     celular = _celular(cfg, data.get("celular"))
     try:
-        enviador = obtener_enviador()
+        enviador = obtener_enviador_app()  # zero-tap (OTP_PLANTILLA_APP) con respaldo
     except OtpNoDisponible:
         _error(503, "otp_no_disponible", "El envío de códigos no está disponible en este momento.")
 
